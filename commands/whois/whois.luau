@@ -1,6 +1,7 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 --local commandOptionBuilder = require "@discord-types/builders/interaction/option"
 local data = require "../data"
+local interactionutils = require "../../utils/interaction"
 
 local function register() 
     return commandBuilder.new({
@@ -19,15 +20,17 @@ local function register()
             :build()      
         end
     ) 
+    :build()
 end
 
 local function run(data: data.RunData) 
-    data.ge.discord:create_message({
-        channel_id = data.interaction.channel_id or error("no channel id"),
-        data = {
-            content = "pong",
-        },
-    })
+    interactionutils.replySimple(
+        data.ge,
+        data.interaction,
+        "pong",
+        nil,
+        true
+    )
 end
 
 return {
