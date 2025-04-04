@@ -1,9 +1,8 @@
 local apiTypes = require "@discord-types/apiTypes"
 local typesext = require "@antiraid/typesext"
-local null = require "@antiraid/interop".null
 
 local function avatarUrl(user: apiTypes.UserObject)
-    if user.avatar and user.avatar ~= null then 
+    if user.avatar then 
         return "https://cdn.discordapp.com/avatars/" .. user.id .. "/" .. user.avatar .. ".png"
     end
 
