@@ -1,7 +1,9 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 --local commandOptionBuilder = require "@discord-types/builders/interaction/option"
 local data = require "../data"
+local apiTypes = require "@discord-types/apiTypes"
 local interactionutils = require "../../utils/interaction"
+local avatarUrl = require "../../utils/avatar".avatarUrl
 
 local function register() 
     return commandBuilder.new({
@@ -15,20 +17,76 @@ local function register()
         function(opt) 
             return opt
             :setType("User")
-            :setName("code")
-            :setDescription("The code to evaluate")  
+            :setName("user")
+            :setDescription("The user to get information about")  
             :build()      
         end
-    ) 
+    )
     :build()
 end
 
+-- TODO: Spruce this up with more information (e.g. what permissions they have etc)
 local function run(data: data.RunData) 
-    interactionutils.replySimple(
+    local user = data.interaction.user
+
+    local userOpt = data.command.options[1]
+    if userOpt then 
+        if userOpt.value.kind == "User" then
+            user = userOpt.value.user
+        end
+    end
+
+    if not user then 
+        return interactionutils.replySimple(
+            data.ge,
+            data.interaction,
+            nil,
+            {
+                title = "Error looking up user",
+                description = "Something went wrong while trying to find the user. Please try again?",
+            },
+            true
+        )
+    end
+
+    assert(user, "User cannot be nil at this point")
+
+    local baseFields = {
+        {
+            name = "User ID",
+            value = user.id,
+            inline = true,
+        },
+        {
+            name = "Username",
+            value = user.username,
+            inline = true,
+        }
+    }
+
+    if user.discriminator and user.discriminator ~= "0" then
+        table.insert(baseFields, {
+            name = "Discriminator",
+            value = user.discriminator,
+            inline = true,
+        })
+    end
+
+    local avatarUrl = avatarUrl(user)
+    return interactionutils.replySimple(
         data.ge,
         data.interaction,
-        "pong",
         nil,
+        {
+            {
+                title = "User Information",
+                description = "Here is the information AntiRaid has found about the user",
+                fields = baseFields,    
+                thumbnail = {
+                    url = avatarUrl,
+                },
+            }
+        } :: {apiTypes.EmbedObject},
         true
     )
 end

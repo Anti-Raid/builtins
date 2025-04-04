@@ -10,10 +10,10 @@ import pathlib
 import requests
 
 API_URL = "https://splashtail-staging.antiraid.xyz/"
-NEEDED_CAPS = ["discord:get_audit_logs", "discord:create_message"] # List of needed capabilities
+NEEDED_CAPS = ["discord:get_audit_logs", "discord:create_message", "discord:create_guild_commands", "discord:create_interaction_response", "luau:*"] # List of needed capabilities
 EVENTS = ["MESSAGE", "INTERACTION_CREATE"] # List of events to listen to
 USE_BUNDLED_TEMPLATING_TYPES = True # Use bundled types
-TEMPLATE_NAME = "templating-template" # Name of the template
+TEMPLATE_NAME = "builtins-dev" # Name of the template
 IGNORE_FILES = [
     ".env",
     ".env.sample",
@@ -29,7 +29,13 @@ IGNORE_FILES = [
 
 contents = {}
 for path in pathlib.Path(".").rglob("*"):
-    if str(path) in IGNORE_FILES:
+    ignored = False
+    for f in IGNORE_FILES:
+        if str(path).startswith(f):
+            ignored = True
+            break
+    
+    if ignored:
         continue
 
     if USE_BUNDLED_TEMPLATING_TYPES and str(path).startswith("templating-types"):

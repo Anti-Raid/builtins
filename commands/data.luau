@@ -6,7 +6,7 @@ local discordRestTypes = require "@discord-types/restTypes"
 
 export type Command = {
     register: () -> discordRestTypes.CreateGuildApplicationCommandRequest,
-    run: (data: RunData) -> (),
+    run: (data: RunData) -> any,
 }
 
 export type RunData = {
