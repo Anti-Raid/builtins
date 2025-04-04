@@ -10,7 +10,10 @@ import pathlib
 import requests
 
 API_URL = "https://splashtail-staging.antiraid.xyz/"
-NEEDED_CAPS = ["discord:get_audit_logs", "discord:create_message", "discord:create_guild_commands", "discord:create_interaction_response", "luau:*"] # List of needed capabilities
+NEEDED_CAPS = [
+    "discord:get_audit_logs", "discord:create_message", "discord:create_guild_commands", "discord:create_interaction_response", "luau:*",
+    "userinfo:get"
+] # List of needed capabilities
 EVENTS = ["MESSAGE", "INTERACTION_CREATE"] # List of events to listen to
 USE_BUNDLED_TEMPLATING_TYPES = True # Use bundled types
 TEMPLATE_NAME = "builtins-dev" # Name of the template

@@ -4,6 +4,9 @@ local data = require "../data"
 local apiTypes = require "@discord-types/apiTypes"
 local interactionutils = require "../../utils/interaction"
 local avatarUrl = require "../../utils/avatar".avatarUrl
+local promise = require "@antiraid/promise"
+local userinfoplugin = require "@antiraid/userinfo"
+local kc = require "@antiraid-core/kittycat"
 
 local function register() 
     return commandBuilder.new({
@@ -51,6 +54,8 @@ local function run(data: data.RunData)
 
     assert(user, "User cannot be nil at this point")
 
+    local userinfook, userinfo = pcall(promise.yield, data.ge.userinfo:get(user.id))
+
     local baseFields = {
         {
             name = "User ID",
@@ -68,6 +73,27 @@ local function run(data: data.RunData)
         table.insert(baseFields, {
             name = "Discriminator",
             value = user.discriminator,
+            inline = true,
+        })
+    end
+
+    if userinfook then 
+        userinfo = userinfo :: userinfoplugin.UserInfo
+
+        local resolvedPerms = {}
+        for _, perm in userinfo.kittycat_resolved_permissions do 
+            table.insert(resolvedPerms, "``" .. tostring(kc.Permission.from_tab(perm)) .. "``")
+        end
+
+        local permsList: string = table.concat(resolvedPerms, ", ")
+
+        if string.len(permsList) > 1024 then
+            permsList = string.sub(permsList, 1, 1024) .. "..."
+        end
+
+        table.insert(baseFields, {
+            name = "Resolved Permissions",
+            value = permsList,
             inline = true,
         })
     end
