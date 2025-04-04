@@ -7,6 +7,8 @@ local avatarUrl = require "../../utils/avatar".avatarUrl
 local promise = require "@antiraid/promise"
 local userinfoplugin = require "@antiraid/userinfo"
 local kc = require "@antiraid-core/kittycat"
+local permissions = require "@discord-types/permission"
+local permissionsFromBf = permissions.fromBitFlag
 
 local function register() 
     return commandBuilder.new({
@@ -25,17 +27,58 @@ local function register()
             :build()      
         end
     )
+    :option(
+        function(opt) 
+            return opt
+            :setType("Boolean")
+            :setName("ephemeral")
+            :setDescription("Whether to make the response ephemeral or not")
+            :build()
+        end
+    )
     :build()
+end
+
+local function dangerousPerms(discordPerms: {permissions.Permissions}): {permissions.Permissions} 
+    local dangerPermsFound = {}
+    for _, perm in discordPerms do
+        if perm == "Administrator"
+        or perm == "BanMembers"
+        or perm == "KickMembers"
+        or perm == "ManageChannels"
+        or perm == "ManageGuild"
+        or perm == "ManageRoles"
+        or perm == "ManageMessages"
+        or perm == "ManageNicknames"
+        or perm == "ManageWebhooks"
+        or perm == "ManageEmojisAndStickers" -- TODO: Rethink ManageEmojisAndStickers being dangerous
+        or perm == "ManageEvents"
+        or perm == "ManageThreads"
+        or perm == "MentionEveryone"
+        or perm == "ModerateMembers"
+        then
+            table.insert(dangerPermsFound, perm)
+        end
+    end
+
+    return dangerPermsFound
 end
 
 -- TODO: Spruce this up with more information (e.g. what permissions they have etc)
 local function run(data: data.RunData) 
     local user = data.interaction.user
+    local isResponseEphemeral = false
 
-    local userOpt = data.command.options[1]
-    if userOpt then 
-        if userOpt.value.kind == "User" then
-            user = userOpt.value.user
+    -- Parse options
+    for _, opt in data.command.options do 
+        if opt.name == "user" then 
+            if opt.value.kind == "User" then
+                user = opt.value.user
+            end
+        elseif opt.name == "ephemeral" then
+            if opt.value.kind == "Boolean" then
+                isResponseEphemeral = opt.value.value
+            end
         end
     end
 
@@ -80,22 +123,61 @@ local function run(data: data.RunData)
     if userinfook then 
         userinfo = userinfo :: userinfoplugin.UserInfo
 
+        -- Add in resolved antiraid permissions
         local resolvedPerms = {}
         for _, perm in userinfo.kittycat_resolved_permissions do 
             table.insert(resolvedPerms, "``" .. tostring(kc.Permission.from_tab(perm)) .. "``")
         end
 
-        local permsList: string = table.concat(resolvedPerms, ", ")
+        if #resolvedPerms > 0 then
+            local permsList: string = table.concat(resolvedPerms, ", ")
 
-        if string.len(permsList) > 1024 then
-            permsList = string.sub(permsList, 1, 1024) .. "..."
+            -- Limit to 1024 characters
+            if string.len(permsList) > 1024 then
+                permsList = string.sub(permsList, 1, 1024) .. "..."
+            end
+
+            -- Add
+            table.insert(baseFields, {
+                name = "Anti-Raid Permissions",
+                value = permsList,
+                inline = true,
+            })
         end
 
-        table.insert(baseFields, {
-            name = "Resolved Permissions",
-            value = permsList,
-            inline = true,
-        })
+        -- Add in discord permissions as a string
+        local discordPerms = permissionsFromBf(userinfo.discord_permissions)
+
+        if #discordPerms > 0 then
+            local dangerPermsFound = dangerousPerms(discordPerms)
+
+            if #dangerPermsFound > 0 then
+                local dangerPermsList: string = "- " .. table.concat(dangerPermsFound, "\n- ")
+
+                -- Limit to 800 characters
+                if string.len(dangerPermsList) > 800 then
+                    dangerPermsList = string.sub(dangerPermsList, 1, 800) .. "..."
+                end
+
+                table.insert(baseFields, {
+                    name = "Dangerous Permissions",
+                    value = dangerPermsList,
+                    inline = false,
+                })
+            else
+                table.insert(baseFields, {
+                    name = "Dangerous Permissions",
+                    value = ":white_check_mark: None",
+                    inline = false,
+                })
+            end
+        else 
+            table.insert(baseFields, {
+                name = "Dangerous Permissions",
+                value = ":white_check_mark: None",
+                inline = false,
+            })
+        end
     end
 
     local avatarUrl = avatarUrl(user)
@@ -113,7 +195,7 @@ local function run(data: data.RunData)
                 },
             }
         } :: {apiTypes.EmbedObject},
-        true
+        isResponseEphemeral
     )
 end
 
