@@ -3,6 +3,7 @@ local promise = require "@antiraid/promise"
 local Primitives = require "@antiraid-core/primitives"
 local Message = require "@antiraid-ext/events/discord/Message"
 local InteractionCreate = require "@antiraid-ext/events/discord/InteractionCreate"
+local ScheduledExecution = require "@antiraid-ext/events/antiraid/ScheduledExecution"
 local appcommands = require"@antiraid-ext/appcommands"
 local commands = require "./commands/commands"
 local data = require "./commands/data"
@@ -145,4 +146,30 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
     }
 
     command.run(runData)
+end)
+
+ScheduledExecution(evt, function(data) 
+    -- Split by :
+    local id = data.id:split(":")
+    if #id ~= 2 then
+        return
+    end
+
+    local command = commands.commands[id[1]]
+
+    if not command then
+        return
+    end
+
+    if not command.scheduledexec then
+        return
+    end
+
+    command.scheduledexec({
+        ctx = ctx,
+        event = evt,
+        scheduledExecData = data,
+        scheduledExecId = id[2],
+        ge = ge,
+    })
 end)

@@ -7,6 +7,7 @@ local promise = require "@antiraid/promise"
 local array_mt = require "@antiraid/interop".array_metatable
 
 local function reply(ge: executor.GlobalExecutor, interaction: discord.InteractionObject, data: discordRestTypes.CreateInteractionRequest)
+    assert(array_mt, "array_mt is not set")
     return promise.yield(ge.discord:create_interaction_response({
         interaction_id = interaction.id,
         interaction_token = interaction.token,
@@ -22,7 +23,7 @@ local function replySimple(ge: executor.GlobalExecutor, interaction: discord.Int
     return reply(ge, interaction, {
         type = InteractionCallbackType.ChannelMessageWithSource,
         data = {
-            content = content,
+            content = content or nil,
             embeds = setmetatable(embeds, array_mt),
             flags = flags.flag
         },

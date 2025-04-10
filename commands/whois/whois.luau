@@ -180,6 +180,8 @@ local function run(data: data.RunData)
         end
     end
 
+    --local ok, userStingCount = data.ge.stings:
+
     local avatarUrl = avatarUrl(user)
     return interactionutils.replySimple(
         data.ge,
