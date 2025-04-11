@@ -125,8 +125,7 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
     end
 
     local command = commands.commands[parsedcmd.baseName]
-    if not command then 
-        error("Command " .. parsedcmd.baseName .. " not found")
+    if not command then -- Likely another template's command
         return 
     end
 
