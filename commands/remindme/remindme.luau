@@ -34,6 +34,15 @@ local function register()
             :build()      
         end
     )
+    :option(
+        function(opt) 
+            return opt
+            :setType("Boolean")
+            :setName("ephemeral")
+            :setDescription("Whether to make the response ephemeral or not")
+            :build()
+        end
+    )
     :build()
 end
 
@@ -41,6 +50,7 @@ local function run(data: data.RunData): nil
     local user = data.interaction.user
     local message: string? = nil
     local stime: number? = nil
+    local isResponseEphemeral = false
 
     -- Parse options
     for _, opt in data.command.options do 
@@ -53,6 +63,12 @@ local function run(data: data.RunData): nil
         if opt.name == "time" then
             if opt.value.kind == "String" then
                 stime = parseunit(opt.value.value)
+            end
+        end
+
+        if opt.name == "ephemeral" then
+            if opt.value.kind == "Boolean" then
+                isResponseEphemeral = opt.value.value
             end
         end
     end  
@@ -68,7 +84,7 @@ local function run(data: data.RunData): nil
                     description = "Something went wrong while trying to find message and time. Please try again?",
                 },
             },
-            true
+            isResponseEphemeral
         )
     end
 
@@ -80,6 +96,7 @@ local function run(data: data.RunData): nil
             user_id = user.id,
             channel_id = data.interaction.channel_id or error("Channel ID is nil"),
             message = message,
+            ephemeral = isResponseEphemeral,
         },
         run_at = tostring(
             dt
@@ -96,7 +113,7 @@ local function run(data: data.RunData): nil
                 description = "You will be reminded at <t:" .. dt.timestamp_seconds .. ">",
             },
         },
-        true
+        isResponseEphemeral
     )
 end
 

@@ -5,6 +5,10 @@ local Message = require "@antiraid-ext/events/discord/Message"
 local InteractionCreate = require "@antiraid-ext/events/discord/InteractionCreate"
 local ScheduledExecution = require "@antiraid-ext/events/antiraid/ScheduledExecution"
 local appcommands = require"@antiraid-ext/appcommands"
+local interactionutils = require"./utils/interaction"
+local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
+local ButtonBuilder = require"@discord-types/builders/message/components/button"
+local apiTypes = require"@discord-types/apiTypes"
 local commands = require "./commands/commands"
 local data = require "./commands/data"
 local luau = require "@antiraid/luau"
@@ -12,6 +16,8 @@ local toArray = require "@antiraid-ext/array".toArray
 local apitypes = require "@discord-types/apiTypes"
 local string_startswith = require "@antiraid-ext/strings/startswith"
 local serde = require "@lune/serde"
+local ds = require "@antiraid/datastores"
+local stingmanager = require "./utils/stingmanager"
 
 local evt: Primitives.Event, ctx: Primitives.TemplateContext = ...
 
@@ -51,10 +57,16 @@ Message(evt, function(msg)
             table.insert(commandList, cmd)
         end
 
+        local cmdList = serde.encode("json", commandList :: any)
+        if #cmdList > 2000 then
+            -- Limit to 1997 chars and add a ... at the end
+            cmdList = cmdList:sub(1, 1997) .. "..."
+        end
+
         promise.yield(ge.discord:create_message({
             channel_id = msg.channel_id,
             data = {
-                content = serde.encode("json", commandList :: any),
+                content = cmdList,
             }
         }))
 
@@ -141,10 +153,61 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
         event = evt,
         command = parsedcmd,    
         interaction = interaction,
+        stingManager = stingmanager(ctx),
         ge = ge,
     }
 
-    command.run(runData)
+    local ok, err = pcall(command.run, runData)
+    if not ok then 
+        err = tostring(err) :: string
+        if #err > 2000 then 
+            -- Limit to 1997 chars and add a ... at the end
+            err = err:sub(1, 1997) .. "..."
+        end
+
+        local comps = nil
+        if ge.datastores.LinksStore then 
+            local linksstore = ge.datastores.LinksStore :: ds.LinksStore
+            comps = {
+                ActionRowBuilder.new()
+                :addComponent(
+                    ButtonBuilder.new()
+                    :setStyle("Blurple")
+                    :setLabel("Support Server")
+                    :setUrl(linksstore.links().support_server)
+                    :build()
+                )
+                :build() :: apiTypes.ComponentObjects
+            }
+        end
+
+        -- Check if ephemeral or nor
+        local isResponseEphemeral = false
+
+        -- Parse options
+        for _, opt in parsedcmd.options do 
+            if opt.name == "ephemeral" then
+                if opt.value.kind == "Boolean" then
+                    isResponseEphemeral = opt.value.value
+                end
+            end
+        end    
+
+        interactionutils.replySimple(
+            ge,
+            interaction,
+            nil,
+            {
+                {
+                    title = "Something happened!",
+                    description = "Something happened while trying to process your request. If the problem persists, **please report it to our Support Server**\n```lua\n" .. debug.traceback(err) .. "\n```",
+                    color = 0xFF0000,
+                }
+            } :: {apiTypes.EmbedObject},
+            isResponseEphemeral,
+            comps
+        )
+    end
 end)
 
 ScheduledExecution(evt, function(data) 

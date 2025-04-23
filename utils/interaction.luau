@@ -15,7 +15,7 @@ local function reply(ge: executor.GlobalExecutor, interaction: discord.Interacti
     }))
 end
 
-local function replySimple(ge: executor.GlobalExecutor, interaction: discord.InteractionObject, content: string?, embeds: {discord.EmbedObject}?, ephemeral: boolean?)
+local function replySimple(ge: executor.GlobalExecutor, interaction: discord.InteractionObject, content: string?, embeds: {discord.EmbedObject}?, ephemeral: boolean?, components: {discord.ComponentObjects}?)
     local flags = MessageFlags.new(0)
     if ephemeral then
         flags:setEphemeral()
@@ -24,8 +24,9 @@ local function replySimple(ge: executor.GlobalExecutor, interaction: discord.Int
         type = InteractionCallbackType.ChannelMessageWithSource,
         data = {
             content = content or nil,
-            embeds = setmetatable(embeds, array_mt),
-            flags = flags.flag
+            embeds = if embeds then setmetatable(embeds, array_mt) else nil,
+            flags = flags.flag,
+            components = if components then setmetatable(components, array_mt) else nil,
         },
     } :: discordRestTypes.CreateInteractionRequest)
 end

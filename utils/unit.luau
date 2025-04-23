@@ -49,8 +49,11 @@ local function parseToSeconds(input: string): number
             totalSeconds += number * 3600
         elseif unit == "d" or unit == "ds" or unit == "day" or unit == "days" then
             totalSeconds += number * 86400
+        elseif not unit then
+            -- No unit, assume seconds
+            totalSeconds += number
         else 
-            error("Invalid unit: " .. unit)
+            error("Invalid unit: " .. tostring(unit))
         end
     end
 

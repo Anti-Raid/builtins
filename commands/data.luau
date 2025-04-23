@@ -4,6 +4,7 @@ local executor = require "@antiraid-ext/executor"
 local discord = require "@discord-types/apiTypes"
 local discordRestTypes = require "@discord-types/restTypes" 
 local events = require "@antiraid-core/events"
+local stingmanager = require "../utils/stingmanager"
 
 export type Command = {
     register: () -> discordRestTypes.CreateGuildApplicationCommandRequest,
@@ -24,6 +25,7 @@ export type RunData = {
     event: primitives.Event, 
     interaction: discord.InteractionObject,
     ge: executor.GlobalExecutor,
+    stingManager: stingmanager.StingManager,
     command: appcommands.ParsedApplicationCommand
 }
 
