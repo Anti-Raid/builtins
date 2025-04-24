@@ -29,12 +29,22 @@ export type CreateSting = {
 export type StingManager = {
     --- Gets all the stings a user has accrued
     getStingsOnUser: (userId: discord.Snowflake) -> {Sting},
+    --- Gets a single sting by its ID
+    getSting: (userId: discord.Snowflake, stingId: string) -> Sting?,
     --- Creates a new sting for a user returning a Sting
     createUserSting: (sting: CreateSting) -> Sting,
     --- Returns the expiration of a sting. If no expiration is set, returns nil
-    getStingExpiration: (sting: Sting) -> (string?, datetime.DateTime?),
+    getStingExpiration: (userId: discord.Snowflake, stingId: string) -> (string?, datetime.DateTime?),
     --- Sets the expiration of a sting. Repeated calls override previous expiration
-    setStingExpiration: (sting: Sting, reason: string, expiresAt: datetime.DateTime) -> (),
+    setStingExpiration: (userId: discord.Snowflake, stingId: string, reason: string, expiresAt: datetime.DateTime) -> (),
+    --- Deletes the expiration of a sting
+    deleteStingExpiration: (userId: discord.Snowflake, stingId: string) -> (),
+    --- Deletes a sting. Note that this does not delete the expiration task (use fullyDeleteSting for that)
+    deleteSting: (userId: discord.Snowflake, stingId: string) -> (),
+    --- Fully deletes a sting and its expiration task and anything else needed
+    fullyDeleteSting: (userId: discord.Snowflake, stingId: string) -> (),
+    --- Given a scheduled execution ID corresponding to a sting expiry, return the user id and sting id
+    getStingFromScheduledExecId: (scheduledExecId: string) -> (discord.Snowflake?, string?),
 }
 
 local function StingManager(ctx: Primitives.TemplateContext): StingManager
@@ -46,7 +56,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
     local kv = kv.new(ctx, nil, "builtins.stings")
     local scheduledExec = scheduledexec.new(ctx)
 
-    local function getStingExpiration(sting: Sting): (string?, datetime.DateTime?)
+    local function getStingExpiration(userId: discord.Snowflake, stingId: string): (string?, datetime.DateTime?)
         local function extractStingExpiration(exp: scheduledexec.ScheduledExecution): datetime.DateTime?
             local ok, expiresAt = pcall(datetime.UTC.fromString, datetime.UTC, exp.run_at)
             if not ok then
@@ -55,7 +65,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
             return expiresAt :: datetime.DateTime
         end 
         
-        local stingExpirationTask = promise.yield(scheduledExec:list(`${sting.userId}/${sting.stingId}`))
+        local stingExpirationTask = promise.yield(scheduledExec:list(`builtins.stings/{userId}/{stingId}`))
         if not stingExpirationTask or #stingExpirationTask == 0 then
             return nil, nil
         end
@@ -82,17 +92,48 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         return reason, taskExpiresAt
     end
 
-    local function setStingExpiration(sting: Sting, reason: string, expiresAt: datetime.DateTime)
+    local function setStingExpiration(userId: discord.Snowflake, stingId: string, reason: string, expiresAt: datetime.DateTime)
         -- Remove the old expiration task if any
-        promise.yield(scheduledExec:remove(`${sting.userId}/${sting.stingId}`))
+        promise.yield(scheduledExec:remove(`builtins.stings/{userId}/{stingId}`))
         -- Create a new expiration task
         promise.yield(scheduledExec:add({
-            id = `${sting.userId}/${sting.stingId}`,
+            id = `builtins.stings/{userId}/{stingId}`,
             data = {
                 reason = reason,
             },
             run_at = tostring(expiresAt),
         }))
+    end
+
+    local function deleteStingExpiration(userId: discord.Snowflake, stingId: string)
+        -- Remove the expiration task
+        promise.yield(scheduledExec:remove(`builtins.stings/{userId}/{stingId}`))
+    end
+
+    local function getStingFromScheduledExecId(scheduledExecId: string): (discord.Snowflake?, string?)
+        -- Ensure it starts with builtins.stings/
+        local f, _ = scheduledExecId:find("builtins.stings/")
+        if f ~= 1 then
+            return nil, nil
+        end
+        
+        -- Extract the userId and stingId
+        local userId, stingId = scheduledExecId:match("builtins.stings/(%d+)/(%w+)")
+        if not userId or not stingId then
+            return nil, nil
+        end
+
+        return userId, stingId
+    end
+
+    local function deleteSting(userId: discord.Snowflake, stingId: string)
+        -- Delete the sting
+        promise.yield(kv:delete(`builtins.stings/{userId}/{stingId}`))
+    end
+
+    local function fullyDeleteSting(userId: discord.Snowflake, stingId: string)
+        deleteSting(userId, stingId)
+        deleteStingExpiration(userId, stingId)
     end
 
     local function getStingsOnUser(userId: discord.Snowflake): {Sting}
@@ -131,6 +172,36 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         return stingList
     end
 
+    local function getSting(userId: discord.Snowflake, stingId: string): Sting?
+        local sting = promise.yield(kv:get(`{userId}/{stingId}`))
+        if not sting then
+            return nil
+        end
+
+        local reason: string = sting.value.reason
+        local modId: discord.Snowflake? = sting.value.modId
+        local stingNo = sting.value.stings or 1
+        local createdAt = datetime.UTC:fromString(sting.created_at)
+        -- TODO: Support expires_at later
+        if type(stingId) ~= "string" or type(reason) ~= "string" then
+            -- Delete the corrupt sting
+            promise.yield(kv:delete(sting.key))
+        end
+
+        if modId and type(modId) ~= "string" then
+            modId = nil
+        end
+        
+        return {
+            stingId = stingId,
+            userId = userId,
+            reason = reason,
+            modId = modId,
+            stings = stingNo,
+            created_at = createdAt,
+        } :: Sting
+    end
+
     local function createUserSting(sting: CreateSting): Sting
         local stingId = typesext.randstring(16)
 
@@ -157,6 +228,11 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
     self.getStingExpiration = getStingExpiration
     self.setStingExpiration = setStingExpiration
     self.createUserSting = createUserSting
+    self.deleteStingExpiration = deleteStingExpiration
+    self.deleteSting = deleteSting
+    self.fullyDeleteSting = fullyDeleteSting
+    self.getStingFromScheduledExecId = getStingFromScheduledExecId
+    self.getSting = getSting
 
     return self :: StingManager
 end

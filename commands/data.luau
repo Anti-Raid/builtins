@@ -17,6 +17,7 @@ export type ScheduledExecRunData = {
     event: primitives.Event,
     scheduledExecData: events.ScheduledExecutionEventData,
     scheduledExecId: string,
+    stingManager: stingmanager.StingManager,
     ge: executor.GlobalExecutor,
 }
 

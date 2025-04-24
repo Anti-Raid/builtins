@@ -45,14 +45,33 @@ local function run(data: data.RunData): nil
 
     local stingEmbeds = {}
     for _, sting in stings do
+        local fields = {
+            { name = "Sting Count", value = tostring(sting.stings), inline = true },
+            { name = "Moderator", value = if sting.modId then "<@" .. sting.modId .. ">" else "System", inline = true },
+            { name = "Creation Date", value = "<t:" .. sting.created_at.timestamp_seconds .. ">", inline = true },
+        }
+
+        if #stings < 5 then 
+            local _, stingExpiry = data.stingManager.getStingExpiration(sting.userId, sting.stingId)
+            if stingExpiry then 
+                table.insert(fields, {
+                    name = "Sting Expiry",
+                    value = "<t:" .. stingExpiry.timestamp_seconds .. ">",
+                    inline = true,
+                })
+            else
+                table.insert(fields, {
+                    name = "Sting Expiry",
+                    value = "Never",
+                    inline = true,
+                })
+            end
+        end
+
         local embed = {
             title = `Sting {sting.stingId}`,
             description = sting.reason,
-            fields = {
-                { name = "Sting Count", value = tostring(sting.stings), inline = true },
-                { name = "Moderator", value = if sting.modId then "<@" .. sting.modId .. ">" else "System", inline = true },
-                { name = "Creation Date", value = "<t:" .. sting.created_at.timestamp_seconds .. ">", inline = true },
-            },
+            fields = fields,
         }
 
         table.insert(stingEmbeds, embed)
@@ -81,6 +100,7 @@ local function run(data: data.RunData): nil
         )
     end
 end
+
 
 return {
     register = register,

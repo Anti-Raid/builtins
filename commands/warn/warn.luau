@@ -2,6 +2,8 @@ local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local data = require "../data"
 local interactionutils = require "../../utils/interaction"
 local canModeratorAffectTarget = require "../../utils/modhierarchy".canModeratorAffectTarget
+local parseunit = require "../../utils/unit"
+local datetime = require "@antiraid/datetime"
 
 local function register() 
     return commandBuilder.new({
@@ -41,6 +43,15 @@ local function register()
             :build()      
         end
     )
+    :option(
+        function(opt) 
+            return opt
+            :setType("String")
+            :setName("time")
+            :setDescription("How long should the sting last for?")
+            :build()
+        end
+    )
     :build()
 end
 
@@ -48,6 +59,7 @@ local function run(data: data.RunData): nil
     local user = nil
     local numberOfStings: number? = nil
     local reason: string? = nil
+    local stingTime: number? = nil
 
     -- Parse options
     for _, opt in data.command.options do 
@@ -62,6 +74,10 @@ local function run(data: data.RunData): nil
         elseif opt.name == "reason" then
             if opt.value.kind == "String" then
                 reason = opt.value.value
+            end
+        elseif opt.name == "time" then
+            if opt.value.kind == "String" then
+                stingTime = parseunit(opt.value.value)
             end
         end
     end
@@ -119,12 +135,16 @@ local function run(data: data.RunData): nil
 
     canModeratorAffectTarget(data.ge, modid, user.id, "moderation.warn")
 
-    data.stingManager.createUserSting({
+    local createdSting = data.stingManager.createUserSting({
         userId = user.id,
         modId = modid,
         reason = reason,
         stings = numberOfStings,
     })
+
+    if stingTime then 
+        data.stingManager.setStingExpiration(user.id, createdSting.stingId, reason, datetime.UTC:now() + datetime.timedelta_seconds(stingTime))
+    end
 
     return interactionutils.replySimple(
         data.ge,
@@ -133,7 +153,14 @@ local function run(data: data.RunData): nil
         {
             {
                 title = "Sting created",
-                description = `Successfully stung {user.username} with \`\`{numberOfStings}\`\` for: \`\`{reason}\`\``,
+                description = `Successfully stung {user.username} with \`\`{numberOfStings}\`\` stings for: \`\`{reason}\`\` with a sting ID of \`\`{createdSting.stingId}\`\``,
+                fields = {
+                    {
+                        name = "Expiry",
+                        value = if stingTime then "<t:" .. (datetime.UTC:now() + datetime.timedelta_seconds(stingTime)).timestamp_seconds .. ">" else "Never",
+                        inline = true,
+                    }
+                }
             },
         },
         false

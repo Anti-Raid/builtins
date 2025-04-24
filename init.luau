@@ -17,6 +17,7 @@ local apitypes = require "@discord-types/apiTypes"
 local string_startswith = require "@antiraid-ext/strings/startswith"
 local serde = require "@lune/serde"
 local ds = require "@antiraid/datastores"
+local fallbackScheduledExecs = require"./scheduledexecs/scheduledexecs".fallbackScheduledExecs
 local stingmanager = require "./utils/stingmanager"
 
 local evt: Primitives.Event, ctx: Primitives.TemplateContext = ...
@@ -220,6 +221,21 @@ ScheduledExecution(evt, function(data)
     local command = commands.commands[id[1]]
 
     if not command then
+        -- Try going to the fallbacks if the id startswith builtins.
+        if string_startswith(id[1], "builtins.") then
+            for _, fallback in fallbackScheduledExecs do 
+                if fallback({
+                    ctx = ctx,
+                    event = evt,
+                    scheduledExecData = data,
+                    scheduledExecId = id[2],
+                    stingManager = stingmanager(ctx),
+                    ge = ge,
+                }) then 
+                    return -- Fallback was found to have handled it
+                end
+            end
+        end
         return
     end
 
@@ -232,6 +248,7 @@ ScheduledExecution(evt, function(data)
         event = evt,
         scheduledExecData = data,
         scheduledExecId = id[2],
+        stingManager = stingmanager(ctx),
         ge = ge,
     })
 end)
