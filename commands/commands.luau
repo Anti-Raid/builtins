@@ -5,6 +5,7 @@ local commands = {
     remindme = require"./remindme/remindme",
     warn = require"./warn/warn",
     stings = require"./stings/stings",
+    log = require"./log/log",
 } :: { [string]: data.Command }
 
 return {

@@ -19,6 +19,7 @@ local serde = require "@lune/serde"
 local ds = require "@antiraid/datastores"
 local fallbackScheduledExecs = require"./scheduledexecs/scheduledexecs".fallbackScheduledExecs
 local stingmanager = require "./utils/stingmanager"
+local builtinSettingsManager = require"./utils/builtinsettingsmanager" 
 local onceLocal = require"@antiraid-ext/once".onceLocal
 local store = require"@antiraid/stores".store
 
@@ -121,6 +122,12 @@ Message(evt, function(msg)
         chunk.chunk_name = "__builtindev_eval_chunk"
         chunk.environment = {
             globals = _G,
+            promise = promise,
+            pyield = promise.yield,
+            serde = serde,
+            jsonify = function(obj)
+                return serde.encode("json", obj)
+            end,
             ge = ge,
             ctx = ctx,
             msg = msg,
@@ -128,6 +135,8 @@ Message(evt, function(msg)
             data = data,
             evt = evt,
             storeTab = store(ctx),
+            type = type,
+            typeof = typeof,
         }
         local ok, result = pcall(promise.yield, chunk:call_async({}))    
 
@@ -179,6 +188,7 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
         command = parsedcmd,    
         interaction = interaction,
         stingManager = stingmanager(ctx),
+        builtinSettingsManager = builtinSettingsManager(ctx),
         ge = ge,
     }
 

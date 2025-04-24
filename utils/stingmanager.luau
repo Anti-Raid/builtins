@@ -6,6 +6,9 @@ local promise = require "@antiraid/promise"
 local kv = require "@antiraid/kv"
 local scheduledexec = require "@antiraid/scheduledexec"
 local typesext = require "@antiraid/typesext"
+local stores = require "@antiraid/stores"
+local builtinSettingsManager = require "./builtinsettingsmanager"
+local discordPlugin = require "@antiraid/discord"
 
 export type Sting = {
     stingId: string,
@@ -41,7 +44,7 @@ export type StingManager = {
     setStingExpiration: (userId: discord.Snowflake, stingId: string, reason: string, expiresAt: datetime.DateTime) -> (),
     --- Deletes the expiration of a sting
     deleteStingExpiration: (userId: discord.Snowflake, stingId: string) -> (),
-    --- Deletes a sting. Note that this does not delete the expiration task (use fullyDeleteSting for that)
+    --- Deletes a sting. Note that this does not delete the expiration task (use fullyDeleteSting if you want to do that)
     deleteSting: (userId: discord.Snowflake, stingId: string) -> (),
     --- Fully deletes a sting and its expiration task and anything else needed
     fullyDeleteSting: (userId: discord.Snowflake, stingId: string) -> (),
@@ -56,6 +59,9 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
 
     -- Create a new key-value executor with the builtins.stings kv-scope
     local kv = kv.new(ctx, nil, "builtins.stings")
+    local builtinsettingsmanager = builtinSettingsManager(ctx)
+    local discord = discordPlugin.new(ctx)
+    local storeTab = stores.store(ctx) :: any
     local scheduledExec = scheduledexec.new(ctx)
 
     local function getStingExpiration(userId: discord.Snowflake, stingId: string): (string?, datetime.DateTime?)
@@ -148,8 +154,15 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         if not userId or not stingId then
             error("User ID or Sting ID is nil")
         end
+
+        if storeTab.onStingDelete then
+            (storeTab.onStingDelete :: any)(userId, stingId)
+        end
+
         -- Delete the sting
         promise.yield(kv:delete(`{userId}/{stingId}`))
+
+        self.deleteStingExpiration(userId, stingId)
     end
 
     local function fullyDeleteSting(userId: discord.Snowflake, stingId: string)
@@ -267,7 +280,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
             }))
         end
 
-        return {
+        local csting = {
             stingId = stingId,
             userId = sting.userId,
             modId = sting.modId,
@@ -276,6 +289,32 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
             expires_at = sting.expires_at,
             stings = sting.stings or 1,
         } :: Sting
+
+        if storeTab.onStingCreate then
+            (storeTab.onStingCreate :: any)(csting)
+        end
+
+        local modlogschannel = builtinsettingsmanager.getModLogsChannel("sting_create")
+
+        if modlogschannel then
+            promise.yield(discord:create_message({
+                channel_id = modlogschannel,
+                data = {
+                    embeds = {
+                        {
+                            title = "Sting Created",
+                            description = string.format("Sting ID: %s\nUser ID: %s\nReason: %s", csting.stingId, csting.userId, csting.reason),
+                            fields = {
+                                { name = "Moderator", value = if csting.modId then "<@" .. csting.modId .. ">" else "System", inline = true },
+                                { name = "Created At", value = "<t:" .. csting.created_at.timestamp_seconds .. ">", inline = true },
+                            },
+                        }
+                    } :: {discord.EmbedObject},
+                }
+            }))
+        end
+
+        return csting
     end
 
     -- Save to self
@@ -289,7 +328,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
     self.getStingFromScheduledExecId = getStingFromScheduledExecId
     self.getSting = getSting
 
-    return self :: StingManager
+    return self
 end
 
 return StingManager
