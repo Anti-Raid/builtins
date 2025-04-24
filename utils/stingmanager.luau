@@ -145,10 +145,11 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
     end
 
     local function deleteSting(userId: discord.Snowflake, stingId: string)
+        if not userId or not stingId then
+            error("User ID or Sting ID is nil")
+        end
         -- Delete the sting
-        assert(promise.yield(kv:get(`{userId}/{stingId}`)) ~= nil, `Sting was already deleted with key builtins.stings/{userId}/{stingId}`)
         promise.yield(kv:delete(`{userId}/{stingId}`))
-        assert(promise.yield(kv:get(`{userId}/{stingId}`)) == nil, "Sting was not deleted")
     end
 
     local function fullyDeleteSting(userId: discord.Snowflake, stingId: string)

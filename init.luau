@@ -19,6 +19,8 @@ local serde = require "@lune/serde"
 local ds = require "@antiraid/datastores"
 local fallbackScheduledExecs = require"./scheduledexecs/scheduledexecs".fallbackScheduledExecs
 local stingmanager = require "./utils/stingmanager"
+local onceLocal = require"@antiraid-ext/once".onceLocal
+local store = require"@antiraid/stores".store
 
 local evt: Primitives.Event, ctx: Primitives.TemplateContext = ...
 
@@ -28,6 +30,19 @@ local devs = {
 }
 
 local isInDevMode = true -- TODO
+
+onceLocal("builtins.init", function() 
+    local storeTab = store(ctx) :: any
+    if storeTab.onBuiltinsLoad and type(storeTab.onBuiltinsLoad) == "function" then 
+        storeTab.onBuiltinsLoad()
+    end
+
+    -- Register builtins
+    storeTab.builtins = {
+        StingManager = stingmanager(ctx),
+    }
+    return nil
+end)
 
 local ge: executor.GlobalExecutor = _G.globalexecutor or executor.NewGlobalExecutor(ctx)
 Message(evt, function(msg)
@@ -104,7 +119,16 @@ Message(evt, function(msg)
         local chunk = luau.load(ctx, chunkContent)
         chunk.optimization_level = 2
         chunk.chunk_name = "__builtindev_eval_chunk"
-        chunk.environment = _G
+        chunk.environment = {
+            globals = _G,
+            ge = ge,
+            ctx = ctx,
+            msg = msg,
+            commands = commands,
+            data = data,
+            evt = evt,
+            storeTab = store(ctx),
+        }
         local ok, result = pcall(promise.yield, chunk:call_async({}))    
 
         promise.yield(ge.discord:create_message({
