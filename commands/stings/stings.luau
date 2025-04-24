@@ -101,7 +101,6 @@ local function run(data: data.RunData): nil
     end
 end
 
-
 return {
     register = register,
     run = run,

@@ -215,6 +215,21 @@ ScheduledExecution(evt, function(data)
     -- Split by :
     local id = data.id:split(":")
     if #id ~= 2 then
+        -- Try going to the fallbacks if the id startswith builtins.
+        if string_startswith(id[1], "builtins.") then
+            for _, fallback in fallbackScheduledExecs do 
+                if fallback({
+                    ctx = ctx,
+                    event = evt,
+                    scheduledExecData = data,
+                    scheduledExecId = data.id,
+                    stingManager = stingmanager(ctx),
+                    ge = ge,
+                }) then 
+                    return -- Fallback was found to have handled it
+                end
+            end
+        end
         return
     end
 
@@ -228,7 +243,7 @@ ScheduledExecution(evt, function(data)
                     ctx = ctx,
                     event = evt,
                     scheduledExecData = data,
-                    scheduledExecId = id[2],
+                    scheduledExecId = data.id,
                     stingManager = stingmanager(ctx),
                     ge = ge,
                 }) then 
