@@ -6,6 +6,8 @@ local commands = {
     warn = require"./warn/warn",
     stings = require"./stings/stings",
     log = require"./log/log",
+    urlextract = require"./urlextract/urlextract",
+    subcmdtest = require"./subcmdtest/subcmdtest",
 } :: { [string]: data.Command }
 
 return {

@@ -263,7 +263,7 @@ local function extract_scheme_less_urls(segment: string): {string}
 end
 
 -- Function: parse_urls
-local function parse_urls(input: string)
+local function parse_urls(input: string): {string}
     local protocols = {"https://", "http://", "ftp://", "git://"}
     local urls = {}
     local i = 1

@@ -172,6 +172,7 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
 
     local command = commands.commands[parsedcmd.baseName]
     if not command then -- Likely another template's command
+        if isInDevMode then error("Command not found: " .. parsedcmd.baseName) end
         return 
     end
 
