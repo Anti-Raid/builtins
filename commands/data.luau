@@ -11,6 +11,7 @@ export type Command = {
     register: () -> discordRestTypes.CreateGuildApplicationCommandRequest,
     run: (data: RunData) -> any,
     scheduledexec: ((data: ScheduledExecRunData) -> any)?,
+    autocompleter: ((data: AutocompleteRunData) -> {discord.ApplicationCommandOptionChoiceObject})?,
 }
 
 export type ScheduledExecRunData = {
@@ -22,6 +23,15 @@ export type ScheduledExecRunData = {
     ge: executor.GlobalExecutor,
 }
 
+export type ButtonCallbackData = {
+    ctx: primitives.TemplateContext, 
+    interaction: discord.InteractionObject, 
+    sethasEdited: (to: boolean) -> nil,
+    removeCallback: () -> nil,
+    event: primitives.Event,
+    ge: executor.GlobalExecutor,
+}
+
 export type RunData = {
     ctx: primitives.TemplateContext, 
     event: primitives.Event, 
@@ -29,7 +39,19 @@ export type RunData = {
     ge: executor.GlobalExecutor,
     stingManager: stingmanager.StingManager,
     builtinSettingsManager: builtinSettingsManager.BuiltinSettingsManager, 
-    command: appcommands.ParsedApplicationCommand
+    command: appcommands.ParsedApplicationCommand,
+    attachButtonCallback: ((buttonId: string, callback: (bcd: ButtonCallbackData) -> nil) -> nil),
+    sethasEdited: (to: boolean) -> nil,
+}
+
+export type AutocompleteRunData = {
+    ctx: primitives.TemplateContext, 
+    event: primitives.Event, 
+    interaction: discord.InteractionObject,
+    ge: executor.GlobalExecutor,
+    stingManager: stingmanager.StingManager,
+    builtinSettingsManager: builtinSettingsManager.BuiltinSettingsManager, 
+    command: appcommands.ParsedApplicationCommand,
 }
 
 return {}

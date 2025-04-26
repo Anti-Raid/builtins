@@ -119,6 +119,22 @@ local function run(data: data.RunData): nil
         )
     end
 
+    if not action and not view then
+        return interactionutils.replySimple(
+            data.ge,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "Error processing command",
+                    description = "You must specify either `action`, `view` or both.",
+                    color = 0xFF0000,
+                },
+            },
+            isResponseEphemeral
+        )
+    end
+
     if view then 
         canModeratorDo(
             data.ctx,

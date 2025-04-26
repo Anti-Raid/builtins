@@ -22,6 +22,7 @@ local stingmanager = require "./utils/stingmanager"
 local builtinSettingsManager = require"./utils/builtinsettingsmanager" 
 local onceLocal = require"@antiraid-ext/once".onceLocal
 local store = require"@antiraid/stores".store
+local Interaction = require"@discord-types/interaction"
 
 local evt: Primitives.Event, ctx: Primitives.TemplateContext = ...
 
@@ -163,6 +164,127 @@ Message(evt, function(msg)
 end)    
 
 InteractionCreate(evt, function(interaction: apitypes.InteractionObject)  
+    if interaction.type == Interaction.InteractionType.MessageComponent then 
+        if not _G.attachedButtonCallbacks then
+            return
+        end
+
+        if not interaction.data or not interaction.data.custom_id then 
+            return
+        end
+
+        local callback: (bcd: data.ButtonCallbackData) -> nil = (_G.attachedButtonCallbacks :: any)[interaction.data.custom_id]
+        if not callback then
+            local comps = nil
+            if ge.datastores.LinksStore then 
+                local linksstore = ge.datastores.LinksStore :: ds.LinksStore
+                comps = {
+                    ActionRowBuilder.new()
+                    :addComponent(
+                        ButtonBuilder.new()
+                        :setStyle("Blurple")
+                        :setLabel("Support Server")
+                        :setUrl(linksstore.links().support_server)
+                        :build()
+                    )
+                    :build() :: apiTypes.ComponentObjects
+                }
+            end
+    
+            interactionutils.replySimple(
+                ge,
+                interaction :: apiTypes.InteractionObject,
+                nil,
+                {
+                    {
+                        title = "Unknown button clicked!",
+                        description = "Make sure that the button hasn't expired! You probably waited too long! \nIf the problem persists, **please report it to our Support Server**",
+                        color = 0xFF0000,
+                    }
+                } :: {apiTypes.EmbedObject},
+                true,
+                comps
+            )
+            return
+        end
+
+        -- Call the callback with the interaction
+        local hasEdited = false
+        local function sethasEdited(to: boolean): nil
+            hasEdited = to
+            return nil
+        end
+        local function removeCallback(): nil
+            _G.attachedButtonCallbacks[interaction.data.custom_id] = nil
+            return nil
+        end
+        local ok, err = pcall(callback, {
+            ctx = ctx,
+            interaction = interaction, 
+            sethasEdited = sethasEdited,
+            removeCallback = removeCallback,
+            ge = ge,
+            event = evt,
+        } :: data.ButtonCallbackData)
+        if not ok then 
+            err = tostring(err) :: string
+            if #err > 2000 then 
+                -- Limit to 1997 chars and add a ... at the end
+                err = err:sub(1, 1997) .. "..."
+            end
+
+            local comps = nil
+            if ge.datastores.LinksStore then 
+                local linksstore = ge.datastores.LinksStore :: ds.LinksStore
+                comps = {
+                    ActionRowBuilder.new()
+                    :addComponent(
+                        ButtonBuilder.new()
+                        :setStyle("Blurple")
+                        :setLabel("Support Server")
+                        :setUrl(linksstore.links().support_server)
+                        :build()
+                    )
+                    :build() :: apiTypes.ComponentObjects
+                }
+            end
+
+            if hasEdited then 
+                interactionutils.editSimple(
+                    ge,
+                    interaction :: apiTypes.InteractionObject,
+                    nil,
+                    {
+                        {
+                            title = "Something happened!",
+                            description = "Something happened while trying to process your request. If the problem persists, **please report it to our Support Server**\n```lua\n" .. debug.traceback(err) .. "\n```",
+                            color = 0xFF0000,
+                        }
+                    } :: {apiTypes.EmbedObject},
+                    comps
+                )
+                return
+            end
+
+            interactionutils.replySimple(
+                ge,
+                interaction :: apiTypes.InteractionObject,
+                nil,
+                {
+                    {
+                        title = "Something happened!",
+                        description = "Something happened while trying to process your request. If the problem persists, **please report it to our Support Server**\n```lua\n" .. debug.traceback(err) .. "\n```",
+                        color = 0xFF0000,
+                    }
+                } :: {apiTypes.EmbedObject},
+                false,
+                comps
+            )
+        end
+
+        return
+    end
+
     local parsedcmd = appcommands.parseApplicationCommand(interaction)
     if not parsedcmd then return end
 
@@ -176,6 +298,51 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
         return 
     end
 
+    if interaction.type == Interaction.InteractionType.ApplicationCommandAutocomplete then 
+        if not command.autocompleter then 
+            if isInDevMode then error("Command autocompleter not found: " .. parsedcmd.baseName) end
+            return
+        end
+
+        --[[
+            ctx: primitives.TemplateContext, 
+    event: primitives.Event, 
+    interaction: discord.InteractionObject,
+    ge: executor.GlobalExecutor,
+    stingManager: stingmanager.StingManager,
+    builtinSettingsManager: builtinSettingsManager.BuiltinSettingsManager, 
+    command: appcommands.ParsedApplicationCommand,
+        ]]
+
+        local autocompleteData: data.AutocompleteRunData = {
+            ctx = ctx,
+            event = evt,
+            interaction = interaction,
+            ge = ge,
+            stingManager = stingmanager(ctx),
+            builtinSettingsManager = builtinSettingsManager(ctx),
+            command = parsedcmd,
+        }
+
+        local results = command.autocompleter(autocompleteData) or {}
+        if #results > 25 then
+            -- Results are limited to 25 so we need to trim the table
+            local trimmedResults = {}
+            for i = 1, 25 do
+                trimmedResults[i] = results[i]
+            end
+            results = trimmedResults
+        end
+
+        -- Send the results
+        interactionutils.replyAutocomplete(
+            ge,
+            interaction,
+            results
+        )
+        return
+    end
+
     --[[
     ctx: primitives.TemplateContext, 
     event: primitives.Event, 
@@ -183,6 +350,7 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
     ge: executor.GlobalExecutor,
     command: appcommands.ParsedApplicationCommand
     ]]
+    local hasEdited = false
     local runData: data.RunData = {
         ctx = ctx,
         event = evt,
@@ -191,6 +359,17 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
         stingManager = stingmanager(ctx),
         builtinSettingsManager = builtinSettingsManager(ctx),
         ge = ge,
+        attachButtonCallback = function(buttonId: string, callback: (bcd: data.ButtonCallbackData) -> nil) 
+            if not _G.attachedButtonCallbacks then
+                _G.attachedButtonCallbacks = {} :: any
+            end
+            _G.attachedButtonCallbacks[buttonId] = callback
+            return nil
+        end,
+        sethasEdited = function(to: boolean): nil
+            hasEdited = to
+            return nil
+        end
     }
 
     local ok, err = pcall(command.run, runData)
@@ -227,7 +406,24 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
                     isResponseEphemeral = opt.value.value
                 end
             end
-        end    
+        end 
+        
+        if hasEdited then 
+            interactionutils.editSimple(
+                ge,
+                interaction,
+                nil,
+                {
+                    {
+                        title = "Something happened!",
+                        description = "Something happened while trying to process your request. If the problem persists, **please report it to our Support Server**\n```lua\n" .. debug.traceback(err) .. "\n```",
+                        color = 0xFF0000,
+                    }
+                } :: {apiTypes.EmbedObject},
+                comps
+            )
+            return
+        end
 
         interactionutils.replySimple(
             ge,
