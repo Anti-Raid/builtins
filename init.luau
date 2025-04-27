@@ -33,7 +33,8 @@ local devs = {
 
 local isInDevMode = true -- TODO
 
-onceLocal("builtins.init", function() 
+onceLocal("builtins.init", function()
+    if _G._TEST_ASYNC_WORK then return end
     local storeTab = store(ctx) :: any
     if storeTab.onBuiltinsLoad and type(storeTab.onBuiltinsLoad) == "function" then 
         storeTab.onBuiltinsLoad()
@@ -294,13 +295,13 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
 
     local command = commands.commands[parsedcmd.baseName]
     if not command then -- Likely another template's command
-        if isInDevMode then error("Command not found: " .. parsedcmd.baseName) end
+        --if isInDevMode then error("Command not found: " .. parsedcmd.baseName) end
         return 
     end
 
     if interaction.type == Interaction.InteractionType.ApplicationCommandAutocomplete then 
         if not command.autocompleter then 
-            if isInDevMode then error("Command autocompleter not found: " .. parsedcmd.baseName) end
+            --if isInDevMode then error("Command autocompleter not found: " .. parsedcmd.baseName) end
             return
         end
 
