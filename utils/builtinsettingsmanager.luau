@@ -3,6 +3,13 @@ local discord = require "@discord-types/apiTypes"
 local Primitives = require "@antiraid-core/primitives"
 local promise = require "@antiraid/promise"
 local kv = require "@antiraid/kv"
+local stores = require "@antiraid/stores"
+
+export type BaseModLogAction = {
+    name: string,
+    value: string,
+    description: string,
+}
 
 --[[
     Manages the builtin settings for the bot in the server
@@ -12,6 +19,7 @@ export type BuiltinSettingsManager = {
     getAllModLogsChannels: () -> {[string]: discord.Snowflake},
     setModLogsChannel: (action: string?, channelId: discord.Snowflake) -> nil,   
     deleteModLogsChannel: (action: string?) -> nil,
+    getAllModLogsActions: () -> {BaseModLogAction},
 }
 
 local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinSettingsManager
@@ -21,6 +29,7 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
 
     -- Create a new key-value executor with the builtins.stings kv-scope
     local kv = kv.new(ctx, nil, "builtins.settings")
+    local storeTab = stores.store(ctx) :: any
 
     local function getModLogsChannel(action: string): discord.Snowflake?
         local mlc = promise.yield(kv:get(`modlogsChannel`))
@@ -97,6 +106,24 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
     self.getAllModLogsChannels = getAllModLogsChannels
     self.setModLogsChannel = setModLogsChannel
     self.deleteModLogsChannel = deleteModLogsChannel
+    self.getAllModLogsActions = function()
+        local base = {
+            { name = "Default", value = "default", description = "The default log channel for all moderation logs" },
+            { name = "Sting Create", value = "sting_create", description = "The log channel for when a sting is created" },
+            { name = "Sting Delete", value = "sting_delete", description = "The log channel for when a sting is deleted" },
+            { name = "Sting Expiration Set", value = "sting_set_expiration", description = "The long channel for when a stings expiration is manually set"},
+            { name = "Sting Expiration Removed", value = "onStingDeleteExpiration", description = "The log channel for when a sting expiration is removed" },
+        }
+
+        if (storeTab and storeTab.getAllModLogsActions) then
+            local customActions = (storeTab.getAllModLogsActions :: any)()
+            for _, action in customActions do
+                table.insert(base, action)
+            end
+        end
+
+        return base
+    end
 
     return self
 end

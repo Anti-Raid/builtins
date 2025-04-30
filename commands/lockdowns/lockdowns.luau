@@ -22,6 +22,15 @@ local function register()
         function(opt) 
             return opt
             :setType("SubCommand")
+            :setName("list")
+            :setDescription("List all currently active lockdowns")  
+            :build()      
+        end
+    )
+    :option(
+        function(opt) 
+            return opt
+            :setType("SubCommand")
             :setName("quick")
             :setDescription("Launch a quick server lockdown on this server")  
             :option(
@@ -380,7 +389,55 @@ local function run(data: data.RunData): nil
 
     local cmdname = data.command.nameList[2]
 
-    if cmdname == "quick" then 
+    if cmdname == "list" then
+        local lockdownSet = quickGetLockdownSet(data)
+
+        if #lockdownSet.lockdowns == 0 then 
+            interactionutils.replySimple(
+                data.ge,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "No active lockdowns",
+                        description = "There are no active lockdowns on this server",
+                        color = 0xFF0000,
+                    },
+                },
+                false
+            )
+            return nil
+        end
+
+        local lockdownsList: {apitypes.EmbedObject} = {}
+        for _, lockdown in lockdownSet.lockdowns do 
+            table.insert(lockdownsList, {
+                name = lockdown.type.string_form .. " [" .. lockdown.id .. "]",
+                value = "Reason: " .. (if lockdown.reason then lockdown.reason else "No reason specified") .. "\n" .. (if lockdown.created_at then "Created at: <t:" .. lockdown.created_at.timestamp_seconds else "Created at: Unknown"),
+            })
+        end
+
+        interactionutils.replySimple(
+            data.ge,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "Active Lockdowns",
+                    description = "The following lockdowns are currently active on this server",
+                    embeds = {
+                        {
+                            title = "Lockdown List",
+                            description = "The following lockdowns are currently active on this server",
+                            fields = lockdownsList,
+                        },
+                    }
+                },
+            },
+            false
+        )
+        return nil
+    elseif cmdname == "quick" then 
         local reason: string? = nil
 
         -- Parse options

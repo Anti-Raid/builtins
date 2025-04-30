@@ -29,7 +29,8 @@ local function register()
             return opt
             :setType("String")
             :setName("action")
-            :setDescription("The action this channel should be used for in terms of logging")  
+            :setDescription("The action this channel should be used for in terms of logging")
+            :setAutocompleteEnabled(true) 
             :build()      
         end
     )
@@ -246,7 +247,31 @@ local function run(data: data.RunData): nil
     end
 end
 
+local function autocompleter(data: data.AutocompleteRunData): {apitypes.ApplicationCommandOptionChoiceObject}
+    local choices: {apitypes.ApplicationCommandOptionChoiceObject} = {}
+
+    if data.command.baseName == "log" and data.command.options then
+        for _, opt in data.command.options do
+            if opt.name == "action" and opt.value.kind == "String" and opt.focused then
+                local valueInput = opt.value.value
+                for _, action in data.builtinSettingsManager.getAllModLogsActions() do
+                    -- If the action starts with the input value [case insensitive], add it to the choices
+                    if string.find(action.name:lower(), (valueInput :: string):lower(), 1, true) then
+                        table.insert(choices, {
+                            name = action.name,
+                            value = action.value,
+                        })
+                    end
+                end
+            end
+        end
+    end
+
+    return choices
+end
+
 return {
     register = register,
     run = run,
+    autocompleter = autocompleter,
 }

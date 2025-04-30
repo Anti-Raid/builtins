@@ -78,7 +78,13 @@ Message(evt, function(msg)
             table.insert(commandList, cmd)
         end
 
-        local cmdList = serde.encode("json", commandList :: any)
+        local commandsBeingRegistered = {}
+
+        for _, command in commandList do
+            table.insert(commandsBeingRegistered, command.name)
+        end
+
+        local cmdList = table.concat(commandsBeingRegistered, ", ")
         if #cmdList > 2000 then
             -- Limit to 1997 chars and add a ... at the end
             cmdList = cmdList:sub(1, 1997) .. "..."
@@ -87,7 +93,7 @@ Message(evt, function(msg)
         promise.yield(ge.discord:create_message({
             channel_id = msg.channel_id,
             data = {
-                content = cmdList,
+                content = "Registering " .. cmdList .. " [" .. (#commandsBeingRegistered) .. " commands]",
             }
         }))
 

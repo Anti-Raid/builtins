@@ -4,10 +4,12 @@ local permissionsFromBf = permissions.fromBitFlag
 local promise = require "@antiraid/promise"
 local kc = require "@antiraid-core/kittycat"
 local Primitives = require "@antiraid-core/primitives"
-local typesext = require "@antiraid/typesext"   
+local typesext = require "@antiraid/typesext"  
+local apitypes = require "@discord-types/apiTypes" 
 
 local SupportedAltPerms: {[string]: permissions.Permissions} = {
-    ["moderation.warn"] = "ModerateMembers",
+    ["moderation.sting"] = "ModerateMembers",
+    ["moderation.curesting"] = "ModerateMembers",
     ["moderation.kick"] = "KickMembers",
     ["moderation.ban"] = "BanMembers",
     ["moderation.timeout"] = "ModerateMembers",
@@ -76,8 +78,13 @@ local function canModeratorAffectTarget(ge: executors.GlobalExecutor, mod: strin
     }))
 end
 
+local function extractUserIdFromInteraction(interaction: apitypes.InteractionObject): string 
+    return if interaction.user then interaction.user.id elseif (interaction.member and interaction.member.user) then interaction.member.user.id else error("No user found")
+end
+
 return {
     canModeratorAffectTarget = canModeratorAffectTarget,
     canModeratorDo = canModeratorDo,
     canBotDoInChannel = canBotDoInChannel,
+    extractUserIdFromInteraction = extractUserIdFromInteraction,
 }

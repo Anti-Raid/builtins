@@ -19,6 +19,10 @@ Builtin core commands on Anti Raid. This replaces the Rust builtins in Anti Raid
 
 ## Exposed Hooks
 
-- `onBuiltinsLoad`
+- `onBuiltinsLoad()`
 - `onStingCreate(sting: Sting)`
-- `onStingDelete(userId: discord.Snowflake, stingId: string)` (called prior to deletion)
+- `onStingDelete(sting: Sting, mod: string?, auditReason: string?)` (called prior to deletion)
+- `onStingSetExpiration(sting: Sting, reason: string, expiresAt: DateTime)` (called prior to setting sting expiration)
+- `onStingDeleteExpiration(sting: Sting)` (called prior to deleting sting expiration)
+- `getAllModLogsActions()` (custom mod log actions for autocomplete)
+- `getAllModLogsActions()` (custom mod log actions which can have log channels etc attached to them)
