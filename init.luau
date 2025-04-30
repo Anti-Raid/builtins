@@ -24,6 +24,8 @@ local onceLocal = require"@antiraid-ext/once".onceLocal
 local store = require"@antiraid/stores".store
 local Interaction = require"@discord-types/interaction"
 
+assert(commands.b == 3, "Commands module is not loaded correctly")
+
 local evt: Primitives.Event, ctx: Primitives.TemplateContext = ...
 
 -- List of users who can use dev commands
@@ -33,8 +35,8 @@ local devs = {
 
 local isInDevMode = true -- TODO
 
-onceLocal("builtins.init", function()
-    if _G._TEST_ASYNC_WORK then return end
+onceLocal("builtins.init", function(): nil
+    if _G._TEST_ASYNC_WORK then return nil end
     local storeTab = store(ctx) :: any
     if storeTab.onBuiltinsLoad and type(storeTab.onBuiltinsLoad) == "function" then 
         storeTab.onBuiltinsLoad()
@@ -121,9 +123,10 @@ Message(evt, function(msg)
 
         local chunk = luau.load(ctx, chunkContent)
         chunk.optimization_level = 2
-        chunk.chunk_name = "__builtindev_eval_chunk"
+        chunk.chunk_name = "/init"
         chunk.environment = {
             globals = _G,
+            require = require,
             promise = promise,
             pyield = promise.yield,
             serde = serde,

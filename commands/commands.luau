@@ -12,5 +12,6 @@ local commands = {
 } :: { [string]: data.Command }
 
 return {
-    commands = commands
+    commands = commands,
+    b = 3
 }
