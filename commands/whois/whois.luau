@@ -6,6 +6,7 @@ local interactionutils = require "../../utils/interaction"
 local avatarUrl = require "../../utils/avatar".avatarUrl
 local promise = require "@antiraid/promise"
 local userinfoplugin = require "@antiraid/userinfo"
+local stingmanager = require("../../utils/stingmanager")
 local kc = require "@antiraid-core/kittycat"
 local permissions = require "@discord-types/permission"
 local permissionsFromBf = permissions.fromBitFlag
@@ -180,7 +181,46 @@ local function run(data: data.RunData)
         end
     end
 
-    --local ok, userStingCount = data.ge.stings:
+    local stings = data.stingManager.getCachedUserStings(user.id)
+    local stingCount = 0
+    local maxSting: stingmanager.Sting? = nil
+    local mostRecentSting: stingmanager.Sting? = nil
+    if stings then 
+        for _, sting in stings do
+            stingCount += sting.stings
+            if not maxSting or sting.stings > maxSting.stings then
+                maxSting = sting
+            end
+
+            if not mostRecentSting or sting.created_at > mostRecentSting.created_at then
+                mostRecentSting = sting
+            end
+        end
+    end
+
+    if stingCount > 0 then
+        table.insert(baseFields, {
+            name = "Sting Count",
+            value = tostring(stingCount),
+            inline = true,
+        })
+    end
+
+    if maxSting then
+        table.insert(baseFields, {
+            name = "Max Sting",
+            value = data.stingManager.stingCompactString(maxSting),
+            inline = true,
+        })
+    end
+
+    if mostRecentSting then
+        table.insert(baseFields, {
+            name = "Most Recent Sting",
+            value = data.stingManager.stingCompactString(mostRecentSting),
+            inline = true,
+        })
+    end
 
     local avatarUrl = avatarUrl(user)
     return interactionutils.replySimple(

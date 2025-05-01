@@ -24,5 +24,8 @@ Builtin core commands on Anti Raid. This replaces the Rust builtins in Anti Raid
 - `onStingDelete(sting: Sting, mod: string?, auditReason: string?)` (called prior to deletion)
 - `onStingSetExpiration(sting: Sting, reason: string, expiresAt: DateTime)` (called prior to setting sting expiration)
 - `onStingDeleteExpiration(sting: Sting)` (called prior to deleting sting expiration)
-- `getAllModLogsActions()` (custom mod log actions for autocomplete)
+- `onPunishmentCreate(p: Punishment)`
+- `onPunishmentDelete(p: Punishment, mod: string?, auditReason: string?)` (called prior to deletion)
+- `onPunishmentSetExpiration(p: Punishment, reason: string, expiresAt: DateTime)` (called prior to setting punishment expiration)
+- `onPunishmentDeleteExpiration(p: Punishment)` (called prior to deleting punishment expiration)
 - `getAllModLogsActions()` (custom mod log actions which can have log channels etc attached to them)

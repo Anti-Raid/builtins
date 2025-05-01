@@ -48,7 +48,21 @@ export type StingManager = {
     deleteSting: (userId: discord.Snowflake, stingId: string, mod: string?, auditReason: string) -> (),
     --- Given a scheduled execution ID corresponding to a sting expiry, return the user id and sting id
     getStingFromScheduledExecId: (scheduledExecId: string) -> (discord.Snowflake?, string?),
+    --- Returns the cached list of stings for a user. If the cache is expired, it will fetch the stings from the kv store
+    getCachedUserStings: (userId: string) -> {Sting},
+    --- Manually update the cached list of stings for a user
+    --- This is useful for when you know the stings have changed and you want to update the cache
+    updateCachedUserStings: (userId: string, stings: {Sting}) -> nil,
+    --- Clears the cached list of stings for a user
+    clearCachedUserStings: (userId: string) -> nil,
+    --- Compactly stringifies a sting
+    stingCompactString: (sting: Sting) -> string,
 }
+
+-- Cached user stings should be captured by the StingManager class to ensure require cache keeps the cache local reference the same across
+-- all StingManager instances
+local _cachedUserStings: {[string]: {stings: {Sting}, createdAt: number }} = {}
+local maxBurstCacheTime = 120 -- 2 minutes
 
 local function StingManager(ctx: Primitives.TemplateContext): StingManager
     local self = setmetatable({}, {
@@ -224,7 +238,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
                     embeds = {
                         {
                             title = "Sting Expiration Removed",
-                            description = string.format("Sting ID: %s\nUser ID: %s\nReason: %s", csting.stingId, csting.userId, csting.reason),
+                            description = string.format("Sting ID: %s\nUser ID: %s\nReason: ``%s``", csting.stingId, csting.userId, csting.reason),
                             fields = {
                                 { name = "Moderator", value = if csting.modId then "<@" .. csting.modId .. ">" else "System", inline = true },
                                 { name = "Created At", value = "<t:" .. csting.created_at.timestamp_seconds .. ">", inline = true },
@@ -274,6 +288,9 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         -- Delete the sting
         promise.yield(kv:delete(`{userId}/{stingId}`))
 
+        -- Clear cache
+        self.clearCachedUserStings(userId)
+
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("sting_delete")
 
         if modlogschannel then
@@ -318,6 +335,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
             stingList[#stingList + 1] = stingParsed
         end
 
+        self.updateCachedUserStings(userId, stingList)
         return stingList
     end
 
@@ -352,6 +370,8 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
                 run_at = tostring(sting.expires_at), -- TODO: Support datetime in scheduledexec API
             }))
         end
+
+        self.clearCachedUserStings(sting.userId)
 
         local csting = {
             stingId = stingId,
@@ -393,6 +413,47 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         return csting
     end
 
+    local function getCachedUserStings(userId: string): {Sting}
+        if _cachedUserStings[userId] then 
+            if not maxBurstCacheTime or _cachedUserStings[userId].createdAt - os.clock() < maxBurstCacheTime then 
+                return _cachedUserStings[userId].stings
+            end
+        end
+    
+        local stings = self.getStingsOnUser(userId)
+        _cachedUserStings[userId] = {
+            stings = stings,
+            createdAt = os.clock(),
+        }
+        return stings
+    end  
+    
+    local function clearCachedUserStings(userId: string): nil
+        if _cachedUserStings[userId] then
+            _cachedUserStings[userId] = nil
+        end
+        return nil
+    end
+
+    local function updateCachedUserStings(userId: string, stings: {Sting}): nil
+        _cachedUserStings[userId] = {
+            stings = stings,
+            createdAt = os.clock(),
+        }
+        return nil
+    end
+
+    local function stingCompactString(sting: Sting): string
+        local expiresAt = if sting.expires_at then "<t:" .. sting.expires_at.timestamp_seconds .. ">" else "Never"
+        local mod = if sting.modId then "<@" .. sting.modId .. ">" else "System"
+        local reason = if #sting.reason > 0 then sting.reason else "No reason provided"
+        if #reason > 128 then
+            reason = reason:sub(1, 128) .. "..."
+        end
+        -- "Sting by " .. if maxSting.modId then "<@" .. maxSting.modId .. ">" else "System" .. " with ID of ``" .. maxSting.stingId .. "``",
+        return string.format("Sting by %s with ID of ``%s``\nReason: %s\nCreated at: <t:%d>\nExpires at: %s\nSting count: %d", mod, sting.stingId, reason, sting.created_at.timestamp_seconds, expiresAt, sting.stings)
+    end
+
     -- Save to self
     self.getStingsOnUser = getStingsOnUser
     self.getStingExpiration = getStingExpiration
@@ -402,6 +463,10 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
     self.deleteSting = deleteSting
     self.getStingFromScheduledExecId = getStingFromScheduledExecId
     self.getSting = getSting
+    self.getCachedUserStings = getCachedUserStings
+    self.clearCachedUserStings = clearCachedUserStings
+    self.updateCachedUserStings = updateCachedUserStings
+    self.stingCompactString = stingCompactString
 
     return self
 end

@@ -160,7 +160,7 @@ end
 
 -- Function: find_domain
 local function find_domain(s: string): string?
-    local path_start = s:find("[/?#]", 1) :: number
+    local path_start = s:find("[/?#]", 1)
     if not path_start then
         path_start = #s + 1
     end
@@ -216,7 +216,7 @@ local function extract_scheme_less_urls(segment: string): {string}
             end
         end
 
-        local potential_url = segment:sub(i, i + potential_end - 1) :: string
+        local potential_url = segment:sub(i, i + potential_end - 1)
         potential_url = trim_start_non_alnum(potential_url)
 
         if potential_url ~= "" then

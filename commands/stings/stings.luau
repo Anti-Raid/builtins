@@ -6,7 +6,6 @@ local datetime = require "@antiraid/datetime"
 local canModeratorAffectTarget = require "../../utils/modhierarchy".canModeratorAffectTarget
 local parseunit = require "../../utils/unit"
 local apitypes = require "@discord-types/apiTypes"
-local stingmanager = require("../../utils/stingmanager")
 
 local function register() 
     return commandBuilder.new({
@@ -405,24 +404,6 @@ local function run(data: data.RunData): nil
     )
 end
 
-local _cachedUserStings: {[string]: {stings: {stingmanager.Sting}, createdAt: number }} = {}
-local maxBurstCacheTime = 120 -- 2 minutes
-
-local function getCachedUserStings(stingmanager: stingmanager.StingManager, userId: string): {stingmanager.Sting}
-    if _cachedUserStings[userId] then 
-        if not maxBurstCacheTime or _cachedUserStings[userId].createdAt - os.clock() < maxBurstCacheTime then 
-            return _cachedUserStings[userId].stings
-        end
-    end
-
-    local stings = stingmanager.getStingsOnUser(userId)
-    _cachedUserStings[userId] = {
-        stings = stings,
-        createdAt = os.clock(),
-    }
-    return stings
-end 
-
 local function autocompleter(data: data.AutocompleteRunData): {apitypes.ApplicationCommandOptionChoiceObject}
     local cmdname = data.command.nameList[2]
 
@@ -447,10 +428,13 @@ local function autocompleter(data: data.AutocompleteRunData): {apitypes.Applicat
             return {}
         end
 
-        local userStings = getCachedUserStings(data.stingManager, userId)
+        local userStings = data.stingManager.getCachedUserStings(userId)
         local choices: {apitypes.ApplicationCommandOptionChoiceObject} = {}
 
         for _, sting in userStings do
+            if #choices >= 25 then
+                break
+            end
             if typedName and not string.find(sting.stingId:lower(), typedName:lower()) then
                 continue
             end
