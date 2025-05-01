@@ -8,6 +8,7 @@ local commands = {
     subcmdtest = require"./subcmdtest/subcmdtest",
     lockdowns = require"./lockdowns/lockdowns",
     stings = require"./stings/stings",
+    stats = require"./stats/stats",
 } :: { [string]: data.Command }
 
 return {
