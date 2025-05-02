@@ -210,9 +210,24 @@ local function createLockdown(
                 true
             )
 
-            data.sethasEdited(true)
+            local ok, err = xpcall(promise.yield, debug.traceback :: any, result.test_result:try_auto_fix(lockdownSet))
 
-            promise.yield(result.test_result:try_auto_fix(lockdownSet))
+            if not ok then
+                interactionutils.editSimple(
+                    data.ge,
+                    data.interaction,
+                    nil,
+                    {
+                        {
+                            title = "Lockdown autofixer failed",
+                            description = "```\n" .. tostring(err) .. "\n```",
+                            color = 0xFF0000,
+                        },
+                    },
+                    nil
+                )
+                return nil
+            end
 
             interactionutils.editSimple(
                 data.ge,
@@ -321,9 +336,24 @@ local function removeLockdown(
                 true
             )
 
-            data.sethasEdited(true)
+            local ok, err = xpcall(promise.yield, debug.traceback :: any, result.test_result:try_auto_fix(lockdownSet))
 
-            promise.yield(result.test_result:try_auto_fix(lockdownSet))
+            if not ok then
+                interactionutils.editSimple(
+                    data.ge,
+                    data.interaction,
+                    nil,
+                    {
+                        {
+                            title = "Lockdown autofixer failed",
+                            description = "```\n" .. tostring(err) .. "\n```",
+                            color = 0xFF0000,
+                        },
+                    },
+                    nil
+                )
+                return nil
+            end
 
             interactionutils.editSimple(
                 data.ge,

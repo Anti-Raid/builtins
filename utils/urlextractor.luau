@@ -357,7 +357,7 @@ local function parse_urls(input: string): {string}
 end
 
 -- Main function
-if(_G._TEST_ASYNC_WORK ~= nil) then
+if(_G._TEST_ASYNC_WORK__ ~= nil) then
     local function main()
         local input = "discordhttps://real.com random text https://discord.gg/8PmaCxnS ftp://some-server.example-site.org more http://192.168.1.1 text sub.domain.co.uk and path.https://google.com git://netsocialoss discord.gg/acnh is the best.https://google.com/best ||spoiler.com|| ||https://spoiler.com|| <https://discord.com/angled-brackets>"
         local urls = parse_urls(input)

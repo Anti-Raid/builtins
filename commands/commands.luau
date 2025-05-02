@@ -9,6 +9,7 @@ local commands = {
     lockdowns = require"./lockdowns/lockdowns",
     stings = require"./stings/stings",
     stats = require"./stats/stats",
+    help = require"./help/help",
 } :: { [string]: data.Command }
 
 return {

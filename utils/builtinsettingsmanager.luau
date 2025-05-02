@@ -29,7 +29,7 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
 
     -- Create a new key-value executor with the builtins.stings kv-scope
     local kv = kv.new(ctx, nil, "builtins.settings")
-    local storeTab = stores.store(ctx) :: any
+    local storeTab = stores.store :: any
 
     local function getModLogsChannel(action: string): discord.Snowflake?
         local mlc = promise.yield(kv:get(`modlogsChannel`))

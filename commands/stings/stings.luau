@@ -4,7 +4,7 @@ local interactionutils = require "../../utils/interaction"
 local extractUserIdFromInteraction = require "../../utils/modhierarchy".extractUserIdFromInteraction
 local datetime = require "@antiraid/datetime"
 local canModeratorAffectTarget = require "../../utils/modhierarchy".canModeratorAffectTarget
-local parseunit = require "../../utils/unit"
+local parseunit = require "@antiraid-ext/unit"
 local apitypes = require "@discord-types/apiTypes"
 
 local function register() 

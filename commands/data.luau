@@ -26,7 +26,6 @@ export type ScheduledExecRunData = {
 export type ButtonCallbackData = {
     ctx: primitives.TemplateContext, 
     interaction: discord.InteractionObject, 
-    sethasEdited: (to: boolean) -> nil,
     removeCallback: () -> nil,
     event: primitives.Event,
     ge: executor.GlobalExecutor,
@@ -41,6 +40,7 @@ export type RunData = {
     builtinSettingsManager: builtinSettingsManager.BuiltinSettingsManager, 
     command: appcommands.ParsedApplicationCommand,
     attachButtonCallback: ((buttonId: string, callback: (bcd: ButtonCallbackData) -> nil) -> nil),
+    dropButtonCallback: ((buttonId: string) -> nil),
     sethasEdited: (to: boolean) -> nil,
 }
 

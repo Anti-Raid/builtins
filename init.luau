@@ -23,8 +23,10 @@ local builtinSettingsManager = require"./utils/builtinsettingsmanager"
 local onceLocal = require"@antiraid-ext/once".onceLocal
 local store = require"@antiraid/stores".store
 local Interaction = require"@discord-types/interaction"
+local interop = require"@antiraid/interop"
 
-assert(commands.b == 3, "Commands module is not loaded correctly")
+collectgarbage("count")
+collectgarbage("count")
 
 local evt: Primitives.Event, ctx: Primitives.TemplateContext = ...
 
@@ -35,21 +37,30 @@ local devs = {
 
 local isInDevMode = true -- TODO
 
+
 onceLocal("builtins.init", function(): nil
     if _G._TEST_ASYNC_WORK then return nil end
-    local storeTab = store(ctx) :: any
+    local storeTab = store :: any
     if storeTab.onBuiltinsLoad and type(storeTab.onBuiltinsLoad) == "function" then 
         storeTab.onBuiltinsLoad()
     end
 
     -- Register builtins
-    storeTab.builtins = {
-        StingManager = stingmanager(ctx),
-    }
+    storeTab.stingManager = stingmanager(ctx)
+    storeTab.builtinSettingsManager = builtinSettingsManager(ctx)
+
+    _G.storeTab = storeTab
     return nil
 end)
 
-local ge: executor.GlobalExecutor = _G.globalexecutor or executor.NewGlobalExecutor(ctx)
+local ge: executor.GlobalExecutor
+if _G.globalexecutor then
+    ge = _G.globalexecutor :: executor.GlobalExecutor
+else
+    ge = executor.NewGlobalExecutor(ctx)
+    _G.globalexecutor = (ge :: any)
+end
+
 Message(evt, function(msg)
     if not msg.author then return end
     if not msg.channel_id then return end
@@ -145,9 +156,11 @@ Message(evt, function(msg)
             commands = commands,
             data = data,
             evt = evt,
-            storeTab = store(ctx),
+            storeTab = store,
             type = type,
             typeof = typeof,
+            interop = interop,
+            memusage = interop.memusage
         }
         local ok, result = pcall(promise.yield, chunk:call_async({}))    
 
@@ -171,7 +184,23 @@ Message(evt, function(msg)
             }
         }))
     end
-end)    
+end)  
+
+local function attachButtonCallback(buttonId: string, callback: (bcd: data.ButtonCallbackData) -> nil) 
+    if not _G.attachedButtonCallbacks then
+        _G.attachedButtonCallbacks = {} :: any
+    end
+    _G.attachedButtonCallbacks[buttonId] = callback
+    return nil
+end
+
+local function dropButtonCallback(buttonId: string): nil
+    if not _G.attachedButtonCallbacks then
+        return nil
+    end
+    (_G.attachedButtonCallbacks :: any)[buttonId] = nil
+    return nil
+end
 
 InteractionCreate(evt, function(interaction: apitypes.InteractionObject)  
     if interaction.type == Interaction.InteractionType.MessageComponent then 
@@ -183,7 +212,7 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
             return
         end
 
-        local callback: (bcd: data.ButtonCallbackData) -> nil = (_G.attachedButtonCallbacks :: any)[interaction.data.custom_id]
+        local callback: {callback: (bcd: data.ButtonCallbackData) -> nil, opts: {hasEdited: boolean}} = (_G.attachedButtonCallbacks :: any)[interaction.data.custom_id]
         if not callback then
             local comps = nil
             if ge.datastores.LinksStore then 
@@ -218,80 +247,19 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
             return
         end
 
-        -- Call the callback with the interaction
-        local hasEdited = false
-        local function sethasEdited(to: boolean): nil
-            hasEdited = to
-            return nil
-        end
         local function removeCallback(): nil
             _G.attachedButtonCallbacks[interaction.data.custom_id] = nil
             return nil
         end
-        local ok, err = pcall(callback, {
-            ctx = ctx,
-            interaction = interaction, 
-            sethasEdited = sethasEdited,
-            removeCallback = removeCallback,
-            ge = ge,
-            event = evt,
-        } :: data.ButtonCallbackData)
-        if not ok then 
-            err = tostring(err) :: string
-            if #err > 2000 then 
-                -- Limit to 1997 chars and add a ... at the end
-                err = err:sub(1, 1997) .. "..."
-            end
-
-            local comps = nil
-            if ge.datastores.LinksStore then 
-                local linksstore = ge.datastores.LinksStore :: ds.LinksStore
-                comps = {
-                    ActionRowBuilder.new()
-                    :addComponent(
-                        ButtonBuilder.new()
-                        :setStyle("Blurple")
-                        :setLabel("Support Server")
-                        :setUrl(linksstore.links().support_server)
-                        :build()
-                    )
-                    :build() :: apiTypes.ComponentObjects
-                }
-            end
-
-            if hasEdited then 
-                interactionutils.editSimple(
-                    ge,
-                    interaction :: apiTypes.InteractionObject,
-                    nil,
-                    {
-                        {
-                            title = "Something happened!",
-                            description = "Something happened while trying to process your request. If the problem persists, **please report it to our Support Server**\n```lua\n" .. debug.traceback(err) .. "\n```",
-                            color = 0xFF0000,
-                        }
-                    } :: {apiTypes.EmbedObject},
-                    comps
-                )
-                return
-            end
-
-            interactionutils.replySimple(
-                ge,
-                interaction :: apiTypes.InteractionObject,
-                nil,
-                {
-                    {
-                        title = "Something happened!",
-                        description = "Something happened while trying to process your request. If the problem persists, **please report it to our Support Server**\n```lua\n" .. debug.traceback(err) .. "\n```",
-                        color = 0xFF0000,
-                    }
-                } :: {apiTypes.EmbedObject},
-                false,
-                comps
-            )
-        end
-
+        callback.callback(
+            {
+                ctx = ctx,
+                interaction = interaction, 
+                removeCallback = removeCallback,
+                ge = ge,
+                event = evt,
+            } :: data.ButtonCallbackData
+        )
         return
     end
 
@@ -329,8 +297,8 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
             event = evt,
             interaction = interaction,
             ge = ge,
-            stingManager = stingmanager(ctx),
-            builtinSettingsManager = builtinSettingsManager(ctx),
+            stingManager = _G.storeTab.stingManager,
+            builtinSettingsManager = _G.storeTab.builtinSettingsManager,
             command = parsedcmd,
         }
 
@@ -366,23 +334,18 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
         event = evt,
         command = parsedcmd,    
         interaction = interaction,
-        stingManager = stingmanager(ctx),
-        builtinSettingsManager = builtinSettingsManager(ctx),
+        stingManager = _G.storeTab.stingManager,
+        builtinSettingsManager = _G.storeTab.builtinSettingsManager,
         ge = ge,
-        attachButtonCallback = function(buttonId: string, callback: (bcd: data.ButtonCallbackData) -> nil) 
-            if not _G.attachedButtonCallbacks then
-                _G.attachedButtonCallbacks = {} :: any
-            end
-            _G.attachedButtonCallbacks[buttonId] = callback
-            return nil
-        end,
+        attachButtonCallback = attachButtonCallback,
         sethasEdited = function(to: boolean): nil
             hasEdited = to
             return nil
-        end
+        end,
+        dropButtonCallback = dropButtonCallback,
     }
 
-    local ok, err = pcall(command.run, runData)
+    local ok, err = xpcall(command.run, debug.traceback, runData)
     if not ok then 
         err = tostring(err) :: string
         if #err > 2000 then 
@@ -426,7 +389,7 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
                 {
                     {
                         title = "Something happened!",
-                        description = "Something happened while trying to process your request. If the problem persists, **please report it to our Support Server**\n```lua\n" .. debug.traceback(err) .. "\n```",
+                        description = "Something happened while trying to process your request. If the problem persists, **please report it to our Support Server**\n```lua\n" .. err .. "\n```",
                         color = 0xFF0000,
                     }
                 } :: {apiTypes.EmbedObject},
@@ -442,7 +405,7 @@ InteractionCreate(evt, function(interaction: apitypes.InteractionObject)
             {
                 {
                     title = "Something happened!",
-                    description = "Something happened while trying to process your request. If the problem persists, **please report it to our Support Server**\n```lua\n" .. debug.traceback(err) .. "\n```",
+                    description = "Something happened while trying to process your request. If the problem persists, **please report it to our Support Server**\n```lua\n" .. err .. "\n```",
                     color = 0xFF0000,
                 }
             } :: {apiTypes.EmbedObject},
@@ -464,7 +427,7 @@ ScheduledExecution(evt, function(data)
                     event = evt,
                     scheduledExecData = data,
                     scheduledExecId = data.id,
-                    stingManager = stingmanager(ctx),
+                    stingManager = _G.storeTab.stingManager,
                     ge = ge,
                 }) then 
                     return -- Fallback was found to have handled it
@@ -485,7 +448,7 @@ ScheduledExecution(evt, function(data)
                     event = evt,
                     scheduledExecData = data,
                     scheduledExecId = data.id,
-                    stingManager = stingmanager(ctx),
+                    stingManager = _G.storeTab.stingManager,
                     ge = ge,
                 }) then 
                     return -- Fallback was found to have handled it
@@ -504,7 +467,7 @@ ScheduledExecution(evt, function(data)
         event = evt,
         scheduledExecData = data,
         scheduledExecId = id[2],
-        stingManager = stingmanager(ctx),
+        stingManager = _G.storeTab.stingManager,
         ge = ge,
     })
 end)

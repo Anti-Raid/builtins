@@ -73,7 +73,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
     local kv = kv.new(ctx, nil, "builtins.stings")
     local builtinsettingsmanager = builtinSettingsManager(ctx)
     local discord = discordPlugin.new(ctx)
-    local storeTab = stores.store(ctx) :: any
+    local storeTab = stores.store :: any
     local scheduledExec = scheduledexec.new(ctx)
 
     local function _parseStingData(stingId: string, userId: string, sting: kv.KvRecord): Sting?

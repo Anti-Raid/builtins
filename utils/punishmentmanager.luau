@@ -147,7 +147,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
     local kv = kv.new(ctx, nil, "builtins.punishments")
     local builtinsettingsmanager = builtinSettingsManager(ctx)
     local discord = discordPlugin.new(ctx)
-    local storeTab = stores.store(ctx) :: any
+    local storeTab = stores.store :: any
     local scheduledExec = scheduledexec.new(ctx)
 
     local function _parsePunishmentData(punishmentId: string, userId: string, punishment: kv.KvRecord): Punishment?

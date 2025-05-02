@@ -4,7 +4,7 @@ local data = require "../data"
 local interactionutils = require "../../utils/interaction"
 local promise = require "@antiraid/promise"
 local datetime = require "@antiraid/datetime"
-local parseunit = require "../../utils/unit"
+local parseunit = require "@antiraid-ext/unit"
 
 local function register() 
     return commandBuilder.new({

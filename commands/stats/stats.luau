@@ -4,7 +4,7 @@ local interactionutils = require "../../utils/interaction"
 local datastores = require"@antiraid/datastores"
 local promise = require("@antiraid/promise")
 local datetime = require("@antiraid/datetime")
-local formatTimeDelta = require "../../utils/formattimedelta"
+local formatTimeDelta = require "@antiraid-ext/formattimedelta"
 
 local function register() 
     return commandBuilder.new({
