@@ -90,7 +90,6 @@ local function renderPage(page: number)
         local helpMessagePages = splitHelpDescriptionIntoPages(helpMessageString, 2000)
         
         _G.cachedHelpMessagePages = helpMessagePages
-        error("Created help message pages")
     end
 
     local helpMessageEmbed = {
@@ -118,20 +117,18 @@ local function run(data: data.RunData): nil
     :setLabel("Next Page")
     :setCustomId(helpCustomNextId)
 
-    task.delay(10, function() 
+    task.delay(60, function() 
         data.dropButtonCallback(helpCustomPrevId) -- Make sure to remove the callback so it doesn't get called again
         data.dropButtonCallback(helpCustomNextId) -- Make sure to remove the callback so it doesn't get called again
     end)
 
     data.attachButtonCallback(helpCustomPrevId, function(data: data.ButtonCallbackData): nil         
-        page += 1
-        if page > #_G.cachedHelpMessagePages then
-            page = #_G.cachedHelpMessagePages
+        page -= 1
+        if page < 1 then
+            page = 1
         end
 
-        --error("Page: " .. page .. "/" .. #_G.cachedHelpMessagePages)
-
-        interactionutils.editSimple(
+        interactionutils.replyUpdate(
             data.ge,
             data.interaction,
             nil,
@@ -154,14 +151,12 @@ local function run(data: data.RunData): nil
     end)
 
     data.attachButtonCallback(helpCustomNextId, function(data: data.ButtonCallbackData): nil                 
-        page -= 1
-        if page < 1 then
-            page = 1
+        page += 1
+        if page > #_G.cachedHelpMessagePages then
+            page = #_G.cachedHelpMessagePages
         end
-
-        --error("Page: " .. page .. "/" .. #_G.cachedHelpMessagePages)
-
-        interactionutils.editSimple(
+        
+        interactionutils.replyUpdate(
             data.ge,
             data.interaction,
             nil,
@@ -179,6 +174,7 @@ local function run(data: data.RunData): nil
                 :build() :: discord.ComponentObjects
             }
         )
+
         return nil
     end)
 

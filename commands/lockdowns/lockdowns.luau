@@ -146,7 +146,7 @@ local function register()
     :build()
 end
 
-local lockdownSetBurstCache = nil
+local lockdownSetBurstCache: {data: lockdowns.LockdownSet, createdAt: number}? = nil
 local maxBurstCacheTime = 120 -- 2 minutes
 
 local function quickGetLockdownSet(data: data.RunData | data.AutocompleteRunData): lockdowns.LockdownSet
@@ -155,7 +155,7 @@ local function quickGetLockdownSet(data: data.RunData | data.AutocompleteRunData
             data = promise.yield(data.ge.lockdowns:fetch_lockdown_set()),
             createdAt = os.clock()
         }
-        return lockdownSetBurstCache.data
+        return (lockdownSetBurstCache :: {data: lockdowns.LockdownSet, createdAt: number}).data
     end
     return lockdownSetBurstCache.data
 end

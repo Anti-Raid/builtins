@@ -39,6 +39,24 @@ local function replySimple(ge: executor.GlobalExecutor, interaction: discord.Int
     } :: discordRestTypes.CreateInteractionRequest)
 end
 
+local function replyAck(ge: executor.GlobalExecutor, interaction: discord.InteractionObject)
+    assert(array_mt, "array_mt is not set")
+    return reply(ge, interaction, {
+        type = InteractionCallbackType.Pong,
+    } :: discordRestTypes.CreateInteractionRequest)
+end
+
+local function replyUpdate(ge: executor.GlobalExecutor, interaction: discord.InteractionObject, content: string?, embeds: {discord.EmbedObject}?, components: {discord.ComponentObjects}?)
+    return reply(ge, interaction, {
+        type = InteractionCallbackType.UpdateMessage,
+        data = {
+            content = content or nil,
+            embeds = if embeds then setmetatable(embeds, array_mt) else nil,
+            components = if components then setmetatable(components, array_mt) else nil,
+        },
+    } :: discordRestTypes.CreateInteractionRequest)
+end
+
 -- https://discord.com/developers/docs/interactions/receiving-and-responding#interaction-response-object-autocomplete
 local function replyAutocomplete(ge: executor.GlobalExecutor, interaction: discord.InteractionObject, choices: {discord.ApplicationCommandOptionChoiceObject})
     return reply(ge, interaction, {
@@ -60,6 +78,8 @@ end
 return {
     reply = reply,
     replySimple = replySimple,
+    replyAck = replyAck,
+    replyUpdate = replyUpdate,
     replyAutocomplete = replyAutocomplete,
     edit = edit,
     editSimple = editSimple,

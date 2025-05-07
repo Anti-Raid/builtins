@@ -34,6 +34,7 @@ local evt: Primitives.Event, ctx: Primitives.TemplateContext = ...
 local devs = {
     ["728871946456137770"] = true,
     ["564164277251080208"] = true,
+    ["787241442770419722"] = true,
 }
 
 local errorReportChannel = ctx.data.error_channel
@@ -215,7 +216,7 @@ local function run(evt: Primitives.Event)
                 return
             end
 
-            local callback: {callback: (bcd: data.ButtonCallbackData) -> nil, opts: {hasEdited: boolean}} = (_G.attachedButtonCallbacks :: any)[interaction.data.custom_id]
+            local callback: (bcd: data.ButtonCallbackData) -> nil = (_G.attachedButtonCallbacks :: any)[interaction.data.custom_id]
             if not callback then
                 local comps = nil
                 if ge.datastores.LinksStore then 
@@ -254,7 +255,7 @@ local function run(evt: Primitives.Event)
                 _G.attachedButtonCallbacks[interaction.data.custom_id] = nil
                 return nil
             end
-            callback.callback(
+            callback(
                 {
                     ctx = ctx,
                     interaction = interaction, 
