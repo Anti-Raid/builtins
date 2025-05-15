@@ -79,15 +79,15 @@ local function renderPage(page: number)
     local commands = require"../commands"
 
     if #_G.cachedHelpMessagePages == 0 then
-        local helpMessage = {"Here are the commands available"}
+        local helpMessagePages = {}
         for commandName, command in commands.commands do
             local parsedCommands = appcommands.parseApplicationCommandData(command.register())
             local helpText = createHelpForCommand(commandName, parsedCommands)
-            table.insert(helpMessage, helpText)
+            
+            for _, v in splitHelpDescriptionIntoPages(helpText, 4000) do 
+                table.insert(helpMessagePages, v)
+            end
         end
-
-        local helpMessageString = table.concat(helpMessage, "\n\n")
-        local helpMessagePages = splitHelpDescriptionIntoPages(helpMessageString, 2000)
         
         _G.cachedHelpMessagePages = helpMessagePages
     end
