@@ -5,7 +5,7 @@ local promise = require "@antiraid/promise"
 local kv = require "@antiraid/kv"
 local stores = require "@antiraid/stores"
 
-export type BaseModLogAction = {
+export type BaseAction = {
     name: string,
     value: string,
     description: string,
@@ -19,7 +19,16 @@ export type BuiltinSettingsManager = {
     getAllModLogsChannels: () -> {[string]: discord.Snowflake},
     setModLogsChannel: (action: string?, channelId: discord.Snowflake) -> nil,   
     deleteModLogsChannel: (action: string?) -> nil,
-    getAllModLogsActions: () -> {BaseModLogAction},
+
+    -- Base mod sting endpoints
+    getBaseModerationStingCounts: (action: string) -> number?,
+    getAllBaseModerationStingCounts: () -> {[string]: number},
+    setBaseModerationStingCounts: (action: string?, stings: number) -> nil,   
+    deleteBaseModerationStingCounts: (action: string?) -> nil,
+
+    -- Actions
+    getAllModLogsActions: () -> {BaseAction},
+    getAllModActions: () -> {BaseAction}
 }
 
 local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinSettingsManager
@@ -102,11 +111,86 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
         return nil
     end
 
-    self.getModLogsChannel = getModLogsChannel
-    self.getAllModLogsChannels = getAllModLogsChannels
-    self.setModLogsChannel = setModLogsChannel
-    self.deleteModLogsChannel = deleteModLogsChannel
-    self.getAllModLogsActions = function()
+    local function getBaseModerationStingCounts(action: string): number?
+        local mlc = promise.yield(kv:get(`baseModerationStingCounts`))
+
+        if type(mlc) == "number" then return mlc end
+        if type(mlc) == "string" then return tonumber(mlc) end
+        if type(mlc) == "table" then 
+            local stings = (mlc :: any)[action]
+            if stings then
+                return stings
+            end
+
+            local defaultStings = (mlc :: any)["default"]
+            if defaultStings then
+                return defaultStings
+            end
+
+            return nil
+        else
+            return nil
+        end
+    end
+
+    local function getAllBaseModerationStingCounts(): {[string]: number}
+        local mlc = promise.yield(kv:get(`baseModerationStingCounts`))
+
+        if type(mlc) == "number" then return { default = mlc } end
+        if type(mlc) == "string" then 
+            local stings = tonumber(mlc)
+            if not stings then return {} end
+            return { default = stings }
+        end
+        if type(mlc) == "table" then
+            return (mlc :: any)
+        else
+            return {}
+        end
+    end
+
+    local function setBaseModerationStingCounts(action: string?, stings: number): nil
+        local mlc = promise.yield(kv:get(`baseModerationStingCounts`))
+
+        if type(mlc) == "number" then
+            mlc = { default = mlc }
+        elseif type(mlc) == "string" then
+            local stings_num = tonumber(mlc)
+            mlc = { default = stings_num }
+        elseif type(mlc) == "table" then
+            mlc = (mlc :: any)
+        else
+            mlc = {}
+        end
+
+        if action then
+            mlc[action] = stings
+        else
+            mlc["default"] = stings
+        end
+
+        promise.yield(kv:set(`baseModerationStingCounts`, mlc))
+        return nil
+    end
+
+    local function deleteBaseModerationStingCounts(action: string?): nil
+        local mlc = promise.yield(kv:get(`baseModerationStingCounts`))
+
+        local newMlc = nil
+        if type(mlc) == "number" or type(mlc) == "string" then
+            newMlc = nil -- Just delete the string
+        elseif type(mlc) == "table" then
+            newMlc = mlc :: any
+            newMlc[action or "default"] = nil
+        else
+            newMlc = nil
+        end
+
+        promise.yield(kv:set(`baseModerationStingCounts`, mlc))
+        return nil
+    end
+
+    local function getAllModLogsActions() 
         local base = {
             { name = "Default", value = "default", description = "The default log channel for all moderation logs" },
             { name = "Sting Create", value = "sting_create", description = "The log channel for when a sting is created" },
@@ -124,6 +208,36 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
 
         return base
     end
+
+    local function getAllModActions() 
+        local base = {
+            { name = "Default", value = "default", description = "The default mod action" },
+            { name = "Ban Member", value = "ban_member", description = "Member banned" },
+            { name = "Kick Member", value = "kick_member", description = "Member kicked" },
+            { name = "Timeout Member", value = "timeout_member", description = "Member timed out" },
+        }
+
+        if (storeTab and storeTab.getAllModActions) then
+            local customActions = (storeTab.getAllModActions :: any)()
+            for _, action in customActions do
+                table.insert(base, action)
+            end
+        end
+
+        return base
+    end
+
+    self.getModLogsChannel = getModLogsChannel
+    self.getAllModLogsChannels = getAllModLogsChannels
+    self.setModLogsChannel = setModLogsChannel
+    self.deleteModLogsChannel = deleteModLogsChannel
+    self.getBaseModerationStingCounts = getBaseModerationStingCounts
+    self.getAllBaseModerationStingCounts = getAllBaseModerationStingCounts
+    self.setBaseModerationStingCounts = setBaseModerationStingCounts
+    self.deleteBaseModerationStingCounts = deleteBaseModerationStingCounts
+
+    self.getAllModLogsActions = getAllModLogsActions
+    self.getAllModActions = getAllModActions
 
     return self
 end

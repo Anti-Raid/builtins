@@ -29,3 +29,4 @@ Builtin core commands on Anti Raid. This replaces the Rust builtins in Anti Raid
 - `onPunishmentSetExpiration(p: Punishment, reason: string, expiresAt: DateTime)` (called prior to setting punishment expiration)
 - `onPunishmentDeleteExpiration(p: Punishment)` (called prior to deleting punishment expiration)
 - `getAllModLogsActions()` (custom mod log actions which can have log channels etc attached to them)
+- `getAllModActions()` (custom moderation actions which can have base stings etc attached to them)
