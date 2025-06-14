@@ -62,6 +62,7 @@ error_channel = os.getenv("ERROR_CHANNEL")
 if not error_channel:
     raise ValueError("ERROR_CHANNEL is not set in the environment variables")
 
+print("Pushing script to AntiRaid...")
 res = requests.post(f"{API_URL}/guilds/{guild_id}/settings", 
     json={
         "fields": {
@@ -79,7 +80,8 @@ res = requests.post(f"{API_URL}/guilds/{guild_id}/settings",
     headers={
         "Authorization": api_token,
         "Content-Type": "application/json"
-    }
+    },
+    timeout=180
 )
 
 message: str = None

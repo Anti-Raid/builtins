@@ -196,7 +196,9 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
             { name = "Sting Create", value = "sting_create", description = "The log channel for when a sting is created" },
             { name = "Sting Delete", value = "sting_delete", description = "The log channel for when a sting is deleted" },
             { name = "Sting Expiration Set", value = "sting_set_expiration", description = "The long channel for when a stings expiration is manually set"},
-            { name = "Sting Expiration Removed", value = "onStingDeleteExpiration", description = "The log channel for when a sting expiration is removed" },
+            { name = "Sting Expiration Removed", value = "sting_delete_expiration", description = "The log channel for when a sting expiration is removed" },
+            { name = "Punishment Create", value = "punishment_create", description = "The log channel for when a punishment is created" },
+            { name = "Punishment Delete", value = "punishment_delete", description = "The log channel for when a punishment is deleted" },
         }
 
         if (storeTab and storeTab.getAllModLogsActions) then

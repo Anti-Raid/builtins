@@ -1,6 +1,7 @@
 --!strict
 local datetime = require "@antiraid/datetime"
 local discord = require "@discord-types/apiTypes"
+local executor = require"@antiraid-ext/executor"
 local Primitives = require "@antiraid-core/primitives"
 local promise = require "@antiraid/promise"
 local kv = require "@antiraid/kv"
@@ -8,7 +9,11 @@ local scheduledexec = require "@antiraid/scheduledexec"
 local typesext = require "@antiraid/typesext"
 local stores = require "@antiraid/stores"
 local builtinSettingsManager = require "./builtinsettingsmanager"
+local stingmanager = require "./stingmanager"
 local discordPlugin = require "@antiraid/discord"
+local canModeratorAffectTarget = require "./modhierarchy".canModeratorAffectTarget
+
+export type ResolutionReason = "reversed"
 
 export type Punishment = {
     punishmentId: string,
@@ -19,6 +24,8 @@ export type Punishment = {
     delete_message_seconds: number?,
     created_at: datetime.DateTime,
     expires_at: datetime.DateTime?,
+    numStings: number?,
+    resolved: ResolutionReason?,
 }
 
 export type CreatePunishment = {
@@ -27,6 +34,8 @@ export type CreatePunishment = {
     punishment: string,
     reason: string,
     expires_at: datetime.DateTime?,
+    delete_message_seconds: number?,
+    numStings: number?,
 }
 
 --[[
@@ -44,14 +53,17 @@ export type PunishmentManager = {
     --- Sets the expiration of a punishment. Repeated calls override previous expiration
     setPunishmentExpiration: (userId: discord.Snowflake, punishmentId: string, reason: string, expiresAt: datetime.DateTime) -> (),
     --- Deletes the expiration of a punishment
-    deletePunishmentExpiration: (userId: discord.Snowflake, punishmentId: string) -> (),
-    --- Deletes a punishment. Note that this does not delete the expiration task (use fullyDeletePunishment if you want to do that)
+    deletePunishmentExpiration: (userId: discord.Snowflake, punishmentId: string, resolve: ResolutionReason?) -> (),
+    --- Deletes a punishment. This will also reverse the punishment if possible and delete the expiration if it exists
     deletePunishment: (userId: discord.Snowflake, punishmentId: string, mod: string?, auditReason: string) -> (),
+    --- Reverse a whole class of punishments, this will create a dummy punishment for reversal disabling expiration for all punishments within the bot
+    reversePunishmentClass: (userId: discord.Snowflake, mod: string?, punishment: string, auditReason: string) -> (),
     --- Given a scheduled execution ID corresponding to a punishment expiry, return the user id and punishment id
     getPunishmentFromScheduledExecId: (scheduledExecId: string) -> (discord.Snowflake?, string?),
     --- Returns the cached list of punishments for a user. If the cache is expired, it will fetch the punishments from the kv store
     getCachedUserPunishments: (userId: string) -> {Punishment},
     --- Manually update the cached list of punishments for a user
+    ---
     --- This is useful for when you know the punishments have changed and you want to update the cache
     updateCachedUserPunishments: (userId: string, punishments: {Punishment}) -> nil,
     --- Clears the cached list of punishments for a user
@@ -66,7 +78,7 @@ export type PunishmentManager = {
 export type PunishmentAction = {
     name: string,
     description: string,
-    check: (p: Punishment) -> (),
+    check: (ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, p: Punishment) -> (),
     --- By default, a punishment only supports expiry if it implements ``reverse()`` however some support expiry even if they don't implement it (timeouts)
     ---
     --- For these, the punishment manager will still not create the scheduled task (as in no-reverse case) but will not error if expires_at is set
@@ -79,7 +91,10 @@ local punishmentActions: {[string]: PunishmentAction} = {
     ban = {
         name = "Ban",
         description = "Bans the user from the server",
-        check = function(p: Punishment) 
+        check = function(ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, p: Punishment) 
+            if p.modId then
+                canModeratorAffectTarget(ge, p.modId, p.userId, "moderation.ban")
+            end
             return
         end,
         apply = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
@@ -99,9 +114,13 @@ local punishmentActions: {[string]: PunishmentAction} = {
     kick = {
         name = "Kick",
         description = "Kicks the user from the server",
-        check = function(p: Punishment) 
+        check = function(ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, p: Punishment) 
             if p.delete_message_seconds then 
                 error("Kick punishments cannot have a delete_message_seconds value")
+            end
+
+            if p.modId then
+                canModeratorAffectTarget(ge, p.modId, p.userId, "moderation.kick")
             end
         end,
         apply = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
@@ -115,9 +134,13 @@ local punishmentActions: {[string]: PunishmentAction} = {
         name = "Timeout",
         description = "Times out the user for a specified duration",
         supportsExpiryAnyways = true,
-        check = function(p: Punishment) 
+        check = function(ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, p: Punishment) 
             if not p.expires_at then 
                 error("Timeout punishments must have a expires_at value")
+            end
+
+            if p.modId then
+                canModeratorAffectTarget(ge, p.modId, p.userId, "moderation.timeout")
             end
         end,
         apply = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
@@ -129,6 +152,15 @@ local punishmentActions: {[string]: PunishmentAction} = {
                 }
             }))
         end,
+        reverse = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
+            promise.yield(discord:modify_guild_member({
+                user_id = p.userId,
+                reason = "Reverting timeout by " .. (if p.modId then "<@" .. p.modId .. ">" else "System") .. " with ID of ``" .. p.punishmentId .. "``",
+                data = {
+                    communication_disabled_until = {}
+                }
+            }))
+        end
     }
 }
 
@@ -138,7 +170,7 @@ local punishmentActions: {[string]: PunishmentAction} = {
 local _cachedUserPunishments: {[string]: {punishments: {Punishment}, createdAt: number }} = {}
 local maxBurstCacheTime = 120 -- 2 minutes
 
-local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentManager
+local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, stingmanager: stingmanager.StingManager): PunishmentManager
     local self = setmetatable({}, {
         __index = PunishmentManager,
     })
@@ -157,6 +189,8 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
         local punishmentStr = punishment.value.punishment
         local created_at = punishment.created_at
         local expires_at = punishment.value.expires_at
+        local delete_message_seconds = tonumber(punishment.value.delete_message_seconds)
+        local numStings = tonumber(punishment.value.numStings)
 
         if typeof(created_at) ~= "DateTime" then
             punishment.created_at = datetime.UTC:now()
@@ -186,6 +220,8 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
             punishment = punishmentStr,
             created_at = created_at,
             expires_at = expires_at,
+            delete_message_seconds = delete_message_seconds,
+            numStings = numStings,
         } :: Punishment
     end
 
@@ -279,31 +315,39 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
         end
     end
 
-    local function deletePunishmentExpiration(userId: discord.Snowflake, punishmentId: string)
-        -- Get the punishment itself and update its internal expires_at
-        local record = promise.yield(kv:getrecord(`{userId}/{punishmentId}`))
-        if not record.exists then
-            return
-        end
-
-        local cpunishment = _parsePunishmentData(punishmentId, userId, record)
-
-        if not cpunishment or not cpunishment.expires_at then
-            return
-        end
-
+    local function _deletePunishmentExpirationImpl(punishment: Punishment, resolve: ResolutionReason?) 
+        local userId = punishment.userId
         if storeTab.onPunishmentDeleteExpiration then
-            (storeTab.onPunishmentDeleteExpiration :: any)(cpunishment)
+            (storeTab.onPunishmentDeleteExpiration :: any)(punishment, resolve)
         end
 
-        local oldExpiresAt = cpunishment.expires_at
-        cpunishment.expires_at = nil :: any
-        promise.yield(kv:set(`{userId}/{punishmentId}`, cpunishment))
+        local oldExpiresAt = punishment.expires_at
+
+        if not oldExpiresAt and not resolve then
+            -- This is basically a no-op, we don't need to do anything
+            return
+        end
+
+        if resolve then 
+            punishment.resolved = resolve
+        else
+            punishment.expires_at = nil :: any
+        end
+
+        promise.yield(kv:set(`{userId}/{punishment.punishmentId}`, punishment))
 
         -- Remove the expiration task
-        promise.yield(scheduledExec:remove(`builtins.punishments/{userId}/{punishmentId}`))
+        if oldExpiresAt then
+            promise.yield(scheduledExec:remove(`builtins.punishments/{userId}/{punishment.punishmentId}`))
+        end
 
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_delete_expiration")
+
+        local resolveReason = "Unresolved"
+
+        if resolve == "reversed" then
+            resolveReason = "Reversed this punishment entirely"
+        end
 
         if modlogschannel then
             promise.yield(discord:create_message({
@@ -312,19 +356,36 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
                     embeds = {
                         {
                             title = "Punishment Expiration Removed",
-                            description = string.format("Punishment ID: %s\nUser ID: %s\nReason: ``%s``", cpunishment.punishmentId, cpunishment.userId, cpunishment.reason),
+                            description = string.format("Punishment ID: %s\nUser ID: %s\nReason: ``%s``", punishment.punishmentId, punishment.userId, punishment.reason),
                             fields = {
-                                { name = "Moderator", value = if cpunishment.modId then "<@" .. cpunishment.modId .. ">" else "System", inline = true },
-                                { name = "Created At", value = "<t:" .. cpunishment.created_at.timestamp_seconds .. ">", inline = true },
-                                { name = "Old Expiry", value = "<t:" .. oldExpiresAt.timestamp_seconds .. ">", inline = true },
-                                { name = "Reason", value = cpunishment.reason, inline = true },
-                                { name = "Punishment Count", value = tostring(cpunishment.punishment), inline = true },
+                                { name = "Moderator", value = if punishment.modId then "<@" .. punishment.modId .. ">" else "System", inline = true },
+                                { name = "Created At", value = "<t:" .. punishment.created_at.timestamp_seconds .. ">", inline = true },
+                                { name = "Old Expiry", value = if oldExpiresAt then "<t:" .. oldExpiresAt.timestamp_seconds .. ">" else "None", inline = true },
+                                { name = "Reason", value = punishment.reason, inline = true },
+                                { name = "Punishment Count", value = tostring(punishment.punishment), inline = true },
+                                { name = "Punishment Resolved", value = resolveReason }
                             },
                         }
                     } :: {discord.EmbedObject},
                 }
             }))
         end
+    end
+
+    local function deletePunishmentExpiration(userId: discord.Snowflake, punishmentId: string, resolve: ResolutionReason?)
+        -- Get the punishment itself and update its internal expires_at
+        local record = promise.yield(kv:getrecord(`{userId}/{punishmentId}`))
+        if not record.exists then
+            return
+        end
+
+        local cpunishment = _parsePunishmentData(punishmentId, userId, record)
+
+        if not cpunishment then
+            return
+        end
+
+        _deletePunishmentExpirationImpl(cpunishment, resolve)
     end
 
     local function getPunishmentFromScheduledExecId(scheduledExecId: string): (discord.Snowflake?, string?)
@@ -343,6 +404,25 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
         return userId, punishmentId
     end
 
+    local function _reversePunishment(punishment: Punishment, mod: string?, auditReason: string)
+        if punishment.resolved then return end 
+        
+        -- Reverse the punishment
+        local action = punishmentActions[punishment.punishment]
+        if action and action.reverse then
+            action.reverse(ctx, discord, punishment)
+        end
+
+        -- Reverse all expirations/resolve all older punishments
+        local punishments = self.getPunishmentsOnUser(punishment.userId)
+        for _, p in punishments do
+            if p.punishment == punishment.punishment then
+                -- Delete the punishment expiration with resolution of  "reversed"
+                _deletePunishmentExpirationImpl(p, "reversed")
+            end
+        end
+    end
+
     local function deletePunishment(userId: discord.Snowflake, punishmentId: string, mod: string?, auditReason: string)
         if not userId or not punishmentId or not auditReason then
             error("User ID, Punishment ID or Audit Reason is nil")
@@ -359,7 +439,10 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
             (storeTab.onPunishmentDelete :: any)(cpunishment, mod, auditReason)
         end
 
-        -- Delete the punishment
+        -- Reverse the punishment
+        _reversePunishment(cpunishment, mod, auditReason)
+
+        -- Then remove from DB
         promise.yield(kv:delete(`{userId}/{punishmentId}`))
 
         -- Clear cache
@@ -390,8 +473,54 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
                 }
             }))
         end
+    end
 
-        self.deletePunishmentExpiration(userId, punishmentId)
+    local function reversePunishmentClass(userId: discord.Snowflake, mod: string?, punishment: string, auditReason: string) 
+        local action = punishmentActions[punishment]
+
+        if not action or not action.reverse then
+            error(punishment .. "s cannot be reversed")
+        end
+
+        -- Create a dummy punishment
+        local reversePunishment: Punishment = {
+            userId = userId,
+            modId = mod,
+            punishment = punishment,
+            reason = auditReason,
+            expires_at = nil,
+            delete_message_seconds = nil,
+            numStings = nil,
+            created_at = datetime.UTC:now(),
+            punishmentId = "DUMMY",
+        }
+
+        -- Reverse the punishment
+        _reversePunishment(reversePunishment, mod, auditReason)
+
+        -- Clear cache
+        self.clearCachedUserPunishments(userId)   
+        
+        -- Send a modlog message
+        local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_reversed")
+
+        if modlogschannel then
+            promise.yield(discord:create_message({
+                channel_id = modlogschannel,
+                data = {
+                    embeds = {
+                        {
+                            title = "Punishment Reversed",
+                            description = string.format("User ID: %s\nPunishment Class: %s\nReason: %s", userId, punishment, auditReason),
+                            fields = {
+                                { name = "Moderator", value = if mod then "<@" .. mod .. ">" else "System", inline = true },
+                                { name = "Reversed At", value = "<t:" .. datetime.UTC:now().timestamp_seconds .. ">", inline = true },
+                            },
+                        }
+                    } :: {discord.EmbedObject},
+                }
+            }))
+        end
     end
 
     local function getPunishmentsOnUser(userId: discord.Snowflake): {Punishment}
@@ -429,7 +558,9 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
             reason = punishment.reason,
             modId = punishment.modId,
             expires_at = punishment.expires_at,
-            punishment = punishment.punishment or 1,
+            punishment = punishment.punishment or error("Internal error: no punishment specified"),
+            delete_message_seconds = punishment.delete_message_seconds,
+            numStings = punishment.numStings
         }))
 
         local createdAt = datetime.UTC:now()
@@ -454,11 +585,38 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
             reason = punishment.reason,
             created_at = createdAt,
             expires_at = punishment.expires_at,
-            punishment = punishment.punishment or 1,
+            punishment = punishment.punishment or error("Internal error: no punishment specified"),
+            delete_message_seconds = punishment.delete_message_seconds,
+            numStings = punishment.numStings
         } :: Punishment
 
         if storeTab.onPunishmentCreate then
             (storeTab.onPunishmentCreate :: any)(cpunishment)
+        end
+
+        -- Apply punishment check
+        local action = punishmentActions[cpunishment.punishment]
+
+        if action and action.check then 
+            action.check(ctx, ge, cpunishment)
+        end
+
+        --[[
+    userId: discord.Snowflake,
+    modId: discord.Snowflake?,
+    stings: number?,
+    reason: string,
+    expires_at: datetime.DateTime?,
+        ]]
+
+        if punishment.numStings then 
+            stingmanager.createUserSting({
+                userId = cpunishment.userId,
+                modId = cpunishment.modId,
+                stings = cpunishment.numStings,
+                reason = cpunishment.reason,
+                expires_at = cpunishment.expires_at
+            })
         end
 
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_create")
@@ -482,6 +640,11 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
                     } :: {discord.EmbedObject},
                 }
             }))
+        end
+
+        -- Apply the punishment
+        if action and action.apply then
+            action.apply(ctx, discord, cpunishment)
         end
 
         return cpunishment
@@ -539,6 +702,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext): PunishmentMan
     self.createUserPunishment = createUserPunishment
     self.deletePunishmentExpiration = deletePunishmentExpiration
     self.deletePunishment = deletePunishment
+    self.reversePunishmentClass = reversePunishmentClass
     self.getPunishmentFromScheduledExecId = getPunishmentFromScheduledExecId
     self.getPunishment = getPunishment
     self.getCachedUserPunishments = getCachedUserPunishments

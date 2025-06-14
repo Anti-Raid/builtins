@@ -136,6 +136,8 @@ local function run(data: data.RunData): nil
             if opt.name == "user" then 
                 if opt.value.kind == "User" then
                     userid = opt.value.user.id
+                elseif opt.value.kind == "Unresolved" then
+                    userid = opt.value.id
                 end
             end
         end
@@ -185,6 +187,7 @@ local function run(data: data.RunData): nil
                     {
                         title = "No stings found",
                         description = `No stings found for <@{userid}>`,
+                        color = 0x00ff00,
                     }
                 },
                 false
@@ -299,7 +302,8 @@ local function run(data: data.RunData): nil
                             value = if stingTime then "<t:" .. (datetime.UTC:now() + datetime.timedelta_seconds(stingTime)).timestamp_seconds .. ">" else "Never",
                             inline = true,
                         }
-                    }
+                    },
+                    color = 0x00ff00,
                 },
             },
             false
@@ -335,6 +339,7 @@ local function run(data: data.RunData): nil
                     {
                         title = "No user specified",
                         description = "Please specify a user to cure",
+                        color = 0xff0000,
                     },
                 },
                 false
@@ -350,6 +355,7 @@ local function run(data: data.RunData): nil
                     {
                         title = "No sting ID specified",
                         description = "Please specify a sting ID to cure",
+                        color = 0xff0000,
                     },
                 },
                 false
@@ -365,6 +371,7 @@ local function run(data: data.RunData): nil
                     {
                         title = "No reason specified",
                         description = "Please specify a reason for the cure",
+                        color = 0xff0000,
                     },
                 },
                 false
@@ -374,6 +381,24 @@ local function run(data: data.RunData): nil
         local modId = extractUserIdFromInteraction(data.interaction)
         canModeratorAffectTarget(data.ge, modId, user.id, "moderation.curesting")
     
+        -- Check that the sting exists
+        local sting = data.stingManager.getSting(user.id, stingId)
+        if not sting then
+            return interactionutils.replySimple(
+                data.ge,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Sting not found",
+                        description = `No sting with ID \`\`{stingId}\`\` found for <@{user.id}>`,
+                        color = 0xff0000,
+                    },
+                },
+                false
+            )
+        end
+
         data.stingManager.deleteSting(user.id, stingId, modId, reason)
     
         return interactionutils.replySimple(
@@ -384,6 +409,7 @@ local function run(data: data.RunData): nil
                 {
                     title = "Sting cured",
                     description = `Successfully cured <@{user.id}> of their sting with ID \`\`{stingId}\`\``,
+                    color = 0x00ff00,
                 }
             },
             false
