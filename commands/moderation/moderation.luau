@@ -41,15 +41,6 @@ local function register()
                 function(opt) 
                     return opt
                     :setType("Integer")
-                    :setName("stings")
-                    :setDescription("Number of stings to give")  
-                    :build()
-                end
-            )
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("Integer")
                     :setName("delete_message_days")
                     :setDescription("Number of days to prune messages for. Mutually exclusive with delete_message_seconds")  
                     :build()
@@ -96,6 +87,35 @@ local function register()
             :build()      
         end
     )
+    :option(
+        function(opt) 
+            return opt
+            :setType("SubCommand")
+            :setName("kick")
+            :setDescription("Kick a user from the server")  
+            :option(
+                function(opt) 
+                    return opt
+                    :setType("User")
+                    :setName("user")
+                    :setDescription("User to kick")
+                    :setRequired(true)  
+                    :build()
+                end
+            )
+            :option(
+                function(opt) 
+                    return opt
+                    :setType("String")
+                    :setName("reason")
+                    :setDescription("Reason for kicking the user")  
+                    :setRequired(true)
+                    :build()
+                end
+            )
+            :build()      
+        end
+    )
     :build()
 end
 
@@ -105,7 +125,6 @@ local function run(data: data.RunData): nil
     if cmdname == "ban" then
         local userid = nil
         local reason = nil
-        local stings = 0
         local delete_message_seconds = 0
 
         for _, opt in data.command.options do 
@@ -120,12 +139,6 @@ local function run(data: data.RunData): nil
             if opt.name == "reason" then
                 if opt.value.kind == "String" then
                     reason = opt.value.value
-                end
-            end
-
-            if opt.name == "stings" then
-                if opt.value.kind == "Integer" then
-                    stings = opt.value.value
                 end
             end
 
@@ -180,7 +193,6 @@ local function run(data: data.RunData): nil
             modId = extractUserIdFromInteraction(data.interaction),
             reason = reason,
             delete_message_seconds = delete_message_seconds,
-            numStings = stings
         })
 
         return interactionutils.replySimple(
@@ -263,6 +275,78 @@ local function run(data: data.RunData): nil
                 {
                     title = "Successfully unbanned user",
                     description = "User <@" .. userid .. "> was successfully unbanned from this server!",
+                    color = 0x00FF00
+                },
+            },
+            false
+        )
+    elseif cmdname == "kick" then
+        local userid = nil
+        local reason = nil
+
+        for _, opt in data.command.options do 
+            if opt.name == "user" then 
+                if opt.value.kind == "User" then
+                    userid = opt.value.user.id
+                elseif opt.value.kind == "Unresolved" then
+                    userid = opt.value.id
+                end
+            end
+
+            if opt.name == "reason" then
+                if opt.value.kind == "String" then
+                    reason = opt.value.value
+                end
+            end
+        end
+
+        if not userid then
+            return interactionutils.replySimple(
+                data.ge,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Cannot kick unknown user!",
+                        description = "No user specified",
+                        color = 0xFF0000,
+                    },
+                },
+                false
+            )
+        end
+
+        if not reason or reason == "" then
+            return interactionutils.replySimple(
+                data.ge,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Cannot kick user without a reason!",
+                        description = "Please provide a reason for the kick",
+                        color = 0xFF0000,
+                    },
+                },
+                false
+            )
+        end
+
+        data.punishmentmanager.createUserPunishment({
+            userId = userid,
+            punishment = "ban",
+            modId = extractUserIdFromInteraction(data.interaction),
+            reason = reason,
+        })
+
+        return interactionutils.replySimple(
+            data.ge,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "Successfully kicked user",
+                    description = "User <@" .. userid .. "> was successfully kicked from this server!",
                     color = 0x00FF00
                 },
             },

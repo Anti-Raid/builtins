@@ -8,14 +8,14 @@ local typesext = require "@antiraid/typesext"
 local apitypes = require "@discord-types/apiTypes" 
 
 local SupportedAltPerms: {[string]: permissions.Permissions} = {
-    ["moderation.sting"] = "ModerateMembers",
-    ["moderation.curesting"] = "ModerateMembers",
-    ["moderation.kick"] = "KickMembers",
-    ["moderation.ban"] = "BanMembers",
-    ["moderation.timeout"] = "ModerateMembers",
-    ["moderation.unban"] = "BanMembers",
-    ["moderation.viewlogchannel"] = "ViewAuditLog",
-    ["moderation.setlogchannel"] = "ManageChannels"
+    ["moderation.sting"] = "ModerateMembers" :: "ModerateMembers",
+    ["moderation.curesting"] = "ModerateMembers" :: "ModerateMembers",
+    ["moderation.kick"] = "KickMembers" :: "KickMembers",
+    ["moderation.ban"] = "BanMembers" :: "BanMembers",
+    ["moderation.timeout"] = "ModerateMembers" :: "ModerateMembers",
+    ["moderation.unban"] = "BanMembers" :: "BanMembers",
+    ["moderation.viewlogchannel"] = "ViewAuditLog" :: "ViewAuditLog",
+    ["moderation.setlogchannel"] = "ManageChannels" :: "ManageChannels"
 }
 
 local function canModeratorDo(ctx: Primitives.TemplateContext, ge: executors.GlobalExecutor, mod: string, cap: string) 

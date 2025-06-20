@@ -24,7 +24,6 @@ export type Punishment = {
     delete_message_seconds: number?,
     created_at: datetime.DateTime,
     expires_at: datetime.DateTime?,
-    numStings: number?,
     resolved: ResolutionReason?,
 }
 
@@ -35,7 +34,6 @@ export type CreatePunishment = {
     reason: string,
     expires_at: datetime.DateTime?,
     delete_message_seconds: number?,
-    numStings: number?,
 }
 
 --[[
@@ -79,12 +77,9 @@ export type PunishmentAction = {
     name: string,
     description: string,
     check: (ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, p: Punishment) -> (),
-    --- By default, a punishment only supports expiry if it implements ``reverse()`` however some support expiry even if they don't implement it (timeouts)
-    ---
-    --- For these, the punishment manager will still not create the scheduled task (as in no-reverse case) but will not error if expires_at is set
-    supportsExpiryAnyways: boolean?, 
+    needsReversal: boolean,
     apply: (ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) -> (),
-    reverse: ((ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) -> ())?,
+    remove: ((ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) -> ())?,
 }
 
 local punishmentActions: {[string]: PunishmentAction} = {
@@ -104,10 +99,11 @@ local punishmentActions: {[string]: PunishmentAction} = {
                 user_id = p.userId,
             }))
         end,
-        reverse = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
+        needsReversal = true,
+        remove = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
             promise.yield(discord:remove_guild_ban({
                 user_id = p.userId,
-                reason = "Reverting ban by " .. (if p.modId then "<@" .. p.modId .. ">" else "System") .. " with ID of ``" .. p.punishmentId .. "``",
+                reason = "Reverting ban by " .. (if p.modId then "<@" .. p.modId .. ">" else "System") .. " with reason of ``" .. p.reason .. "``",
             }))
         end
     },
@@ -123,6 +119,7 @@ local punishmentActions: {[string]: PunishmentAction} = {
                 canModeratorAffectTarget(ge, p.modId, p.userId, "moderation.kick")
             end
         end,
+        needsReversal = false,
         apply = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
             promise.yield(discord:remove_guild_member({
                 reason = p.reason,
@@ -143,6 +140,7 @@ local punishmentActions: {[string]: PunishmentAction} = {
                 canModeratorAffectTarget(ge, p.modId, p.userId, "moderation.timeout")
             end
         end,
+        needsReversal = false,
         apply = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
             promise.yield(discord:modify_guild_member({
                 reason = p.reason,
@@ -152,10 +150,10 @@ local punishmentActions: {[string]: PunishmentAction} = {
                 }
             }))
         end,
-        reverse = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
+        remove = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
             promise.yield(discord:modify_guild_member({
                 user_id = p.userId,
-                reason = "Reverting timeout by " .. (if p.modId then "<@" .. p.modId .. ">" else "System") .. " with ID of ``" .. p.punishmentId .. "``",
+                reason = "Reverting timeout by " .. (if p.modId then "<@" .. p.modId .. ">" else "System") .. " with reason of ``" .. p.reason .. "``",
                 data = {
                     communication_disabled_until = {}
                 }
@@ -163,7 +161,6 @@ local punishmentActions: {[string]: PunishmentAction} = {
         end
     }
 }
-
 
 -- Cached user punishments should be captured by the PunishmentManager class to ensure require cache keeps the cache local reference the same across
 -- all PunishmentManager instances
@@ -190,7 +187,6 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         local created_at = punishment.created_at
         local expires_at = punishment.value.expires_at
         local delete_message_seconds = tonumber(punishment.value.delete_message_seconds)
-        local numStings = tonumber(punishment.value.numStings)
 
         if typeof(created_at) ~= "DateTime" then
             punishment.created_at = datetime.UTC:now()
@@ -221,7 +217,6 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
             created_at = created_at,
             expires_at = expires_at,
             delete_message_seconds = delete_message_seconds,
-            numStings = numStings,
         } :: Punishment
     end
 
@@ -346,7 +341,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         local resolveReason = "Unresolved"
 
         if resolve == "reversed" then
-            resolveReason = "Reversed this punishment entirely"
+            resolveReason = "Reversed this punishment"
         end
 
         if modlogschannel then
@@ -409,8 +404,8 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         
         -- Reverse the punishment
         local action = punishmentActions[punishment.punishment]
-        if action and action.reverse then
-            action.reverse(ctx, discord, punishment)
+        if action and action.remove then
+            action.remove(ctx, discord, punishment)
         end
 
         -- Reverse all expirations/resolve all older punishments
@@ -478,7 +473,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
     local function reversePunishmentClass(userId: discord.Snowflake, mod: string?, punishment: string, auditReason: string) 
         local action = punishmentActions[punishment]
 
-        if not action or not action.reverse then
+        if not action or not action.remove then
             error(punishment .. "s cannot be reversed")
         end
 
@@ -490,7 +485,6 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
             reason = auditReason,
             expires_at = nil,
             delete_message_seconds = nil,
-            numStings = nil,
             created_at = datetime.UTC:now(),
             punishmentId = "DUMMY",
         }
@@ -560,7 +554,6 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
             expires_at = punishment.expires_at,
             punishment = punishment.punishment or error("Internal error: no punishment specified"),
             delete_message_seconds = punishment.delete_message_seconds,
-            numStings = punishment.numStings
         }))
 
         local createdAt = datetime.UTC:now()
@@ -587,7 +580,6 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
             expires_at = punishment.expires_at,
             punishment = punishment.punishment or error("Internal error: no punishment specified"),
             delete_message_seconds = punishment.delete_message_seconds,
-            numStings = punishment.numStings
         } :: Punishment
 
         if storeTab.onPunishmentCreate then
@@ -599,24 +591,6 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
 
         if action and action.check then 
             action.check(ctx, ge, cpunishment)
-        end
-
-        --[[
-    userId: discord.Snowflake,
-    modId: discord.Snowflake?,
-    stings: number?,
-    reason: string,
-    expires_at: datetime.DateTime?,
-        ]]
-
-        if punishment.numStings then 
-            stingmanager.createUserSting({
-                userId = cpunishment.userId,
-                modId = cpunishment.modId,
-                stings = cpunishment.numStings,
-                reason = cpunishment.reason,
-                expires_at = cpunishment.expires_at
-            })
         end
 
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_create")
@@ -687,7 +661,11 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         if #reason > 128 then
             reason = reason:sub(1, 128) .. "..."
         end
-        -- "Punishment by " .. if maxPunishment.modId then "<@" .. maxPunishment.modId .. ">" else "System" .. " with ID of ``" .. maxPunishment.punishmentId .. "``",
+
+        if punishment.punishmentId == "DUMMY" then
+            return string.format("Reversed punishment by %s for user %s\nReason: %s", mod, punishment.userId, reason)
+        end
+
         return string.format("Punishment by %s with ID of ``%s``\nReason: %s\nCreated at: <t:%d>\nExpires at: %s\nPunishment: %s", mod, punishment.punishmentId, reason, punishment.created_at.timestamp_seconds, expiresAt, punishment.punishment)
     end
 
