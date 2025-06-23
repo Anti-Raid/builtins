@@ -1,8 +1,6 @@
 --local f = require"./cached"
 --error(f())
 
-local executor = require "@antiraid-ext/executor"
-local promise = require "@antiraid/promise"
 local Primitives = require "@antiraid-core/primitives"
 local Message = require "@antiraid-ext/events/discord/Message"
 local InteractionCreate = require "@antiraid-ext/events/discord/InteractionCreate"
@@ -19,13 +17,11 @@ local toArray = require "@antiraid-ext/array".toArray
 local apitypes = require "@discord-types/apiTypes"
 local string_startswith = require "@antiraid-ext/strings/startswith"
 local serde = require "@lune/serde"
-local ds = require "@antiraid/datastores"
 local fallbackScheduledExecs = require"./scheduledexecs/scheduledexecs".fallbackScheduledExecs
 local stingmanager = require "./utils/stingmanager"
 local punishmentmanager = require"./utils/punishmentmanager"
 local builtinSettingsManager = require"./utils/builtinsettingsmanager" 
 local onceLocal = require"@antiraid-ext/once".onceLocal
-local store = require"@antiraid/stores".store
 local Interaction = require"@discord-types/interaction"
 local interop = require"@antiraid/interop"
 
@@ -40,24 +36,16 @@ local devs = {
 local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext) 
     local errorReportChannel = ctx.data.error_channel
 
-    local ge: executor.GlobalExecutor
-    if _G.globalexecutor then
-        ge = _G.globalexecutor :: executor.GlobalExecutor
-    else
-        ge = executor.NewGlobalExecutor(ctx)
-        _G.globalexecutor = (ge :: any)
-    end
-
     onceLocal("builtins.init", function(): nil
         if _G._TEST_ASYNC_WORK then return nil end
-        local storeTab = store :: any
+        local storeTab = ctx.store :: any
         if storeTab.onBuiltinsLoad and type(storeTab.onBuiltinsLoad) == "function" then 
             storeTab.onBuiltinsLoad()
         end
 
         -- Register builtins
         storeTab.stingManager = stingmanager(ctx)
-        storeTab.punishmentManager = punishmentmanager(ctx, ge, storeTab.stingManager)
+        storeTab.punishmentManager = punishmentmanager(ctx, storeTab.stingManager)
         storeTab.builtinSettingsManager = builtinSettingsManager(ctx)
 
         _G.storeTab = storeTab
@@ -77,10 +65,12 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                 return
             end
 
-            local content = msg.content:sub(#botMention + 2)
+            -- Luau type solver bug bypass
+            local content: string = ((msg :: any).content :: string):sub(#botMention + 2)
+            local authorId: string = (msg :: any).author.id
 
             if content == "dev:register" then 
-                if not devs[msg.author.id] then
+                if not devs[authorId] then
                     return
                 end
 
@@ -105,37 +95,38 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                     cmdList = cmdList:sub(1, 1997) .. "..."
                 end
 
-                promise.yield(ge.discord:create_message({
+                ctx.Discord:create_message({
                     channel_id = msg.channel_id,
                     data = {
                         content = "Registering " .. cmdList .. " [" .. (#commandsBeingRegistered) .. " commands]",
                     }
-                }))
+                })
 
-                promise.yield(ge.discord:create_guild_commands({
+                ctx.Discord:create_guild_commands({
                     data = commandList, 
-                }))
+                })
 
-                promise.yield(ge.discord:create_message({
+                ctx.Discord:create_message({
                     channel_id = msg.channel_id,
                     data = {
                         content = "Registered commands",
                     }
-                }))
+                })
+
             elseif content == "dev:stdout" then
-                if not devs[msg.author.id] then
+                if not devs[authorId] then
                     return
                 end
 
-                promise.yield(ge.discord:create_message({
+                ctx.Discord:create_message({
                     channel_id = msg.channel_id,
                     data = {
                         content = "stdout: " .. table.concat(_G.stdout or {} :: any, "\n"),
                     }
-                }))
+                })
             -- If it starts with dev:eval, run the code
             elseif content and content:sub(1, 9) == "dev:eval " then
-                if not devs[msg.author.id] then
+                if not devs[authorId] then
                     return
                 end
 
@@ -148,27 +139,24 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                 chunk.environment = {
                     globals = _G,
                     require = require,
-                    promise = promise,
-                    pyield = promise.yield,
                     serde = serde,
                     jsonify = function(obj)
                         return serde.encode("json", obj)
                     end,
-                    ge = ge,
                     ctx = ctx,
-                    msg = msg,
+                    msg = msg :: any,
                     commands = commands,
                     data = data,
                     evt = evt,
-                    storeTab = store,
+                    storeTab = ctx.store,
                     type = type,
                     typeof = typeof,
                     interop = interop,
                     memusage = interop.memusage
                 }
-                local ok, result = pcall(promise.yield, chunk:call_async({}))    
+                local ok, result = pcall(chunk.call_async, chunk, {})    
 
-                promise.yield(ge.discord:create_message({
+                ctx.Discord:create_message({
                     channel_id = msg.channel_id,
                     data = {
                         embeds = toArray({
@@ -186,7 +174,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                             },
                         }) :: {apitypes.EmbedObject}
                     }
-                }))
+                })
             end
         end)  
 
@@ -219,8 +207,8 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                 local callback: (bcd: data.ButtonCallbackData) -> nil = (_G.attachedButtonCallbacks :: any)[interaction.data.custom_id]
                 if not callback then
                     local comps = nil
-                    if ge.datastores.LinksStore then 
-                        local linksstore = ge.datastores.LinksStore :: ds.LinksStore
+                    local linksstore = ctx.DataStores.LinksStore 
+                    if linksstore then 
                         comps = {
                             ActionRowBuilder.new()
                             :addComponent(
@@ -235,7 +223,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                     end
             
                     interactionutils.replySimple(
-                        ge,
+                        ctx,
                         interaction :: apiTypes.InteractionObject,
                         nil,
                         {
@@ -260,7 +248,6 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                         ctx = ctx,
                         interaction = interaction, 
                         removeCallback = removeCallback,
-                        ge = ge,
                         event = evt,
                     } :: data.ButtonCallbackData
                 )
@@ -290,7 +277,6 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                     ctx = ctx,
                     event = evt,
                     interaction = interaction,
-                    ge = ge,
                     stingManager = _G.storeTab.stingManager,
                     builtinSettingsManager = _G.storeTab.builtinSettingsManager,
                     command = parsedcmd,
@@ -308,7 +294,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
 
                 -- Send the results
                 interactionutils.replyAutocomplete(
-                    ge,
+                    ctx,
                     interaction,
                     results
                 )
@@ -324,7 +310,6 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                 stingManager = _G.storeTab.stingManager,
                 punishmentmanager = _G.storeTab.punishmentManager,
                 builtinSettingsManager = _G.storeTab.builtinSettingsManager,
-                ge = ge,
                 attachButtonCallback = attachButtonCallback,
                 sethasEdited = function(to: boolean): nil
                     hasEdited = to
@@ -333,7 +318,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                 dropButtonCallback = dropButtonCallback,
             }
 
-            local ok, err = xpcall(command.run, debug.traceback, runData)
+            local ok, err = xpcall(command.run, debug.traceback :: any, runData)
             if not ok then 
                 err = tostring(err) :: string
                 if #err > 2000 then 
@@ -342,8 +327,8 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                 end
 
                 local comps = nil
-                if ge.datastores.LinksStore then 
-                    local linksstore = ge.datastores.LinksStore :: ds.LinksStore
+                local linksstore = ctx.DataStores.LinksStore
+                if linksstore then 
                     comps = {
                         ActionRowBuilder.new()
                         :addComponent(
@@ -371,7 +356,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                 
                 if hasEdited then 
                     interactionutils.editSimple(
-                        ge,
+                        ctx,
                         interaction,
                         nil,
                         {
@@ -387,7 +372,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                 end
 
                 interactionutils.replySimple(
-                    ge,
+                    ctx,
                     interaction,
                     nil,
                     {
@@ -416,7 +401,6 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                             scheduledExecData = data,
                             scheduledExecId = data.id,
                             stingManager = _G.storeTab.stingManager,
-                            ge = ge,
                         }) then 
                             return -- Fallback was found to have handled it
                         end
@@ -437,7 +421,6 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                             scheduledExecData = data,
                             scheduledExecId = data.id,
                             stingManager = _G.storeTab.stingManager,
-                            ge = ge,
                         }) then 
                             return -- Fallback was found to have handled it
                         end
@@ -456,7 +439,6 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                 scheduledExecData = data,
                 scheduledExecId = id[2],
                 stingManager = _G.storeTab.stingManager,
-                ge = ge,
             })
         end)
     end
@@ -471,7 +453,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
         end
 
         if errorReportChannel then 
-            promise.yield(ge.discord:create_message({
+            ctx.Discord:create_message({
                 channel_id = errorReportChannel,
                 data = {
                     embeds = toArray({
@@ -489,7 +471,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                         },
                     }) :: {apitypes.EmbedObject}    
                 }
-            }))
+            })
         else
             print("Error in builtins: " .. err)
         end

@@ -38,7 +38,7 @@ local function run(data: data.RunData): nil
     
     if not message then 
         return interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -55,7 +55,7 @@ local function run(data: data.RunData): nil
 
     if #urls == 0 then 
         return interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -72,7 +72,7 @@ local function run(data: data.RunData): nil
     for i = 1, #urls do
         if msgCount + #urls[i] > 4000 then
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -91,7 +91,7 @@ local function run(data: data.RunData): nil
 
     urls[1] = "- " .. urls[1]
     return interactionutils.replySimple(
-        data.ge,
+        data.ctx,
         data.interaction,
         nil,
         {

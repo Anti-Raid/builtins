@@ -4,11 +4,10 @@ local apitypes = require "@discord-types/apiTypes"
 local data = require "../data"
 local interactionutils = require "../../utils/interaction"
 local canModeratorDo = require "../../utils/modhierarchy".canModeratorDo
-local lockdowns = require"@antiraid/lockdowns"
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
 local ButtonBuilder = require"@discord-types/builders/message/components/button"
-local promise = require"@antiraid/promise"
 local typesext = require"@antiraid/typesext"
+local lockdowns = require"@antiraid-core/plugins/lockdowns"
 
 local function register() 
     return commandBuilder.new({
@@ -152,7 +151,7 @@ local maxBurstCacheTime = 120 -- 2 minutes
 local function quickGetLockdownSet(data: data.RunData | data.AutocompleteRunData): lockdowns.LockdownSet
     if not lockdownSetBurstCache or lockdownSetBurstCache.createdAt - os.clock() > maxBurstCacheTime then 
         lockdownSetBurstCache = {
-            data = promise.yield(data.ge.lockdowns:fetch_lockdown_set()),
+            data = data.ctx.Lockdowns.Client:fetch_lockdown_set(),
             createdAt = os.clock()
         }
         return (lockdownSetBurstCache :: {data: lockdowns.LockdownSet, createdAt: number}).data
@@ -166,7 +165,7 @@ local function createLockdown(
     reason: string,
     ephemeral: boolean
 ): nil
-    local lockdownSet = promise.yield(data.ge.lockdowns:fetch_lockdown_set())
+    local lockdownSet = data.ctx.Lockdowns.Client:fetch_lockdown_set()
 
     -- Update the burst cache
     lockdownSetBurstCache = {
@@ -176,7 +175,7 @@ local function createLockdown(
 
     -- A lockdown may take a long time to apply, so we need to make sure the user knows that something is happening
     interactionutils.replySimple(
-        data.ge,
+        data.ctx,
         data.interaction,
         nil,
         {
@@ -190,7 +189,7 @@ local function createLockdown(
 
     data.sethasEdited(true)
 
-    local result = promise.yield(lockdownSet:apply(lockdownType, reason))
+    local result = lockdownSet:apply(lockdownType, reason)
     if result.type == "LockdownTestFailed" then 
         local autofixCustomId = `lockdowns:autofix:${typesext.randstring(16)}`
         data.attachButtonCallback(autofixCustomId, function(data: data.ButtonCallbackData): nil 
@@ -198,7 +197,7 @@ local function createLockdown(
             
             if not result.test_result then error("Test result is nil") end
             interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -210,11 +209,11 @@ local function createLockdown(
                 true
             )
 
-            local ok, err = xpcall(promise.yield, debug.traceback :: any, result.test_result:try_auto_fix(lockdownSet))
+            local ok, err = xpcall(result.test_result.try_auto_fix, debug.traceback :: any, result.test_result, lockdownSet)
 
             if not ok then
                 interactionutils.editSimple(
-                    data.ge,
+                    data.ctx,
                     data.interaction,
                     nil,
                     {
@@ -230,7 +229,7 @@ local function createLockdown(
             end
 
             interactionutils.editSimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -245,13 +244,13 @@ local function createLockdown(
             return nil
         end)
         interactionutils.editSimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
                 {
                     title = "Action Required",
-                    description = "The following actions are required to proceed with the lockdown\n" .. (if result.test_result then promise.yield(result.test_result:display_changeset(lockdownSet)) else "No changeset available"),
+                    description = "The following actions are required to proceed with the lockdown\n" .. (if result.test_result then result.test_result:display_changeset(lockdownSet) else "No changeset available"),
                     color = 0xFF0000,
                 },
             },
@@ -272,7 +271,7 @@ local function createLockdown(
         error(result.error or "An unknown error occurred while trying to apply the lockdown")
     elseif result.type == "Ok" then
         interactionutils.editSimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -292,7 +291,7 @@ local function removeLockdown(
     data: data.RunData,
     id: string
 ): nil
-    local lockdownSet = promise.yield(data.ge.lockdowns:fetch_lockdown_set())
+    local lockdownSet = data.ctx.Lockdowns.Client:fetch_lockdown_set()
 
     -- Update the burst cache
     lockdownSetBurstCache = {
@@ -302,7 +301,7 @@ local function removeLockdown(
 
     -- A lockdown may take a long time to remove, so we need to make sure the user knows that something is happening
     interactionutils.replySimple(
-        data.ge,
+        data.ctx,
         data.interaction,
         nil,
         {
@@ -316,7 +315,7 @@ local function removeLockdown(
 
     data.sethasEdited(true)
 
-    local result = promise.yield(lockdownSet:remove(id))
+    local result = lockdownSet:remove(id)
     if result.type == "LockdownTestFailed" then 
         local autofixCustomId = `lockdowns:autofix:${typesext.randstring(16)}`
         data.attachButtonCallback(autofixCustomId, function(data: data.ButtonCallbackData): nil 
@@ -324,7 +323,7 @@ local function removeLockdown(
             
             if not result.test_result then error("Test result is nil") end
             interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -336,11 +335,11 @@ local function removeLockdown(
                 true
             )
 
-            local ok, err = xpcall(promise.yield, debug.traceback :: any, result.test_result:try_auto_fix(lockdownSet))
+            local ok, err = xpcall(result.test_result.try_auto_fix, debug.traceback :: any, result.test_result, lockdownSet)
 
             if not ok then
                 interactionutils.editSimple(
-                    data.ge,
+                    data.ctx,
                     data.interaction,
                     nil,
                     {
@@ -356,7 +355,7 @@ local function removeLockdown(
             end
 
             interactionutils.editSimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -371,13 +370,13 @@ local function removeLockdown(
             return nil
         end)
         interactionutils.editSimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
                 {
                     title = "Action Required",
-                    description = "The following actions are required to proceed with the lockdown\n" .. (if result.test_result then promise.yield(result.test_result:display_changeset(lockdownSet)) else "No changeset available"),
+                    description = "The following actions are required to proceed with the lockdown\n" .. (if result.test_result then result.test_result:display_changeset(lockdownSet) else "No changeset available"),
                     color = 0xFF0000,
                 },
             },
@@ -398,7 +397,7 @@ local function removeLockdown(
         error(result.error or "An unknown error occurred while trying to remove the lockdown")
     elseif result.type == "Ok" then
         interactionutils.editSimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -424,7 +423,7 @@ local function run(data: data.RunData): nil
 
         if #lockdownSet.lockdowns == 0 then 
             interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -448,7 +447,7 @@ local function run(data: data.RunData): nil
         end
 
         interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -483,9 +482,9 @@ local function run(data: data.RunData): nil
             error("No reason specified")
         end
 
-        canModeratorDo(data.ctx, data.ge, modid, "lockdowns.qsl")
+        canModeratorDo(data.ctx, modid, "lockdowns.qsl")
 
-        local lockdownType = lockdowns.QuickServerLockdown()
+        local lockdownType = data.ctx.Lockdowns.QuickServerLockdown()
 
         return createLockdown(
             data,
@@ -509,9 +508,9 @@ local function run(data: data.RunData): nil
             error("No reason specified")
         end
 
-        canModeratorDo(data.ctx, data.ge, modid, "lockdowns.tsl")
+        canModeratorDo(data.ctx, modid, "lockdowns.tsl")
 
-        local lockdownType = lockdowns.TraditionalServerLockdown()
+        local lockdownType = data.ctx.Lockdowns.TraditionalServerLockdown()
 
         return createLockdown(
             data,
@@ -544,9 +543,9 @@ local function run(data: data.RunData): nil
 
         local channelid: string = if channel then channel.id else error("No channel specified")
         
-        canModeratorDo(data.ctx, data.ge, modid, "lockdowns.scl")
+        canModeratorDo(data.ctx, modid, "lockdowns.scl")
 
-        local lockdownType = lockdowns.SingleChannelLockdown(channelid)
+        local lockdownType = data.ctx.Lockdowns.SingleChannelLockdown(channelid)
 
         return createLockdown(
             data,
@@ -579,9 +578,9 @@ local function run(data: data.RunData): nil
 
         local roleid: string = if role then role.id else error("No role specified")
 
-        canModeratorDo(data.ctx, data.ge, modid, "lockdowns.srl")
+        canModeratorDo(data.ctx, modid, "lockdowns.srl")
 
-        local lockdownType = lockdowns.RoleLockdown(roleid)
+        local lockdownType = data.ctx.Lockdowns.RoleLockdown(roleid)
 
         return createLockdown(
             data,
@@ -605,7 +604,7 @@ local function run(data: data.RunData): nil
             error("No ID specified")
         end
 
-        canModeratorDo(data.ctx, data.ge, modid, "lockdowns.remove")
+        canModeratorDo(data.ctx, modid, "lockdowns.remove")
 
         return removeLockdown(
             data,

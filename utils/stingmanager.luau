@@ -2,13 +2,10 @@
 local datetime = require "@antiraid/datetime"
 local discord = require "@discord-types/apiTypes"
 local Primitives = require "@antiraid-core/primitives"
-local promise = require "@antiraid/promise"
-local kv = require "@antiraid/kv"
-local scheduledexec = require "@antiraid/scheduledexec"
 local typesext = require "@antiraid/typesext"
-local stores = require "@antiraid/stores"
 local builtinSettingsManager = require "./builtinsettingsmanager"
-local discordPlugin = require "@antiraid/discord"
+local kv = require "@antiraid-core/plugins/kv"
+local scheduledexec = require "@antiraid-core/plugins/scheduledexec"
 
 export type Sting = {
     stingId: string,
@@ -69,12 +66,8 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         __index = StingManager,
     })
 
-    -- Create a new key-value executor with the builtins.stings kv-scope
-    local kv = kv.new(ctx, nil, "builtins.stings")
     local builtinsettingsmanager = builtinSettingsManager(ctx)
-    local discord = discordPlugin.new(ctx)
-    local storeTab = stores.store :: any
-    local scheduledExec = scheduledexec.new(ctx)
+    local storeTab = ctx.store :: any
 
     local function _parseStingData(stingId: string, userId: string, sting: kv.KvRecord): Sting?
         if not sting.exists then return nil end
@@ -124,7 +117,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
             return expiresAt :: datetime.DateTime
         end 
         
-        local stingExpirationTask = promise.yield(scheduledExec:list(`builtins.stings/{userId}/{stingId}`))
+        local stingExpirationTask = ctx.ScheduledExecution:list(`builtins.stings/{userId}/{stingId}`)
         if not stingExpirationTask or #stingExpirationTask == 0 then
             return nil, nil
         end
@@ -153,7 +146,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
 
     local function setStingExpiration(userId: discord.Snowflake, stingId: string, reason: string, expiresAt: datetime.DateTime)
         -- Get the sting itself and update its internal expires_at
-        local record = promise.yield(kv:getrecord(`{userId}/{stingId}`))
+        local record = ctx.KV:getrecord(stingId, {"builtins.stings", userId})
         if not record.exists then
             return
         end
@@ -167,24 +160,24 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         end
 
         csting.expires_at = expiresAt
-        promise.yield(kv:set(`{userId}/{stingId}`, csting))
+        ctx.KV:set(stingId, csting, {"builtins.stings", userId})
 
         -- Remove the old expiration task if any
-        promise.yield(scheduledExec:remove(`builtins.stings/{userId}/{stingId}`))
+        ctx.ScheduledExecution:remove(`builtins.stings/{userId}/{stingId}`)
         -- Create a new expiration task
-        promise.yield(scheduledExec:add({
+        ctx.ScheduledExecution:add({
             id = `builtins.stings/{userId}/{stingId}`,
             data = {
                 reason = reason,
             },
             run_at = tostring(expiresAt),
-        }))
+        })
 
         -- Send a modlog message
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("sting_set_expiration")
 
         if modlogschannel then
-            promise.yield(discord:create_message({
+            ctx.Discord:create_message({
                 channel_id = modlogschannel,
                 data = {
                     embeds = {
@@ -201,13 +194,13 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
                         }
                     } :: {discord.EmbedObject},
                 }
-            }))
+            })
         end
     end
 
     local function deleteStingExpiration(userId: discord.Snowflake, stingId: string)
         -- Get the sting itself and update its internal expires_at
-        local record = promise.yield(kv:getrecord(`{userId}/{stingId}`))
+        local record = ctx.KV:getrecord(stingId, {"builtins.stings", userId})
         if not record.exists then
             return
         end
@@ -224,15 +217,15 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
 
         local oldExpiresAt = csting.expires_at
         csting.expires_at = nil :: any
-        promise.yield(kv:set(`{userId}/{stingId}`, csting))
+        ctx.KV:set(stingId, csting, {"builtins.stings", userId})
 
         -- Remove the expiration task
-        promise.yield(scheduledExec:remove(`builtins.stings/{userId}/{stingId}`))
+        ctx.ScheduledExecution:remove(`builtins.stings/{userId}/{stingId}`)
 
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("sting_delete_expiration")
 
         if modlogschannel then
-            promise.yield(discord:create_message({
+            ctx.Discord:create_message({
                 channel_id = modlogschannel,
                 data = {
                     embeds = {
@@ -249,7 +242,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
                         }
                     } :: {discord.EmbedObject},
                 }
-            }))
+            })
         end
     end
 
@@ -275,7 +268,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         end
 
         -- Fetch the sting
-        local record = promise.yield(kv:getrecord(`{userId}/{stingId}`))
+        local record = ctx.KV:getrecord(stingId, {"builtins.stings", userId})
         local csting = _parseStingData(stingId, userId, record)
         if not csting then
             return
@@ -286,7 +279,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         end
 
         -- Delete the sting
-        promise.yield(kv:delete(`{userId}/{stingId}`))
+        ctx.KV:delete(stingId, {"builtins.stings", userId})
 
         -- Clear cache
         self.clearCachedUserStings(userId)
@@ -294,7 +287,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("sting_delete")
 
         if modlogschannel then
-            promise.yield(discord:create_message({
+            ctx.Discord:create_message({
                 channel_id = modlogschannel,
                 data = {
                     embeds = {
@@ -314,21 +307,21 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
                         }
                     } :: {discord.EmbedObject},
                 }
-            }))
+            })
         end
 
         self.deleteStingExpiration(userId, stingId)
     end
 
     local function getStingsOnUser(userId: discord.Snowflake): {Sting}
-        local stings = promise.yield(kv:find(`{userId}/%`))
+        local stings = ctx.KV:find("%%", {"builtins.stings", userId})
         if not stings or #stings == 0 then
             return {}
         end
 
         local stingList: {Sting} = {}
         for _, sting in stings do
-            local stingParsed = _parseStingData(sting.key:split("/")[2], userId, sting)
+            local stingParsed = _parseStingData(sting.key, userId, sting)
             if not stingParsed then
                 continue
             end
@@ -340,7 +333,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
     end
 
     local function getSting(userId: discord.Snowflake, stingId: string): Sting?
-        local sting = promise.yield(kv:getrecord(`{userId}/{stingId}`))
+        local sting = ctx.KV:getrecord(stingId, {"builtins.stings", userId})
 
         local parsedSting = _parseStingData(stingId, userId, sting)
         
@@ -351,24 +344,24 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         local stingId = typesext.randstring(16)
 
         -- Create the sting
-        promise.yield(kv:set(`{sting.userId}/{stingId}`, {
+        ctx.KV:set(stingId, {
             reason = sting.reason,
             modId = sting.modId,
             expires_at = sting.expires_at,
             stings = sting.stings or 1,
-        }))
+        }, {"builtins.stings", sting.userId})
 
         local createdAt = datetime.UTC:now()
 
         if sting.expires_at then
             -- Create the expiration task
-            promise.yield(scheduledExec:add({
+            ctx.ScheduledExecution:add({
                 id = `builtins.stings/{sting.userId}/{stingId}`,
                 data = {
                     reason = sting.reason,
                 },
                 run_at = tostring(sting.expires_at), -- TODO: Support datetime in scheduledexec API
-            }))
+            })
         end
 
         self.clearCachedUserStings(sting.userId)
@@ -390,7 +383,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("sting_create")
 
         if modlogschannel then
-            promise.yield(discord:create_message({
+            ctx.Discord:create_message({
                 channel_id = modlogschannel,
                 data = {
                     embeds = {
@@ -407,7 +400,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
                         }
                     } :: {discord.EmbedObject},
                 }
-            }))
+            })
         end
 
         return csting

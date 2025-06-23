@@ -64,7 +64,7 @@ local function run(data: data.RunData): nil
         end
 
         return interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -87,7 +87,7 @@ local function run(data: data.RunData): nil
         end
 
         return interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -100,7 +100,7 @@ local function run(data: data.RunData): nil
         )
     else 
         return interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {

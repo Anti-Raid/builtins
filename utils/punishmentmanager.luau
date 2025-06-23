@@ -1,17 +1,13 @@
 --!strict
 local datetime = require "@antiraid/datetime"
 local discord = require "@discord-types/apiTypes"
-local executor = require"@antiraid-ext/executor"
 local Primitives = require "@antiraid-core/primitives"
-local promise = require "@antiraid/promise"
-local kv = require "@antiraid/kv"
-local scheduledexec = require "@antiraid/scheduledexec"
 local typesext = require "@antiraid/typesext"
-local stores = require "@antiraid/stores"
 local builtinSettingsManager = require "./builtinsettingsmanager"
 local stingmanager = require "./stingmanager"
-local discordPlugin = require "@antiraid/discord"
 local canModeratorAffectTarget = require "./modhierarchy".canModeratorAffectTarget
+local kv = require"@antiraid-core/plugins/kv"
+local scheduledexec = require"@antiraid-core/plugins/scheduledexec"
 
 export type ResolutionReason = "reversed"
 
@@ -76,88 +72,88 @@ export type PunishmentManager = {
 export type PunishmentAction = {
     name: string,
     description: string,
-    check: (ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, p: Punishment) -> (),
+    check: (ctx: Primitives.TemplateContext, p: Punishment) -> (),
     needsReversal: boolean,
-    apply: (ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) -> (),
-    remove: ((ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) -> ())?,
+    apply: (ctx: Primitives.TemplateContext, p: Punishment) -> (),
+    remove: ((ctx: Primitives.TemplateContext, p: Punishment) -> ())?,
 }
 
 local punishmentActions: {[string]: PunishmentAction} = {
     ban = {
         name = "Ban",
         description = "Bans the user from the server",
-        check = function(ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, p: Punishment) 
+        check = function(ctx: Primitives.TemplateContext, p: Punishment) 
             if p.modId then
-                canModeratorAffectTarget(ge, p.modId, p.userId, "moderation.ban")
+                canModeratorAffectTarget(ctx, p.modId, p.userId, "moderation.ban")
             end
             return
         end,
-        apply = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
-            promise.yield(discord:create_guild_ban({
+        apply = function(ctx: Primitives.TemplateContext, p: Punishment) 
+            ctx.Discord:create_guild_ban({
                 delete_message_seconds = p.delete_message_seconds,
                 reason = p.reason,
                 user_id = p.userId,
-            }))
+            })
         end,
         needsReversal = true,
-        remove = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
-            promise.yield(discord:remove_guild_ban({
+        remove = function(ctx: Primitives.TemplateContext, p: Punishment) 
+            ctx.Discord:remove_guild_ban({
                 user_id = p.userId,
                 reason = "Reverting ban by " .. (if p.modId then "<@" .. p.modId .. ">" else "System") .. " with reason of ``" .. p.reason .. "``",
-            }))
+            })
         end
     },
     kick = {
         name = "Kick",
         description = "Kicks the user from the server",
-        check = function(ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, p: Punishment) 
+        check = function(ctx: Primitives.TemplateContext, p: Punishment) 
             if p.delete_message_seconds then 
                 error("Kick punishments cannot have a delete_message_seconds value")
             end
 
             if p.modId then
-                canModeratorAffectTarget(ge, p.modId, p.userId, "moderation.kick")
+                canModeratorAffectTarget(ctx, p.modId, p.userId, "moderation.kick")
             end
         end,
         needsReversal = false,
-        apply = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
-            promise.yield(discord:remove_guild_member({
+        apply = function(ctx: Primitives.TemplateContext, p: Punishment) 
+            ctx.Discord:remove_guild_member({
                 reason = p.reason,
                 user_id = p.userId,
-            }))
+            })
         end,
     },
     timeout = {
         name = "Timeout",
         description = "Times out the user for a specified duration",
         supportsExpiryAnyways = true,
-        check = function(ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, p: Punishment) 
+        check = function(ctx: Primitives.TemplateContext, p: Punishment) 
             if not p.expires_at then 
                 error("Timeout punishments must have a expires_at value")
             end
 
             if p.modId then
-                canModeratorAffectTarget(ge, p.modId, p.userId, "moderation.timeout")
+                canModeratorAffectTarget(ctx, p.modId, p.userId, "moderation.timeout")
             end
         end,
         needsReversal = false,
-        apply = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
-            promise.yield(discord:modify_guild_member({
+        apply = function(ctx: Primitives.TemplateContext, p: Punishment) 
+            ctx.Discord:modify_guild_member({
                 reason = p.reason,
                 user_id = p.userId,
                 data = {
                     communication_disabled_until = tostring(p.expires_at),
                 }
-            }))
+            })
         end,
-        remove = function(ctx: Primitives.TemplateContext, discord: discordPlugin.DiscordExecutor, p: Punishment) 
-            promise.yield(discord:modify_guild_member({
+        remove = function(ctx: Primitives.TemplateContext, p: Punishment) 
+            ctx.Discord:modify_guild_member({
                 user_id = p.userId,
                 reason = "Reverting timeout by " .. (if p.modId then "<@" .. p.modId .. ">" else "System") .. " with reason of ``" .. p.reason .. "``",
                 data = {
                     communication_disabled_until = {}
                 }
-            }))
+            })
         end
     }
 }
@@ -167,17 +163,14 @@ local punishmentActions: {[string]: PunishmentAction} = {
 local _cachedUserPunishments: {[string]: {punishments: {Punishment}, createdAt: number }} = {}
 local maxBurstCacheTime = 120 -- 2 minutes
 
-local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.GlobalExecutor, stingmanager: stingmanager.StingManager): PunishmentManager
+local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: stingmanager.StingManager): PunishmentManager
     local self = setmetatable({}, {
         __index = PunishmentManager,
     })
 
     -- Create a new key-value executor with the builtins.punishments kv-scope
-    local kv = kv.new(ctx, nil, "builtins.punishments")
     local builtinsettingsmanager = builtinSettingsManager(ctx)
-    local discord = discordPlugin.new(ctx)
-    local storeTab = stores.store :: any
-    local scheduledExec = scheduledexec.new(ctx)
+    local storeTab = ctx.store :: any
 
     local function _parsePunishmentData(punishmentId: string, userId: string, punishment: kv.KvRecord): Punishment?
         if not punishment.exists then return nil end
@@ -229,7 +222,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
             return expiresAt :: datetime.DateTime
         end 
         
-        local punishmentExpirationTask = promise.yield(scheduledExec:list(`builtins.punishments/{userId}/{punishmentId}`))
+        local punishmentExpirationTask = ctx.ScheduledExecution:list(`builtins.punishments/{userId}/{punishmentId}`)
         if not punishmentExpirationTask or #punishmentExpirationTask == 0 then
             return nil, nil
         end
@@ -258,7 +251,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
 
     local function setPunishmentExpiration(userId: discord.Snowflake, punishmentId: string, reason: string, expiresAt: datetime.DateTime)
         -- Get the punishment itself and update its internal expires_at
-        local record = promise.yield(kv:getrecord(`{userId}/{punishmentId}`))
+        local record = ctx.KV:getrecord(punishmentId, {"builtins.punishments", userId})
         if not record.exists then
             return
         end
@@ -272,24 +265,24 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         end
 
         cpunishment.expires_at = expiresAt
-        promise.yield(kv:set(`{userId}/{punishmentId}`, cpunishment))
+        ctx.KV:set(punishmentId, cpunishment, {"builtins.punishments", userId})
 
         -- Remove the old expiration task if any
-        promise.yield(scheduledExec:remove(`builtins.punishments/{userId}/{punishmentId}`))
+        ctx.ScheduledExecution:remove(`builtins.punishments/{userId}/{punishmentId}`)
         -- Create a new expiration task
-        promise.yield(scheduledExec:add({
+        ctx.ScheduledExecution:add({
             id = `builtins.punishments/{userId}/{punishmentId}`,
             data = {
                 reason = reason,
             },
             run_at = tostring(expiresAt),
-        }))
+        })
 
         -- Send a modlog message
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_set_expiration")
 
         if modlogschannel then
-            promise.yield(discord:create_message({
+            ctx.Discord:create_message({
                 channel_id = modlogschannel,
                 data = {
                     embeds = {
@@ -306,7 +299,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
                         }
                     } :: {discord.EmbedObject},
                 }
-            }))
+            })
         end
     end
 
@@ -329,11 +322,11 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
             punishment.expires_at = nil :: any
         end
 
-        promise.yield(kv:set(`{userId}/{punishment.punishmentId}`, punishment))
+        ctx.KV:set(punishment.punishmentId, punishment, {"builtins.punishments", userId})
 
         -- Remove the expiration task
         if oldExpiresAt then
-            promise.yield(scheduledExec:remove(`builtins.punishments/{userId}/{punishment.punishmentId}`))
+            ctx.ScheduledExecution:remove(`builtins.punishments/{userId}/{punishment.punishmentId}`)
         end
 
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_delete_expiration")
@@ -345,7 +338,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         end
 
         if modlogschannel then
-            promise.yield(discord:create_message({
+            ctx.Discord:create_message({
                 channel_id = modlogschannel,
                 data = {
                     embeds = {
@@ -363,13 +356,13 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
                         }
                     } :: {discord.EmbedObject},
                 }
-            }))
+            })
         end
     end
 
     local function deletePunishmentExpiration(userId: discord.Snowflake, punishmentId: string, resolve: ResolutionReason?)
         -- Get the punishment itself and update its internal expires_at
-        local record = promise.yield(kv:getrecord(`{userId}/{punishmentId}`))
+        local record = ctx.KV:getrecord(punishmentId, {"builtins.punishments", userId})
         if not record.exists then
             return
         end
@@ -405,7 +398,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         -- Reverse the punishment
         local action = punishmentActions[punishment.punishment]
         if action and action.remove then
-            action.remove(ctx, discord, punishment)
+            action.remove(ctx, punishment)
         end
 
         -- Reverse all expirations/resolve all older punishments
@@ -424,7 +417,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         end
 
         -- Fetch the punishment
-        local record = promise.yield(kv:getrecord(`{userId}/{punishmentId}`))
+        local record = ctx.KV:getrecord(punishmentId, {"builtins.punishments", userId})
         local cpunishment = _parsePunishmentData(punishmentId, userId, record)
         if not cpunishment then
             return
@@ -438,7 +431,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         _reversePunishment(cpunishment, mod, auditReason)
 
         -- Then remove from DB
-        promise.yield(kv:delete(`{userId}/{punishmentId}`))
+        ctx.KV:delete(punishmentId, {"builtins.punishments", userId})
 
         -- Clear cache
         self.clearCachedUserPunishments(userId)
@@ -446,7 +439,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_delete")
 
         if modlogschannel then
-            promise.yield(discord:create_message({
+            ctx.Discord:create_message({
                 channel_id = modlogschannel,
                 data = {
                     embeds = {
@@ -466,7 +459,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
                         }
                     } :: {discord.EmbedObject},
                 }
-            }))
+            })
         end
     end
 
@@ -499,7 +492,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_reversed")
 
         if modlogschannel then
-            promise.yield(discord:create_message({
+            ctx.Discord:create_message({
                 channel_id = modlogschannel,
                 data = {
                     embeds = {
@@ -513,19 +506,19 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
                         }
                     } :: {discord.EmbedObject},
                 }
-            }))
+            })
         end
     end
 
     local function getPunishmentsOnUser(userId: discord.Snowflake): {Punishment}
-        local punishments = promise.yield(kv:find(`{userId}/%`))
+        local punishments = ctx.KV:find("%%", {"builtins.punishments", userId})
         if not punishments or #punishments == 0 then
             return {}
         end
 
         local punishmentList: {Punishment} = {}
         for _, punishment in punishments do
-            local punishmentParsed = _parsePunishmentData(punishment.key:split("/")[2], userId, punishment)
+            local punishmentParsed = _parsePunishmentData(punishment.key, userId, punishment)
             if not punishmentParsed then
                 continue
             end
@@ -537,7 +530,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
     end
 
     local function getPunishment(userId: discord.Snowflake, punishmentId: string): Punishment?
-        local punishment = promise.yield(kv:getrecord(`{userId}/{punishmentId}`))
+        local punishment = ctx.KV:getrecord(punishmentId, {"builtins.punishments", userId})
 
         local parsedPunishment = _parsePunishmentData(punishmentId, userId, punishment)
         
@@ -548,25 +541,25 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         local punishmentId = typesext.randstring(16)
 
         -- Create the punishment
-        promise.yield(kv:set(`{punishment.userId}/{punishmentId}`, {
+        ctx.KV:set(punishmentId, {
             reason = punishment.reason,
             modId = punishment.modId,
             expires_at = punishment.expires_at,
             punishment = punishment.punishment or error("Internal error: no punishment specified"),
             delete_message_seconds = punishment.delete_message_seconds,
-        }))
+        }, {"builtins.punishments", punishment.userId})
 
         local createdAt = datetime.UTC:now()
 
         if punishment.expires_at then
             -- Create the expiration task
-            promise.yield(scheduledExec:add({
+            ctx.ScheduledExecution:add({
                 id = `builtins.punishments/{punishment.userId}/{punishmentId}`,
                 data = {
                     reason = punishment.reason,
                 },
                 run_at = tostring(punishment.expires_at), -- TODO: Support datetime in scheduledexec API
-            }))
+            })
         end
 
         self.clearCachedUserPunishments(punishment.userId)
@@ -590,13 +583,13 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
         local action = punishmentActions[cpunishment.punishment]
 
         if action and action.check then 
-            action.check(ctx, ge, cpunishment)
+            action.check(ctx, cpunishment)
         end
 
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_create")
 
         if modlogschannel then
-            promise.yield(discord:create_message({
+            ctx.Discord:create_message({
                 channel_id = modlogschannel,
                 data = {
                     embeds = {
@@ -613,12 +606,12 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, ge: executor.G
                         }
                     } :: {discord.EmbedObject},
                 }
-            }))
+            })
         end
 
         -- Apply the punishment
         if action and action.apply then
-            action.apply(ctx, discord, cpunishment)
+            action.apply(ctx, cpunishment)
         end
 
         return cpunishment

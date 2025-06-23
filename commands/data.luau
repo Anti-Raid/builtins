@@ -1,6 +1,5 @@
 local appcommands = require "@antiraid-ext/appcommands"
 local primitives = require "@antiraid-core/primitives"
-local executor = require "@antiraid-ext/executor"
 local discord = require "@discord-types/apiTypes"
 local discordRestTypes = require "@discord-types/restTypes" 
 local events = require "@antiraid-core/events"
@@ -21,7 +20,6 @@ export type ScheduledExecRunData = {
     scheduledExecData: events.ScheduledExecutionEventData,
     scheduledExecId: string,
     stingManager: stingmanager.StingManager,
-    ge: executor.GlobalExecutor,
 }
 
 export type ButtonCallbackData = {
@@ -29,14 +27,12 @@ export type ButtonCallbackData = {
     interaction: discord.InteractionObject, 
     removeCallback: () -> nil,
     event: primitives.Event,
-    ge: executor.GlobalExecutor,
 }
 
 export type RunData = {
     ctx: primitives.TemplateContext, 
     event: primitives.Event, 
     interaction: discord.InteractionObject,
-    ge: executor.GlobalExecutor,
     stingManager: stingmanager.StingManager,
     punishmentmanager: punishmentmanager.PunishmentManager,
     builtinSettingsManager: builtinSettingsManager.BuiltinSettingsManager, 
@@ -50,7 +46,6 @@ export type AutocompleteRunData = {
     ctx: primitives.TemplateContext, 
     event: primitives.Event, 
     interaction: discord.InteractionObject,
-    ge: executor.GlobalExecutor,
     stingManager: stingmanager.StingManager,
     builtinSettingsManager: builtinSettingsManager.BuiltinSettingsManager, 
     command: appcommands.ParsedApplicationCommand,

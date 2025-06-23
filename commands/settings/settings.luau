@@ -150,7 +150,7 @@ local function run(data: data.RunData): nil
 
         if not data.interaction.user then 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -165,7 +165,7 @@ local function run(data: data.RunData): nil
 
         if view and channel then
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -181,7 +181,7 @@ local function run(data: data.RunData): nil
 
         if not action and not view then
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -198,7 +198,6 @@ local function run(data: data.RunData): nil
         if view then 
             canModeratorDo(
                 data.ctx,
-                data.ge,
                 data.interaction.user.id,
                 "moderation.viewlogchannel"
             )
@@ -220,7 +219,7 @@ local function run(data: data.RunData): nil
 
             if #fields == 0 then
                 return interactionutils.replySimple(
-                    data.ge,
+                    data.ctx,
                     data.interaction,
                     nil,
                     {
@@ -235,7 +234,7 @@ local function run(data: data.RunData): nil
             end
 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -252,7 +251,6 @@ local function run(data: data.RunData): nil
         -- Check that the user has the right permissions
         canModeratorDo(
             data.ctx,
-            data.ge,
             data.interaction.user.id,
             "moderation.setlogchannel"
         )
@@ -262,7 +260,7 @@ local function run(data: data.RunData): nil
             data.builtinSettingsManager.deleteModLogsChannel(action)
 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -278,7 +276,6 @@ local function run(data: data.RunData): nil
             canBotDoInChannel(
                 channel.id or error("Channel ID is nil"),
                 data.ctx,
-                data.ge,
                 permissionsToBf({"SendMessages", "EmbedLinks", "ReadMessageHistory"})
             )
 
@@ -292,7 +289,7 @@ local function run(data: data.RunData): nil
             )
 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -339,7 +336,7 @@ local function run(data: data.RunData): nil
 
         if not data.interaction.user then 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -354,7 +351,7 @@ local function run(data: data.RunData): nil
 
         if view and stings then
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -370,7 +367,7 @@ local function run(data: data.RunData): nil
 
         if not action and not view then
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -387,7 +384,6 @@ local function run(data: data.RunData): nil
         if view then 
             canModeratorDo(
                 data.ctx,
-                data.ge,
                 data.interaction.user.id,
                 "moderation.viewbasestings"
             )
@@ -409,7 +405,7 @@ local function run(data: data.RunData): nil
 
             if #fields == 0 then
                 return interactionutils.replySimple(
-                    data.ge,
+                    data.ctx,
                     data.interaction,
                     nil,
                     {
@@ -424,7 +420,7 @@ local function run(data: data.RunData): nil
             end
 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -441,7 +437,6 @@ local function run(data: data.RunData): nil
         -- Check that the user has the right permissions
         canModeratorDo(
             data.ctx,
-            data.ge,
             data.interaction.user.id,
             "moderation.setbasestings"
         )
@@ -451,7 +446,7 @@ local function run(data: data.RunData): nil
             data.builtinSettingsManager.deleteBaseModerationStingCounts(action)
 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -469,7 +464,7 @@ local function run(data: data.RunData): nil
             )
 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -483,7 +478,7 @@ local function run(data: data.RunData): nil
         end
     else 
         return interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {

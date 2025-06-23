@@ -180,7 +180,7 @@ local function run(data: data.RunData): nil
     
         if #stingEmbeds == 0 then
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -194,7 +194,7 @@ local function run(data: data.RunData): nil
             )
         else
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 stingEmbeds,
@@ -230,7 +230,7 @@ local function run(data: data.RunData): nil
         
         if not user then 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -245,7 +245,7 @@ local function run(data: data.RunData): nil
     
         if not numberOfStings then 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -260,7 +260,7 @@ local function run(data: data.RunData): nil
     
         if not reason then 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -275,7 +275,7 @@ local function run(data: data.RunData): nil
     
         local modid = extractUserIdFromInteraction(data.interaction)
         
-        canModeratorAffectTarget(data.ge, modid, user.id, "moderation.sting")
+        canModeratorAffectTarget(data.ctx, modid, user.id, "moderation.sting")
     
         local createdSting = data.stingManager.createUserSting({
             userId = user.id,
@@ -289,7 +289,7 @@ local function run(data: data.RunData): nil
         end
     
         return interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -332,7 +332,7 @@ local function run(data: data.RunData): nil
     
         if not user then 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -348,7 +348,7 @@ local function run(data: data.RunData): nil
     
         if not stingId then 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -364,7 +364,7 @@ local function run(data: data.RunData): nil
     
         if not reason then 
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -379,13 +379,13 @@ local function run(data: data.RunData): nil
         end
     
         local modId = extractUserIdFromInteraction(data.interaction)
-        canModeratorAffectTarget(data.ge, modId, user.id, "moderation.curesting")
+        canModeratorAffectTarget(data.ctx, modId, user.id, "moderation.curesting")
     
         -- Check that the sting exists
         local sting = data.stingManager.getSting(user.id, stingId)
         if not sting then
             return interactionutils.replySimple(
-                data.ge,
+                data.ctx,
                 data.interaction,
                 nil,
                 {
@@ -402,7 +402,7 @@ local function run(data: data.RunData): nil
         data.stingManager.deleteSting(user.id, stingId, modId, reason)
     
         return interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -417,7 +417,7 @@ local function run(data: data.RunData): nil
     end
 
     return interactionutils.replySimple(
-        data.ge,
+        data.ctx,
         data.interaction,
         nil,
         {

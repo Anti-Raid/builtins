@@ -1,7 +1,5 @@
-local executors = require"@antiraid-ext/executor"
 local permissions = require "@discord-types/permission"
 local permissionsFromBf = permissions.fromBitFlag
-local promise = require "@antiraid/promise"
 local kc = require "@antiraid-core/kittycat"
 local Primitives = require "@antiraid-core/primitives"
 local typesext = require "@antiraid/typesext"  
@@ -18,8 +16,8 @@ local SupportedAltPerms: {[string]: permissions.Permissions} = {
     ["moderation.setlogchannel"] = "ManageChannels" :: "ManageChannels"
 }
 
-local function canModeratorDo(ctx: Primitives.TemplateContext, ge: executors.GlobalExecutor, mod: string, cap: string) 
-    local modInfo = promise.yield(ge.userinfo:get(mod))
+local function canModeratorDo(ctx: Primitives.TemplateContext, mod: string, cap: string) 
+    local modInfo = ctx.UserInfo:get(mod)
     if modInfo.guild_owner_id == mod then 
         return
     end
@@ -37,20 +35,20 @@ local function canModeratorDo(ctx: Primitives.TemplateContext, ge: executors.Glo
     end
 end
 
-local function canBotDoInChannel(channelId: string, ctx: Primitives.TemplateContext, ge: executors.GlobalExecutor, botNeededPerms: typesext.U64Convertibles) 
-    return promise.yield(ge.discord:antiraid_check_channel_permissions({
+local function canBotDoInChannel(channelId: string, ctx: Primitives.TemplateContext, botNeededPerms: typesext.U64Convertibles) 
+    return ctx.Discord:antiraid_check_channel_permissions({
         needed_permissions = tostring(botNeededPerms),
         channel_id = channelId,
         user_id = ctx.current_user.id,
-    }))
+    })
 end
 
-local function canModeratorAffectTarget(ge: executors.GlobalExecutor, mod: string, targetId: string, cap: string)
+local function canModeratorAffectTarget(ctx: Primitives.TemplateContext, mod: string, targetId: string, cap: string)
     if mod == targetId then
         error("You cannot moderate yourself!")
     end
     
-    local modInfo = promise.yield(ge.userinfo:get(mod))
+    local modInfo = ctx.UserInfo:get(mod)
     if modInfo.guild_owner_id == targetId then
         error("Target user is the guild owner")
     elseif modInfo.guild_owner_id == mod then 
@@ -71,11 +69,11 @@ local function canModeratorAffectTarget(ge: executors.GlobalExecutor, mod: strin
     end
 
     -- Check hierarchy
-    promise.yield(ge.discord:antiraid_check_permissions_and_hierarchy({
+    ctx.Discord:antiraid_check_permissions_and_hierarchy({
         needed_permissions = "0",
         target_id = targetId,
         user_id = mod,
-    }))
+    })
 end
 
 local function extractUserIdFromInteraction(interaction: apitypes.InteractionObject): string 

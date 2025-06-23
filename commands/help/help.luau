@@ -129,7 +129,7 @@ local function run(data: data.RunData): nil
         end
 
         interactionutils.replyUpdate(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -157,7 +157,7 @@ local function run(data: data.RunData): nil
         end
         
         interactionutils.replyUpdate(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -179,7 +179,7 @@ local function run(data: data.RunData): nil
     end)
 
     interactionutils.replySimple(
-        data.ge, 
+        data.ctx, 
         data.interaction,
         nil, 
         {renderPage(1)} :: {discord.EmbedObject},

@@ -4,12 +4,11 @@ local data = require "../data"
 local apiTypes = require "@discord-types/apiTypes"
 local interactionutils = require "../../utils/interaction"
 local avatarUrl = require "../../utils/avatar".avatarUrl
-local promise = require "@antiraid/promise"
-local userinfoplugin = require "@antiraid/userinfo"
 local stingmanager = require("../../utils/stingmanager")
 local kc = require "@antiraid-core/kittycat"
 local permissions = require "@discord-types/permission"
 local permissionsFromBf = permissions.fromBitFlag
+local userinfoplugin = require"@antiraid-core/plugins/userinfo"
 
 local function register() 
     return commandBuilder.new({
@@ -85,7 +84,7 @@ local function run(data: data.RunData)
 
     if not user then 
         return interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -98,7 +97,7 @@ local function run(data: data.RunData)
 
     assert(user, "User cannot be nil at this point")
 
-    local userinfook, userinfo = pcall(promise.yield, data.ge.userinfo:get(user.id))
+    local userinfook, userinfo = pcall(data.ctx.UserInfo.get, data.ctx.UserInfo, user.id)
 
     local baseFields = {
         {
@@ -224,7 +223,7 @@ local function run(data: data.RunData)
 
     local avatarUrl = avatarUrl(user)
     return interactionutils.replySimple(
-        data.ge,
+        data.ctx,
         data.interaction,
         nil,
         {

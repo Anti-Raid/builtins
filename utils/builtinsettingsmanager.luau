@@ -1,9 +1,6 @@
 --!strict
 local discord = require "@discord-types/apiTypes"
 local Primitives = require "@antiraid-core/primitives"
-local promise = require "@antiraid/promise"
-local kv = require "@antiraid/kv"
-local stores = require "@antiraid/stores"
 
 export type BaseAction = {
     name: string,
@@ -36,12 +33,10 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
         __index = BuiltinSettingsManager,
     })
 
-    -- Create a new key-value executor with the builtins.stings kv-scope
-    local kv = kv.new(ctx, nil, "builtins.settings")
-    local storeTab = stores.store :: any
+    local storeTab = ctx.store :: any
 
     local function getModLogsChannel(action: string): discord.Snowflake?
-        local mlc = promise.yield(kv:get(`modlogsChannel`))
+        local mlc = ctx.KV:get(`modlogsChannel`, {"builtins.settings"})
 
         if type(mlc) == "string" then return mlc end
         if type(mlc) == "table" then 
@@ -62,7 +57,7 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
     end
 
     local function getAllModLogsChannels(): {[string]: discord.Snowflake}
-        local mlc = promise.yield(kv:get(`modlogsChannel`))
+        local mlc = ctx.KV:get(`modlogsChannel`, {"builtins.settings"})
 
         if type(mlc) == "string" then
             return { default = mlc }
@@ -74,7 +69,7 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
     end
 
     local function setModLogsChannel(action: string?, channelId: discord.Snowflake): nil
-        local mlc = promise.yield(kv:get(`modlogsChannel`))
+        local mlc = ctx.KV:get(`modlogsChannel`, {"builtins.settings"})
 
         if type(mlc) == "string" then
             mlc = { default = mlc }
@@ -90,12 +85,12 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
             mlc["default"] = channelId
         end
 
-        promise.yield(kv:set(`modlogsChannel`, mlc))
+        ctx.KV:set(`modlogsChannel`, mlc, {"builtins.settings"})
         return nil
     end
 
     local function deleteModLogsChannel(action: string?): nil
-        local mlc = promise.yield(kv:get(`modlogsChannel`))
+        local mlc = ctx.KV:get(`modlogsChannel`, {"builtins.settings"})
 
         local newMlc = nil
         if type(mlc) == "string" then
@@ -107,12 +102,12 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
             newMlc = nil
         end
 
-        promise.yield(kv:set(`modlogsChannel`, mlc))
+        ctx.KV:set(`modlogsChannel`, newMlc, {"builtins.settings"})
         return nil
     end
 
     local function getBaseModerationStingCounts(action: string): number?
-        local mlc = promise.yield(kv:get(`baseModerationStingCounts`))
+        local mlc = ctx.KV:get(`baseModerationStingCounts`, {"builtins.settings"})
 
         if type(mlc) == "number" then return mlc end
         if type(mlc) == "string" then return tonumber(mlc) end
@@ -134,7 +129,7 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
     end
 
     local function getAllBaseModerationStingCounts(): {[string]: number}
-        local mlc = promise.yield(kv:get(`baseModerationStingCounts`))
+        local mlc = ctx.KV:get(`baseModerationStingCounts`, {"builtins.settings"})
 
         if type(mlc) == "number" then return { default = mlc } end
         if type(mlc) == "string" then 
@@ -150,7 +145,7 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
     end
 
     local function setBaseModerationStingCounts(action: string?, stings: number): nil
-        local mlc = promise.yield(kv:get(`baseModerationStingCounts`))
+        local mlc = ctx.KV:get(`baseModerationStingCounts`, {"builtins.settings"})
 
         if type(mlc) == "number" then
             mlc = { default = mlc }
@@ -169,12 +164,12 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
             mlc["default"] = stings
         end
 
-        promise.yield(kv:set(`baseModerationStingCounts`, mlc))
+        ctx.KV:set(`baseModerationStingCounts`, mlc, {"builtins.settings"})
         return nil
     end
 
     local function deleteBaseModerationStingCounts(action: string?): nil
-        local mlc = promise.yield(kv:get(`baseModerationStingCounts`))
+        local mlc = ctx.KV:get(`baseModerationStingCounts`, {"builtins.settings"})
 
         local newMlc = nil
         if type(mlc) == "number" or type(mlc) == "string" then
@@ -186,7 +181,7 @@ local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinS
             newMlc = nil
         end
 
-        promise.yield(kv:set(`baseModerationStingCounts`, mlc))
+        ctx.KV:set(`baseModerationStingCounts`, newMlc, {"builtins.settings"})
         return nil
     end
 

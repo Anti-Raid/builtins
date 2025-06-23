@@ -1,10 +1,9 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local data = require "../data"
 local interactionutils = require "../../utils/interaction"
-local datastores = require"@antiraid/datastores"
-local promise = require("@antiraid/promise")
 local datetime = require("@antiraid/datetime")
 local formatTimeDelta = require "@antiraid-ext/formattimedelta"
+local datastores = require"@antiraid-core/plugins/datastores"
 
 local function register() 
     return commandBuilder.new({
@@ -18,11 +17,10 @@ local function register()
 end
 
 local function run(data: data.RunData): nil
-    local ds = datastores.new(data.ctx)
-    local StatsDataStore = ds.StatsStore
+    local StatsDataStore = data.ctx.DataStores.StatsStore
     if not StatsDataStore then
         interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             "Stats data store not found",
             {},
@@ -31,12 +29,12 @@ local function run(data: data.RunData): nil
         return nil
     end
     local sds = StatsDataStore :: datastores.StatsStore
-    local stats = promise.yield(sds.stats())
+    local stats = sds.stats()
 
     local startedAt = datetime.UTC:now():duration_since(stats.last_started_at)
 
     return interactionutils.replySimple(
-        data.ge,
+        data.ctx,
         data.interaction,
         nil,
         {

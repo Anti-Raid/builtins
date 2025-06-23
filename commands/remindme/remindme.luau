@@ -2,7 +2,6 @@ local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local apitypes = require "@discord-types/apiTypes"
 local data = require "../data"
 local interactionutils = require "../../utils/interaction"
-local promise = require "@antiraid/promise"
 local datetime = require "@antiraid/datetime"
 local parseunit = require "@antiraid-ext/unit"
 
@@ -75,7 +74,7 @@ local function run(data: data.RunData): nil
 
     if not user or not message or not stime then
         return interactionutils.replySimple(
-            data.ge,
+            data.ctx,
             data.interaction,
             nil,
             {
@@ -88,9 +87,9 @@ local function run(data: data.RunData): nil
         )
     end
 
-    local dt = datetime.UTC:now() + datetime.timedelta_seconds(stime)
+    local dt = datetime.UTC:now() + datetime.timedelta_seconds(stime or 1)
 
-    promise.yield(data.ge.scheduledexec:add({
+    data.ctx.ScheduledExecution:add({
         id = "remindme:" .. datetime.UTC:now().timestamp_seconds,
         data = {
             user_id = user.id,
@@ -101,10 +100,10 @@ local function run(data: data.RunData): nil
         run_at = tostring(
             dt
         ),
-    }))
+    })
 
     return interactionutils.replySimple(
-        data.ge,
+        data.ctx,
         data.interaction,
         nil,
         {
@@ -126,7 +125,7 @@ local function scheduledexec(data: data.ScheduledExecRunData)
         return
     end
 
-    promise.yield(data.ge.discord:create_message({
+    data.ctx.Discord:create_message({
         channel_id = channelid,
         data = {
             embeds = {
@@ -136,7 +135,7 @@ local function scheduledexec(data: data.ScheduledExecRunData)
                 }
             } :: {apitypes.EmbedObject},
         }
-    }))
+    })
 end
 
 return {
