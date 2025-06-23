@@ -130,10 +130,9 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                     return
                 end
 
-                local chunkContent = content:sub(10)
-                :gsub("`", "")
+                local chunkContent = content:sub(10):gsub("`", "")
 
-                local chunk = luau.load(ctx, chunkContent)
+                local chunk = luau.load(chunkContent)
                 chunk.optimization_level = 2
                 chunk.chunk_name = "/init"
                 chunk.environment = {
@@ -154,6 +153,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                     interop = interop,
                     memusage = interop.memusage
                 }
+
                 local ok, result = pcall(chunk.call_async, chunk, {})    
 
                 ctx.Discord:create_message({
