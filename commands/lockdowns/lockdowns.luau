@@ -394,6 +394,22 @@ local function removeLockdown(
         )
         return nil
     elseif result.type == "Error" then 
+        if result.error == "Lockdown not found" then
+            interactionutils.editSimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Lockdown not found",
+                        description = "The requested lockdown with ID ``" .. id .. "`` was not found",
+                        color = 0xFF0000,
+                    },
+                }
+            )
+            return nil
+        end
+        
         error(result.error or "An unknown error occurred while trying to remove the lockdown")
     elseif result.type == "Ok" then
         interactionutils.editSimple(
@@ -403,7 +419,8 @@ local function removeLockdown(
             {
                 {
                     title = "Lockdown removed",
-                    description = "The requested lockdown has been removed"
+                    description = "The requested lockdown has been removed",
+                    color = 0x00FF00,
                 },
             }
         )
@@ -438,13 +455,17 @@ local function run(data: data.RunData): nil
             return nil
         end
 
-        local lockdownsList: {apitypes.EmbedObject} = {}
+        local lockdownsList: {apitypes.EmbedFieldObject} = {}
+        --setmetatable(lockdownsList, interop.array_metatable)
         for _, lockdown in lockdownSet.lockdowns do 
             table.insert(lockdownsList, {
-                name = lockdown.type.string_form .. " [" .. lockdown.id .. "]",
-                value = "Reason: " .. (if lockdown.reason then lockdown.reason else "No reason specified") .. "\n" .. (if lockdown.created_at then "Created at: <t:" .. lockdown.created_at.timestamp_seconds else "Created at: Unknown"),
+                name = lockdown.type.string_form,
+                value = "Reason: " .. (if lockdown.reason then lockdown.reason else "No reason specified") .. "\n" .. (if lockdown.created_at then "Created at: <t:" .. lockdown.created_at.timestamp_seconds .. ">" else "Created at: Unknown") .. "\nID: ``" .. lockdown.id .. "``",
+                inline = true,
             })
         end
+
+        --error("json: " .. lockdownJson)
 
         interactionutils.replySimple(
             data.ctx,
@@ -454,13 +475,8 @@ local function run(data: data.RunData): nil
                 {
                     title = "Active Lockdowns",
                     description = "The following lockdowns are currently active on this server",
-                    embeds = {
-                        {
-                            title = "Lockdown List",
-                            description = "The following lockdowns are currently active on this server",
-                            fields = lockdownsList,
-                        },
-                    }
+                    fields =  lockdownsList,
+                    color = 0x00FF00,
                 },
             },
             false

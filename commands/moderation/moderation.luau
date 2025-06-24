@@ -334,7 +334,7 @@ local function run(data: data.RunData): nil
 
         data.punishmentmanager.createUserPunishment({
             userId = userid,
-            punishment = "ban",
+            punishment = "kick",
             modId = extractUserIdFromInteraction(data.interaction),
             reason = reason,
         })
@@ -366,7 +366,6 @@ local function run(data: data.RunData): nil
             false
         )
     end
-    --return
 end
 
 return {
