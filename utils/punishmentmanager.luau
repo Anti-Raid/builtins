@@ -467,18 +467,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: 
     local function createUserPunishment(punishment: CreatePunishment): Punishment
         local punishmentId = typesext.randstring(16)
 
-        -- Create the punishment
-        ctx.KV:set(punishmentId, {
-            reason = punishment.reason,
-            modId = punishment.modId,
-            punishment = punishment.punishment or error("Internal error: no punishment specified"),
-            delete_message_seconds = punishment.delete_message_seconds,
-        }, {"builtins.punishments", punishment.userId}, punishment.expires_at)
-
         local createdAt = datetime.UTC:now()
-
-        self.clearCachedUserPunishments(punishment.userId)
-
         local cpunishment = {
             punishmentId = punishmentId,
             userId = punishment.userId,
@@ -490,15 +479,25 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: 
             delete_message_seconds = punishment.delete_message_seconds,
         } :: Punishment
 
-        if storeTab.onPunishmentCreate then
-            (storeTab.onPunishmentCreate :: any)(cpunishment)
-        end
-
         -- Apply punishment check
         local action = punishmentActions[cpunishment.punishment]
 
         if action and action.check then 
             action.check(ctx, cpunishment)
+        end        
+
+        -- Create the punishment
+        ctx.KV:set(punishmentId, {
+            reason = punishment.reason,
+            modId = punishment.modId,
+            punishment = punishment.punishment or error("Internal error: no punishment specified"),
+            delete_message_seconds = punishment.delete_message_seconds,
+        }, {"builtins.punishments", punishment.userId}, punishment.expires_at)
+
+        self.clearCachedUserPunishments(punishment.userId)
+
+        if storeTab.onPunishmentCreate then
+            (storeTab.onPunishmentCreate :: any)(cpunishment)
         end
 
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_create")
