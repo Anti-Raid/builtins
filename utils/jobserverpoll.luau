@@ -112,7 +112,7 @@ local function jobToEmbed(
         table.concat(jobStatuses, "\n")
     )
 
-    if job.state == "compleeted" and job.output then 
+    if job.state == "completed" and job.output then 
         local furl = string.format("%s/jobs/%s/ioauth/download-link", baseApiUrl, job.id)
         description ..= string.format("\n\n[Download %s](%s)", job.output.filename, furl)
 
