@@ -11,7 +11,7 @@ import requests
 
 API_URL = "https://splashtail-staging.antiraid.xyz/"
 NEEDED_CAPS = ["*"] # List of needed capabilities
-EVENTS = ["MESSAGE", "INTERACTION_CREATE", "ScheduledExecution"] # List of events to listen to
+EVENTS = ["MESSAGE", "INTERACTION_CREATE", "KeyExpiry[builtins.remindme]"] # List of events to listen to
 USE_BUNDLED_TEMPLATING_TYPES = True # Use bundled types
 TEMPLATE_NAME = "builtins-dev" # Name of the template
 IGNORE_FILES = [

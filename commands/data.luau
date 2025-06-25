@@ -10,16 +10,19 @@ local builtinSettingsManager = require "../utils/builtinsettingsmanager"
 export type Command = {
     register: () -> discordRestTypes.CreateGuildApplicationCommandRequest,
     run: (data: RunData) -> any,
-    scheduledexec: ((data: ScheduledExecRunData) -> any)?,
     autocompleter: ((data: AutocompleteRunData) -> {discord.ApplicationCommandOptionChoiceObject})?,
+    keyexpiries: {
+        [string]: (data: KeyExpiryData) -> nil
+    }?
 }
 
-export type ScheduledExecRunData = {
+export type KeyExpiryData = {
     ctx: primitives.TemplateContext, 
     event: primitives.Event,
-    scheduledExecData: events.ScheduledExecutionEventData,
-    scheduledExecId: string,
+    data: events.KeyExpiryEvent,
     stingManager: stingmanager.StingManager,
+    punishmentmanager: punishmentmanager.PunishmentManager,
+    builtinSettingsManager: builtinSettingsManager.BuiltinSettingsManager,
 }
 
 export type ButtonCallbackData = {

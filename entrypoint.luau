@@ -4,7 +4,7 @@
 local Primitives = require "@antiraid-core/primitives"
 local Message = require "@antiraid-ext/events/discord/Message"
 local InteractionCreate = require "@antiraid-ext/events/discord/InteractionCreate"
-local ScheduledExecution = require "@antiraid-ext/events/antiraid/ScheduledExecution"
+local KeyExpiry = require "@antiraid-ext/events/antiraid/KeyExpiry"
 local appcommands = require"@antiraid-ext/appcommands"
 local interactionutils = require"./utils/interaction"
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
@@ -17,7 +17,6 @@ local toArray = require "@antiraid-ext/array".toArray
 local apitypes = require "@discord-types/apiTypes"
 local string_startswith = require "@antiraid-ext/strings/startswith"
 local serde = require "@lune/serde"
-local fallbackScheduledExecs = require"./scheduledexecs/scheduledexecs".fallbackScheduledExecs
 local stingmanager = require "./utils/stingmanager"
 local punishmentmanager = require"./utils/punishmentmanager"
 local builtinSettingsManager = require"./utils/builtinsettingsmanager" 
@@ -388,58 +387,25 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
             end
         end)
 
-        ScheduledExecution(evt, function(data) 
-            -- Split by :
-            local id = data.id:split(":")
-            if #id ~= 2 then
-                -- Try going to the fallbacks if the id startswith builtins.
-                if string_startswith(id[1], "builtins.") then
-                    for _, fallback in fallbackScheduledExecs do 
-                        if fallback({
-                            ctx = ctx,
-                            event = evt,
-                            scheduledExecData = data,
-                            scheduledExecId = data.id,
-                            stingManager = _G.storeTab.stingManager,
-                        }) then 
-                            return -- Fallback was found to have handled it
+        KeyExpiry(evt, function(data)
+            --error("KeyExpiry event triggered")
+            for _, scope in data.scopes do 
+                for _, cmd in commands.commands do 
+                    if cmd.keyexpiries then
+                        local fn = cmd.keyexpiries[scope]
+                        if fn then
+                            fn({
+                                ctx = ctx,
+                                event = evt,
+                                data = data,
+                                stingManager = _G.storeTab.stingManager,
+                                punishmentmanager = _G.storeTab.punishmentManager,
+                                builtinSettingsManager = _G.storeTab.builtinSettingsManager,
+                            })
                         end
                     end
-                end
-                return
+                end                
             end
-
-            local command = commands.commands[id[1]]
-
-            if not command then
-                -- Try going to the fallbacks if the id startswith builtins.
-                if string_startswith(id[1], "builtins.") then
-                    for _, fallback in fallbackScheduledExecs do 
-                        if fallback({
-                            ctx = ctx,
-                            event = evt,
-                            scheduledExecData = data,
-                            scheduledExecId = data.id,
-                            stingManager = _G.storeTab.stingManager,
-                        }) then 
-                            return -- Fallback was found to have handled it
-                        end
-                    end
-                end
-                return
-            end
-
-            if not command.scheduledexec then
-                return
-            end
-
-            command.scheduledexec({
-                ctx = ctx,
-                event = evt,
-                scheduledExecData = data,
-                scheduledExecId = id[2],
-                stingManager = _G.storeTab.stingManager,
-            })
         end)
     end
 

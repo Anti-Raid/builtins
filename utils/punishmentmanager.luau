@@ -7,7 +7,6 @@ local builtinSettingsManager = require "./builtinsettingsmanager"
 local stingmanager = require "./stingmanager"
 local canModeratorAffectTarget = require "./modhierarchy".canModeratorAffectTarget
 local kv = require"@antiraid-core/plugins/kv"
-local scheduledexec = require"@antiraid-core/plugins/scheduledexec"
 
 export type ResolutionReason = "reversed"
 
@@ -42,8 +41,6 @@ export type PunishmentManager = {
     getPunishment: (userId: discord.Snowflake, punishmentId: string) -> Punishment?,
     --- Creates a new punishment for a user returning a Punishment
     createUserPunishment: (punishment: CreatePunishment) -> Punishment,
-    --- Returns the expiration of a punishment from the expiration task itself. If no expiration is set, returns nil
-    getPunishmentExpiration: (userId: discord.Snowflake, punishmentId: string) -> (string?, datetime.DateTime?),
     --- Sets the expiration of a punishment. Repeated calls override previous expiration
     setPunishmentExpiration: (userId: discord.Snowflake, punishmentId: string, reason: string, expiresAt: datetime.DateTime) -> (),
     --- Deletes the expiration of a punishment
@@ -52,8 +49,6 @@ export type PunishmentManager = {
     deletePunishment: (userId: discord.Snowflake, punishmentId: string, mod: string?, auditReason: string) -> (),
     --- Reverse a whole class of punishments, this will create a dummy punishment for reversal disabling expiration for all punishments within the bot
     reversePunishmentClass: (userId: discord.Snowflake, mod: string?, punishment: string, auditReason: string) -> (),
-    --- Given a scheduled execution ID corresponding to a punishment expiry, return the user id and punishment id
-    getPunishmentFromScheduledExecId: (scheduledExecId: string) -> (discord.Snowflake?, string?),
     --- Returns the cached list of punishments for a user. If the cache is expired, it will fetch the punishments from the kv store
     getCachedUserPunishments: (userId: string) -> {Punishment},
     --- Manually update the cached list of punishments for a user
@@ -178,7 +173,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: 
         local modId: discord.Snowflake? = punishment.value.modId
         local punishmentStr = punishment.value.punishment
         local created_at = punishment.created_at
-        local expires_at = punishment.value.expires_at
+        local expires_at = punishment.expires_at
         local delete_message_seconds = tonumber(punishment.value.delete_message_seconds)
 
         if typeof(created_at) ~= "DateTime" then
@@ -213,42 +208,6 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: 
         } :: Punishment
     end
 
-    local function getPunishmentExpiration(userId: discord.Snowflake, punishmentId: string): (string?, datetime.DateTime?)
-        local function extractPunishmentExpiration(exp: scheduledexec.ScheduledExecution): datetime.DateTime?
-            local ok, expiresAt = pcall(datetime.UTC.fromString, datetime.UTC, exp.run_at)
-            if not ok then
-                return nil
-            end
-            return expiresAt :: datetime.DateTime
-        end 
-        
-        local punishmentExpirationTask = ctx.ScheduledExecution:list(`builtins.punishments/{userId}/{punishmentId}`)
-        if not punishmentExpirationTask or #punishmentExpirationTask == 0 then
-            return nil, nil
-        end
-        local task = punishmentExpirationTask[1]
-        local taskExpiresAt = extractPunishmentExpiration(task)
-        if #punishmentExpirationTask > 1 then 
-            -- Get the minimum expiration date (as AntiRaid is not guaranteed to run multiple, only first)
-            for i = 2, #punishmentExpirationTask do
-                local potTask = punishmentExpirationTask[i]
-                local potTaskExpiresAt = extractPunishmentExpiration(potTask)
-                if not potTaskExpiresAt then
-                    continue
-                end
-
-                if not taskExpiresAt or potTaskExpiresAt < taskExpiresAt then
-                    task = potTask
-                    taskExpiresAt = potTaskExpiresAt
-                end
-            end
-        end
-
-        local reason = if task.data.reason and type(task.data.reason) == "string" then task.data.reason else nil
-
-        return reason, taskExpiresAt
-    end
-
     local function setPunishmentExpiration(userId: discord.Snowflake, punishmentId: string, reason: string, expiresAt: datetime.DateTime)
         -- Get the punishment itself and update its internal expires_at
         local record = ctx.KV:getrecord(punishmentId, {"builtins.punishments", userId})
@@ -265,18 +224,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: 
         end
 
         cpunishment.expires_at = expiresAt
-        ctx.KV:set(punishmentId, cpunishment, {"builtins.punishments", userId})
-
-        -- Remove the old expiration task if any
-        ctx.ScheduledExecution:remove(`builtins.punishments/{userId}/{punishmentId}`)
-        -- Create a new expiration task
-        ctx.ScheduledExecution:add({
-            id = `builtins.punishments/{userId}/{punishmentId}`,
-            data = {
-                reason = reason,
-            },
-            run_at = tostring(expiresAt),
-        })
+        ctx.KV:setexpiry(punishmentId, {"builtins.punishments", userId}, expiresAt)
 
         -- Send a modlog message
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_set_expiration")
@@ -322,12 +270,7 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: 
             punishment.expires_at = nil :: any
         end
 
-        ctx.KV:set(punishment.punishmentId, punishment, {"builtins.punishments", userId})
-
-        -- Remove the expiration task
-        if oldExpiresAt then
-            ctx.ScheduledExecution:remove(`builtins.punishments/{userId}/{punishment.punishmentId}`)
-        end
+        ctx.KV:setexpiry(punishment.punishmentId, {"builtins.punishments", userId}, nil)
 
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("punishment_delete_expiration")
 
@@ -374,22 +317,6 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: 
         end
 
         _deletePunishmentExpirationImpl(cpunishment, resolve)
-    end
-
-    local function getPunishmentFromScheduledExecId(scheduledExecId: string): (discord.Snowflake?, string?)
-        -- Ensure it starts with builtins.punishments/
-        local f, _ = scheduledExecId:find("builtins.punishments/")
-        if f ~= 1 then
-            return nil, nil
-        end
-        
-        -- Extract the userId and punishmentId
-        local userId, punishmentId = scheduledExecId:match("builtins.punishments/(%d+)/(%w+)")
-        if not userId or not punishmentId then
-            return nil, nil
-        end
-
-        return userId, punishmentId
     end
 
     local function _reversePunishment(punishment: Punishment, mod: string?, auditReason: string)
@@ -544,23 +471,11 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: 
         ctx.KV:set(punishmentId, {
             reason = punishment.reason,
             modId = punishment.modId,
-            expires_at = punishment.expires_at,
             punishment = punishment.punishment or error("Internal error: no punishment specified"),
             delete_message_seconds = punishment.delete_message_seconds,
-        }, {"builtins.punishments", punishment.userId})
+        }, {"builtins.punishments", punishment.userId}, punishment.expires_at)
 
         local createdAt = datetime.UTC:now()
-
-        if punishment.expires_at then
-            -- Create the expiration task
-            ctx.ScheduledExecution:add({
-                id = `builtins.punishments/{punishment.userId}/{punishmentId}`,
-                data = {
-                    reason = punishment.reason,
-                },
-                run_at = tostring(punishment.expires_at), -- TODO: Support datetime in scheduledexec API
-            })
-        end
 
         self.clearCachedUserPunishments(punishment.userId)
 
@@ -668,13 +583,11 @@ local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: 
 
     -- Save to self
     self.getPunishmentsOnUser = getPunishmentsOnUser
-    self.getPunishmentExpiration = getPunishmentExpiration
     self.setPunishmentExpiration = setPunishmentExpiration
     self.createUserPunishment = createUserPunishment
     self.deletePunishmentExpiration = deletePunishmentExpiration
     self.deletePunishment = deletePunishment
     self.reversePunishmentClass = reversePunishmentClass
-    self.getPunishmentFromScheduledExecId = getPunishmentFromScheduledExecId
     self.getPunishment = getPunishment
     self.getCachedUserPunishments = getCachedUserPunishments
     self.clearCachedUserPunishments = clearCachedUserPunishments

@@ -4,6 +4,7 @@ local data = require "../data"
 local interactionutils = require "../../utils/interaction"
 local datetime = require "@antiraid/datetime"
 local parseunit = require "@antiraid-ext/unit"
+local randstring = require"@antiraid/typesext".randstring
 
 local function register() 
     return commandBuilder.new({
@@ -89,18 +90,12 @@ local function run(data: data.RunData): nil
 
     local dt = datetime.UTC:now() + datetime.timedelta_seconds(stime or 1)
 
-    data.ctx.ScheduledExecution:add({
-        id = "remindme:" .. datetime.UTC:now().timestamp_seconds,
-        data = {
-            user_id = user.id,
-            channel_id = data.interaction.channel_id or error("Channel ID is nil"),
-            message = message,
-            ephemeral = isResponseEphemeral,
-        },
-        run_at = tostring(
-            dt
-        ),
-    })
+    data.ctx.KV:set(randstring(16), {
+        user_id = user.id,
+        channel_id = data.interaction.channel_id or error("Channel ID is nil"),
+        message = message,
+        ephemeral = isResponseEphemeral,
+    }, {"builtins.remindme"}, dt)
 
     return interactionutils.replySimple(
         data.ctx,
@@ -116,12 +111,18 @@ local function run(data: data.RunData): nil
     )
 end
 
-local function scheduledexec(data: data.ScheduledExecRunData) 
-    local userid = data.scheduledExecData.data.user_id
-    local channelid = data.scheduledExecData.data.channel_id
-    local message = data.scheduledExecData.data.message
+local function keyexpiries(data: data.KeyExpiryData) 
+    local kvr = data.ctx.KV:getrecord(data.data.key, {"builtins.remindme"})
+    if not kvr or not kvr.exists then
+        error("Key not found or expired: " .. data.data.key)
+        return
+    end
 
-    if not data.scheduledExecData.data.user_id or not data.scheduledExecData.data.channel_id or not message then
+    local userid = kvr.value.user_id
+    local channelid = kvr.value.channel_id
+    local message = kvr.value.message
+
+    if not userid or not channelid or not message then
         return
     end
 
@@ -131,7 +132,7 @@ local function scheduledexec(data: data.ScheduledExecRunData)
             embeds = {
                 {
                     title = "Reminder",
-                    description = string.format("<@%s> %s", userid, message),
+                    description = string.format("<@%s> %s", userid :: any, message :: any),
                 }
             } :: {apitypes.EmbedObject},
         }
@@ -141,5 +142,5 @@ end
 return {
     register = register,
     run = run,
-    scheduledexec = scheduledexec,
+    keyexpiries = {["builtins.remindme"] = keyexpiries},
 }

@@ -5,7 +5,6 @@ local Primitives = require "@antiraid-core/primitives"
 local typesext = require "@antiraid/typesext"
 local builtinSettingsManager = require "./builtinsettingsmanager"
 local kv = require "@antiraid-core/plugins/kv"
-local scheduledexec = require "@antiraid-core/plugins/scheduledexec"
 
 export type Sting = {
     stingId: string,
@@ -35,16 +34,12 @@ export type StingManager = {
     getSting: (userId: discord.Snowflake, stingId: string) -> Sting?,
     --- Creates a new sting for a user returning a Sting
     createUserSting: (sting: CreateSting) -> Sting,
-    --- Returns the expiration of a sting from the expiration task itself. If no expiration is set, returns nil
-    getStingExpiration: (userId: discord.Snowflake, stingId: string) -> (string?, datetime.DateTime?),
     --- Sets the expiration of a sting. Repeated calls override previous expiration
     setStingExpiration: (userId: discord.Snowflake, stingId: string, reason: string, expiresAt: datetime.DateTime) -> (),
     --- Deletes the expiration of a sting
     deleteStingExpiration: (userId: discord.Snowflake, stingId: string) -> (),
     --- Deletes a sting. Note that this does not delete the expiration task (use fullyDeleteSting if you want to do that)
     deleteSting: (userId: discord.Snowflake, stingId: string, mod: string?, auditReason: string) -> (),
-    --- Given a scheduled execution ID corresponding to a sting expiry, return the user id and sting id
-    getStingFromScheduledExecId: (scheduledExecId: string) -> (discord.Snowflake?, string?),
     --- Returns the cached list of stings for a user. If the cache is expired, it will fetch the stings from the kv store
     getCachedUserStings: (userId: string) -> {Sting},
     --- Manually update the cached list of stings for a user
@@ -75,7 +70,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         local modId: discord.Snowflake? = sting.value.modId
         local stingNo = sting.value.stings or 1
         local created_at = sting.created_at
-        local expires_at = sting.value.expires_at
+        local expires_at = sting.expires_at
 
         if typeof(created_at) ~= "DateTime" then
             sting.created_at = datetime.UTC:now()
@@ -108,42 +103,6 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         } :: Sting
     end
 
-    local function getStingExpiration(userId: discord.Snowflake, stingId: string): (string?, datetime.DateTime?)
-        local function extractStingExpiration(exp: scheduledexec.ScheduledExecution): datetime.DateTime?
-            local ok, expiresAt = pcall(datetime.UTC.fromString, datetime.UTC, exp.run_at)
-            if not ok then
-                return nil
-            end
-            return expiresAt :: datetime.DateTime
-        end 
-        
-        local stingExpirationTask = ctx.ScheduledExecution:list(`builtins.stings/{userId}/{stingId}`)
-        if not stingExpirationTask or #stingExpirationTask == 0 then
-            return nil, nil
-        end
-        local task = stingExpirationTask[1]
-        local taskExpiresAt = extractStingExpiration(task)
-        if #stingExpirationTask > 1 then 
-            -- Get the minimum expiration date (as AntiRaid is not guaranteed to run multiple, only first)
-            for i = 2, #stingExpirationTask do
-                local potTask = stingExpirationTask[i]
-                local potTaskExpiresAt = extractStingExpiration(potTask)
-                if not potTaskExpiresAt then
-                    continue
-                end
-
-                if not taskExpiresAt or potTaskExpiresAt < taskExpiresAt then
-                    task = potTask
-                    taskExpiresAt = potTaskExpiresAt
-                end
-            end
-        end
-
-        local reason = if task.data.reason and type(task.data.reason) == "string" then task.data.reason else nil
-
-        return reason, taskExpiresAt
-    end
-
     local function setStingExpiration(userId: discord.Snowflake, stingId: string, reason: string, expiresAt: datetime.DateTime)
         -- Get the sting itself and update its internal expires_at
         local record = ctx.KV:getrecord(stingId, {"builtins.stings", userId})
@@ -159,19 +118,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
             (storeTab.onStingSetExpiration :: any)(csting, reason, expiresAt)
         end
 
-        csting.expires_at = expiresAt
-        ctx.KV:set(stingId, csting, {"builtins.stings", userId})
-
-        -- Remove the old expiration task if any
-        ctx.ScheduledExecution:remove(`builtins.stings/{userId}/{stingId}`)
-        -- Create a new expiration task
-        ctx.ScheduledExecution:add({
-            id = `builtins.stings/{userId}/{stingId}`,
-            data = {
-                reason = reason,
-            },
-            run_at = tostring(expiresAt),
-        })
+        ctx.KV:setexpiry(stingId, {"builtins.stings", userId}, expiresAt)
 
         -- Send a modlog message
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("sting_set_expiration")
@@ -220,7 +167,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         ctx.KV:set(stingId, csting, {"builtins.stings", userId})
 
         -- Remove the expiration task
-        ctx.ScheduledExecution:remove(`builtins.stings/{userId}/{stingId}`)
+        ctx.KV:setexpiry(stingId, {"builtins.stings", userId}, nil)
 
         local modlogschannel = builtinsettingsmanager.getModLogsChannel("sting_delete_expiration")
 
@@ -244,22 +191,6 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
                 }
             })
         end
-    end
-
-    local function getStingFromScheduledExecId(scheduledExecId: string): (discord.Snowflake?, string?)
-        -- Ensure it starts with builtins.stings/
-        local f, _ = scheduledExecId:find("builtins.stings/")
-        if f ~= 1 then
-            return nil, nil
-        end
-        
-        -- Extract the userId and stingId
-        local userId, stingId = scheduledExecId:match("builtins.stings/(%d+)/(%w+)")
-        if not userId or not stingId then
-            return nil, nil
-        end
-
-        return userId, stingId
     end
 
     local function deleteSting(userId: discord.Snowflake, stingId: string, mod: string?, auditReason: string)
@@ -347,22 +278,10 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         ctx.KV:set(stingId, {
             reason = sting.reason,
             modId = sting.modId,
-            expires_at = sting.expires_at,
             stings = sting.stings or 1,
-        }, {"builtins.stings", sting.userId})
+        }, {"builtins.stings", sting.userId}, sting.expires_at)
 
         local createdAt = datetime.UTC:now()
-
-        if sting.expires_at then
-            -- Create the expiration task
-            ctx.ScheduledExecution:add({
-                id = `builtins.stings/{sting.userId}/{stingId}`,
-                data = {
-                    reason = sting.reason,
-                },
-                run_at = tostring(sting.expires_at), -- TODO: Support datetime in scheduledexec API
-            })
-        end
 
         self.clearCachedUserStings(sting.userId)
 
@@ -449,12 +368,10 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
 
     -- Save to self
     self.getStingsOnUser = getStingsOnUser
-    self.getStingExpiration = getStingExpiration
     self.setStingExpiration = setStingExpiration
     self.createUserSting = createUserSting
     self.deleteStingExpiration = deleteStingExpiration
     self.deleteSting = deleteSting
-    self.getStingFromScheduledExecId = getStingFromScheduledExecId
     self.getSting = getSting
     self.getCachedUserStings = getCachedUserStings
     self.clearCachedUserStings = clearCachedUserStings
