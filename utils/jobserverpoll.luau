@@ -5,7 +5,7 @@ local ActionRowBuilder = require"@discord-types/builders/message/components/acti
 local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local EmojiBuilder = require"@discord-types/builders/emoji"
 
-local POLL_INTERVAL = 2
+local POLL_INTERVAL = 3
 
 export type PollOptions = {
     jobId: string,

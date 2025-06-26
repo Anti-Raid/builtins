@@ -1,10 +1,11 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
-local apitypes = require "@discord-types/apiTypes"
+local interactionChoiceBuilder = require "@discord-types/builders/interaction/choice"
 local data = require "../data"
 local interactionutils = require "../../utils/interaction"
 local extractUserIdFromInteraction = require "../../utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorDo = require "../../utils/modhierarchy".canModeratorDo
 local jsp = require"../../utils/jobserverpoll"
+local interop = require"@antiraid/interop"
 
 local function register() 
     return commandBuilder.new({
@@ -123,6 +124,97 @@ local function register()
             :build()      
         end
     )
+    :option(
+        function(opt) 
+            return opt
+            :setType("SubCommand")
+            :setName("restore")
+            :setDescription("Restores a backup to the server")
+            :option(
+                function(opt) 
+                    return opt
+                    :setType("Attachment")
+                    :setName("backup_file")
+                    :setDescription("The backup attachment to restore")
+                    :setRequired(false)  
+                    :build()
+                end   
+            ) 
+            :option(
+                function(opt) 
+                    return opt
+                    :setType("String")
+                    :setName("backup_id")
+                    :setDescription("The backup ID to restore from")
+                    :setRequired(false)  
+                    :build()
+                end   
+            ) 
+            :option(
+                function(opt) 
+                    return opt
+                    :setType("String")
+                    :setName("password")
+                    :setDescription("Password to decrypt backup with. Should not be reused")
+                    :setRequired(false)  
+                    :build()
+                end   
+            ) 
+            :option(
+                function(opt) 
+                    return opt
+                    :setType("Boolean")
+                    :setName("ignore_restore_errors")
+                    :setDescription("Whether to ignore errors while restoring or not. Defaults to true")
+                    :setRequired(false)  
+                    :build()
+                end   
+            )
+            :option(
+                function(opt) 
+                    return opt
+                    :setType("String")
+                    :setName("protected_channels")
+                    :setDescription("Channels to protect from being deleted. Comma separated")
+                    :setRequired(false)  
+                    :build()
+                end   
+            )
+            :option(
+                function(opt)
+                    return opt
+                    :setType("String")
+                    :setName("protected_roles")
+                    :setDescription("Roles to protect from being deleted. Comma separated")
+                    :setRequired(false)  
+                    :build()
+                end
+            )
+            :option(
+                function(opt)
+                    return opt
+                    :setType("String")
+                    :setName("channel_restore_mode")
+                    :setDescription("Channel backup restore method. Use 'full' if unsure")
+                    :addChoice(
+                        interactionChoiceBuilder.new()
+                        :setName("Full")
+                        :setValue("full")
+                        :build()
+                    )
+                    :addChoice(
+                        interactionChoiceBuilder.new()
+                        :setName("Ignore Existing")
+                        :setValue("ignore_existing")
+                        :build()
+                    )
+                    :setRequired(false)  
+                    :build()
+                end
+            )
+            :build()
+        end
+    )
     :build()
 end
 
@@ -148,6 +240,31 @@ export type BackupCreateOpts = {
     SpecialAllocations: {[string]: number},
     --- Password to encrypt the backup with. If not provided, the backup will not be encrypted
     Encrypt: string?,
+}
+
+--[[
+    IgnoreRestoreErrors bool               `description:"Whether to ignore errors while restoring or not and skip these channels/roles"`
+    ProtectedChannels   []string           `description:"Channels to protect from being deleted"`
+    ProtectedRoles      []string           `description:"Roles to protect from being deleted"`
+    BackupSource        string             `description:"The source of the backup"`
+    Decrypt             string             `description:"The key to decrypt backups with, if any"`
+    ChannelRestoreMode  ChannelRestoreMode `description:"Channel backup restore method. Use 'full' if unsure"`
+    RoleRestoreMode     RoleRestoreMode    `description:"Role backup restore method. Use 'full' if unsure"`
+]]
+
+export type BackupRestoreOpts = {
+    --- Whether to ignore errors while restoring or not and skip these channels/roles
+    IgnoreRestoreErrors: boolean?,
+    --- Channels to protect from being deleted
+    ProtectedChannels: {string},
+    --- Roles to protect from being deleted
+    ProtectedRoles: {string},
+    --- The source of the backup
+    BackupSource: string,
+    --- The key to decrypt backups with, if any
+    Decrypt: string?,
+    --- Channel backup restore method. Use 'full' if unsure
+    ChannelRestoreMode: "full" | "ignore_existing",
 }
 
 local function run(data: data.RunData): nil
@@ -265,6 +382,191 @@ local function run(data: data.RunData): nil
         -- Now spawn the job to create the backup
         local jobId = jss.spawn({
             name = "guild_create_backup",
+            data = {
+                Options = opts
+            },
+            create = true,
+            execute = true,
+        })
+
+        jsp.pollJobserverTillComplete(
+            data.ctx, 
+            {
+                jobId = jobId,
+                callback = function(job) 
+                    local embed, components = jsp.jobToEmbed(
+                        lss.links().api_url,
+                        job,
+                        true
+                    )
+
+                    -- Edit original interaction response with the job status
+                    interactionutils.editSimple(
+                        data.ctx,
+                        data.interaction,
+                        nil,
+                        {embed},
+                        components
+                    )
+
+                    return nil
+                end
+            }
+        )
+
+        return nil
+    elseif cmdname == "restore" then
+        local jss = data.ctx.DataStores.JobServerStore
+        if not jss then
+            error("JobServerStore is not available in the context")
+        end
+
+        local lss = data.ctx.DataStores.LinksStore
+        if not lss then
+            error("LinksStore is not available in the context")
+        end
+
+        local opts: BackupRestoreOpts = {
+            IgnoreRestoreErrors = true,
+            ProtectedChannels = setmetatable({}, interop.array_metatable),
+            ProtectedRoles = setmetatable({}, interop.array_metatable),
+            BackupSource = "",
+            Decrypt = "",
+            ChannelRestoreMode = "full",
+        }
+
+        if data.interaction.channel_id then 
+            opts.ProtectedChannels = {data.interaction.channel_id}
+        end
+
+        for _, opt in data.command.options do 
+            if opt.name == "backup_file" then
+                if opt.value.kind == "Attachment" then
+                    opts.BackupSource = opt.value.attachment.url or error("No valid URL found for the backup file")
+                end
+            elseif opt.name == "backup_id" then
+                if opt.value.kind == "String" then
+                    if opts.BackupSource ~= "" then
+                        return interactionutils.replySimple(
+                            data.ctx,
+                            data.interaction,
+                            nil,
+                            {
+                                {
+                                    title = "Error processing command",
+                                    description = "You cannot specify both a backup file and a backup ID. Please choose one.",
+                                },
+                            },
+                            false
+                        )
+                    end
+
+                    local job = jss.get(opt.value.value, false)
+
+                    if job.name ~= "guild_create_backup" then
+                        return interactionutils.replySimple(
+                            data.ctx,
+                            data.interaction,
+                            nil,
+                            {
+                                {
+                                    title = "Error processing command",
+                                    description = "The provided job ID does not correspond to a valid backup creation job. Please check the ID and try again (got job type: " .. job.name .. ").",
+                                },
+                            },
+                            false
+                        )
+                    end
+
+                    if not job.job_file_path then
+                        return interactionutils.replySimple(
+                            data.ctx,
+                            data.interaction,
+                            nil,
+                            {
+                                {
+                                    title = "Error processing command",
+                                    description = "No backup file found for the given backup ID. Please check the ID and try again.",
+                                },
+                            },
+                            false
+                        )
+                    end
+
+                    opts.BackupSource = string.format("job:///%s", job.job_file_path)
+                end
+            elseif opt.name == "password" then
+                if opt.value.kind == "String" then
+                    opts.Decrypt = opt.value.value
+                end
+            elseif opt.name == "ignore_restore_errors" then
+                if opt.value.kind == "Boolean" then
+                    opts.IgnoreRestoreErrors = opt.value.value
+                end
+            elseif opt.name == "protected_channels" then
+                if opt.value.kind == "String" then 
+                    local pc = string.split(opt.value.value, ",")
+                    for _, channelId in pc do
+                        -- remove any whitespace
+                        channelId = channelId:gsub("%s+", "")
+                        if channelId ~= "" then
+                            table.insert(opts.ProtectedChannels, channelId)
+                        end
+                    end
+                end
+            elseif opt.name == "protected_roles" then
+                if opt.value.kind == "String" then 
+                    local pr = string.split(opt.value.value, ",")
+                    for _, roleId in pr do
+                        -- remove any whitespace
+                        roleId = roleId:gsub("%s+", "")
+                        if roleId ~= "" then
+                            table.insert(opts.ProtectedRoles, roleId)
+                        end
+                    end
+                end
+            elseif opt.name == "channel_restore_mode" then 
+                if opt.value.kind == "String" and (opt.value.value == "full" or opt.value.value == "ignore_existing") then 
+                    opts.ChannelRestoreMode = opt.value.value
+                end
+            end
+        end
+
+        -- Check if we have a backup source
+        if (opts.BackupSource :: string) == "" then
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Error processing command",
+                        description = "You must specify either a backup file or a backup ID to restore from.",
+                    },
+                },
+                false
+            )
+        end
+
+        -- Send spawning message
+        interactionutils.replySimple(
+            data.ctx,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "Restoring backup",
+                    description = "Spawning restore job...",
+                },
+            },
+            false
+        )
+
+        data.sethasEdited(true)
+
+        -- Now spawn the job to restore the backup
+        local jobId = jss.spawn({
+            name = "guild_restore_backup",
             data = {
                 Options = opts
             },
