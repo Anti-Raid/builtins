@@ -5,12 +5,11 @@ local ActionRowBuilder = require"@discord-types/builders/message/components/acti
 local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local EmojiBuilder = require"@discord-types/builders/emoji"
 
-local POLL_INTERVAL = 3
-
 export type PollOptions = {
     jobId: string,
     timeout_nostatuschange: number?,
     callback: (dsP.Job) -> nil,
+    poll_interval: number,
 }
 
 local function pollJobserverTillComplete(
@@ -46,7 +45,7 @@ local function pollJobserverTillComplete(
             currInstant = os.clock() -- Reset the timer if the status has changed
         end
 
-        task.wait(POLL_INTERVAL) -- Wait POLL_INTERVAL seconds before polling again
+        task.wait(opts.poll_interval) -- Wait POLL_INTERVAL seconds before polling again
     end
 end
 
@@ -135,12 +134,16 @@ local function jobToEmbed(
     end
 
     local description = string.format(
-        "%s Job state: %s\nJob ID: %s\n\n%s",
+        "%s Job state: %s\nJob ID: %s\nCreated at: <t:%d:R>",
         getIconOfState(job.state),
         job.state,
         job.id,
-        table.concat(jobStatuses, "\n")
+        job.created_at.timestamp_seconds
     )
+
+    if showStatuses and #jobStatuses > 0 then 
+        description ..= string.format("\n\n%s", table.concat(jobStatuses, "\n"))
+    end
 
     if job.state == "completed" and job.output then 
         local furl = string.format("%s/jobs/%s/ioauth/download-link", baseApiUrl, job.id)

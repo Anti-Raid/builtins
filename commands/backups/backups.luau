@@ -6,6 +6,10 @@ local extractUserIdFromInteraction = require "../../utils/modhierarchy".extractU
 local canModeratorDo = require "../../utils/modhierarchy".canModeratorDo
 local jsp = require"../../utils/jobserverpoll"
 local interop = require"@antiraid/interop"
+local typesext = require"@antiraid/typesext"
+local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
+local ButtonBuilder = require"@discord-types/builders/message/components/button"
+local discord = require "@discord-types/apiTypes"
 
 local function register() 
     return commandBuilder.new({
@@ -215,8 +219,21 @@ local function register()
             :build()
         end
     )
+    :option(
+        function(opt)
+            return opt
+            :setType("SubCommand")
+            :setName("list")
+            :setDescription("Lists all backups of the server")
+            :build()
+        end
+    )
     :build()
 end
+
+local POLL_INTERVAL_CREATE = 3
+local POLL_INTERVAL_RESTORE = 10
+
 
 --- Options available for backing up servers
 export type BackupCreateOpts = {
@@ -393,6 +410,7 @@ local function run(data: data.RunData): nil
             data.ctx, 
             {
                 jobId = jobId,
+                poll_interval = POLL_INTERVAL_CREATE,
                 callback = function(job) 
                     local embed, components = jsp.jobToEmbed(
                         lss.links().api_url,
@@ -578,6 +596,7 @@ local function run(data: data.RunData): nil
             data.ctx, 
             {
                 jobId = jobId,
+                poll_interval = POLL_INTERVAL_RESTORE,
                 callback = function(job) 
                     local embed, components = jsp.jobToEmbed(
                         lss.links().api_url,
@@ -600,6 +619,155 @@ local function run(data: data.RunData): nil
         )
 
         return nil
+    elseif cmdname == "list" then
+        local jss = data.ctx.DataStores.JobServerStore
+        if not jss then
+            error("JobServerStore is not available in the context")
+        end
+
+        local lss = data.ctx.DataStores.LinksStore
+        if not lss then
+            error("LinksStore is not available in the context")
+        end
+
+        local backups = jss.list_named("guild_create_backup", false)
+        if #backups == 0 then
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "No backups found",
+                        description = "There are no backups available for this server.",
+                    },
+                },
+                false
+            )
+        end
+
+        local currentJobIdx = 1
+
+        local jlPrevId = `helpcmd:prev:${typesext.randstring(16)}`
+        local jlNextId = `helpcmd:next:${typesext.randstring(16)}`
+    
+        local prevButton = ButtonBuilder.new()
+        :setStyle("Grey")
+        :setLabel("Previous Page")
+        :setCustomId(jlPrevId)
+    
+        local nextButton = ButtonBuilder.new()
+        :setStyle("Grey")
+        :setLabel("Next Page")
+        :setCustomId(jlNextId)
+        
+        task.delay(60, function() 
+            data.dropButtonCallback(jlPrevId) -- Make sure to remove the callback so it doesn't get called again
+            data.dropButtonCallback(jlNextId) -- Make sure to remove the callback so it doesn't get called again
+        end)    
+
+        data.attachButtonCallback(jlPrevId, function(data: data.ButtonCallbackData): nil 
+            currentJobIdx -= 1
+            if currentJobIdx < 1 then
+                currentJobIdx = 1
+            end
+
+            local embed, _ = jsp.jobToEmbed(
+                lss.links().api_url,
+                backups[currentJobIdx],
+                false
+            )
+
+            if embed.title then
+                embed.title ..= string.format(" (%d/%d)", currentJobIdx, #backups)
+            end
+    
+            interactionutils.replyUpdate(
+                data.ctx,
+                data.interaction,
+                nil,
+                {embed},
+                {
+                    ActionRowBuilder.new()
+                    :addComponent(
+                        prevButton:build()
+                    )
+                    :addComponent(
+                        nextButton:build()
+                    )
+                    :build() :: discord.ComponentObjects
+                }
+            )
+
+            return nil
+        end)
+
+        data.attachButtonCallback(jlNextId, function(data: data.ButtonCallbackData): nil 
+            currentJobIdx += 1
+            if currentJobIdx > #backups then
+                currentJobIdx = #backups
+            end
+
+            local embed, _ = jsp.jobToEmbed(
+                lss.links().api_url,
+                backups[currentJobIdx],
+                false
+            )
+
+            if embed.title then
+                embed.title ..= string.format(" (%d/%d)", currentJobIdx, #backups)
+            end
+
+            interactionutils.replyUpdate(
+                data.ctx,
+                data.interaction,
+                nil,
+                {embed},
+                {
+                    ActionRowBuilder.new()
+                    :addComponent(
+                        prevButton:build()
+                    )
+                    :addComponent(
+                        nextButton:build()
+                    )
+                    :build() :: discord.ComponentObjects
+                }
+            )
+    
+            return nil    
+        end)
+
+        local embed, _ = jsp.jobToEmbed(
+            lss.links().api_url,
+            backups[currentJobIdx],
+            false
+        )
+
+        if embed.title then
+            embed.title ..= string.format(" (%d/%d)", currentJobIdx, #backups)
+        end
+
+        interactionutils.replySimple(
+            data.ctx, 
+            data.interaction,
+            nil, 
+            {embed},
+            false,
+            {
+                ActionRowBuilder.new()
+                :addComponent(
+                    prevButton:build()
+                )
+                :addComponent(
+                    nextButton:build()
+                )
+                :build() :: discord.ComponentObjects
+            }
+        )
+    
+        data.sethasEdited(true)
+        return nil    
     else
         return interactionutils.replySimple(
             data.ctx,
