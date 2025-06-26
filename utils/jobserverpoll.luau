@@ -3,6 +3,9 @@ local dsP = require "@antiraid-core/plugins/datastores"
 local apitypes = require "@discord-types/apiTypes"
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
 local ButtonBuilder = require"@discord-types/builders/message/components/button"
+local EmojiBuilder = require"@discord-types/builders/emoji"
+
+local POLL_INTERVAL = 2
 
 export type PollOptions = {
     jobId: string,
@@ -25,9 +28,10 @@ local function pollJobserverTillComplete(
     local oldStatusLen = 0
     local oldStatus = ""
     while currState ~= "completed" and currState ~= "failed" do 
-        local job = jss.get(opts.jobId)
+        local job = jss.get(opts.jobId, true)
         currState = job.state
         opts.callback(job) -- Regardless of current state, we call the callback with the job
+
         if currState == "completed" or currState == "failed" then
             return -- Return the job if it is completed or failed
         end
@@ -42,7 +46,7 @@ local function pollJobserverTillComplete(
             currInstant = os.clock() -- Reset the timer if the status has changed
         end
 
-        task.wait(3) -- Wait 3 seconds before polling again
+        task.wait(POLL_INTERVAL) -- Wait POLL_INTERVAL seconds before polling again
     end
 end
 
@@ -55,6 +59,32 @@ local map = {
 }
 local function getIconOfState(state: string): string 
     return map[state] or map.__wildcard__
+end
+
+local function _formatValue(value: any): string
+    if type(value) == "table" then
+        local s = "{"
+
+        for k, v in value do
+            if type(k) == "number" then
+                s ..= string.format("%s, ", _formatValue(v))
+                continue
+            end
+            s ..= string.format("%s = %s, ", tostring(k), _formatValue(v))
+        end
+
+        -- Remove the last comma and space
+        if #s > 1 then
+            s = string.sub(s, 1, -3)
+        end
+
+        s ..= "}"
+        return s
+    elseif type(value) == "string" then
+        return value
+    else
+        return tostring(value)
+    end
 end
 
 local function jobToEmbed(
@@ -85,7 +115,7 @@ local function jobToEmbed(
             for key, value in status.extra_info do 
                 -- If not explicitly ignored from display, add it to string
                 if not table.find(bdi, key) then
-                    table.insert(vs, string.format("%s=%s", key, value))
+                    table.insert(vs, string.format("%s=%s", key, _formatValue(value)))
                 end
             end
 
@@ -123,7 +153,11 @@ local function jobToEmbed(
                 ButtonBuilder.new()
                 :setStyle("Blurple")
                 :setLabel("Download")
-                :setEmoji("📥" :: any) -- TODO: Validate this
+                :setEmoji(
+                    EmojiBuilder.new()
+                    :setName("🔥")
+                    :build()
+                ) -- TODO: Validate this
                 :setUrl(furl)
                 :build()
             )

@@ -4,6 +4,7 @@ local data = require "../data"
 local interactionutils = require "../../utils/interaction"
 local extractUserIdFromInteraction = require "../../utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorDo = require "../../utils/modhierarchy".canModeratorDo
+local jsp = require"../../utils/jobserverpoll"
 
 local function register() 
     return commandBuilder.new({
@@ -34,7 +35,7 @@ local function register()
                     return opt
                     :setType("String")
                     :setName("channels")
-                    :setDescription("Channels to backup messages from, otherwise all channels will have messages backed up")  
+                    :setDescription("Channels to backup messages from (comma separated), otherwise all channels")  
                     :setRequired(false)
                     :build()
                 end
@@ -153,6 +154,16 @@ local function run(data: data.RunData): nil
     local cmdname = data.command.nameList[2]
 
     if cmdname == "create" then
+        local jss = data.ctx.DataStores.JobServerStore
+        if not jss then
+            error("JobServerStore is not available in the context")
+        end
+
+        local lss = data.ctx.DataStores.LinksStore
+        if not lss then
+            error("LinksStore is not available in the context")
+        end
+
         canModeratorDo(
             data.ctx,
             extractUserIdFromInteraction(data.interaction),
@@ -171,6 +182,122 @@ local function run(data: data.RunData): nil
             SpecialAllocations = {},
             Encrypt = ""
         }
+
+        for _, opt in data.command.options do 
+            if opt.name == "channels" then
+                if opt.value.kind == "String" then 
+                    opts.Channels = string.split(opt.value.value, ",")
+                end
+            elseif opt.name == "per_channel" then
+                if opt.value.kind == "Integer" then
+                    opts.PerChannel = opt.value.value
+                end
+            elseif opt.name == "max_messages" then
+                if opt.value.kind == "Integer" then
+                    opts.MaxMessages = opt.value.value
+                end
+            elseif opt.name == "messages" then
+                if opt.value.kind == "Boolean" then
+                    opts.BackupMessages = opt.value.value
+                end
+            elseif opt.name == "attachments" then
+                if opt.value.kind == "Boolean" then
+                    opts.BackupAttachments = opt.value.value
+                end
+            elseif opt.name == "backup_guild_assets" then
+                if opt.value.kind == "String" then
+                    opts.BackupGuildAssets = string.split(opt.value.value, ",")
+                end
+            elseif opt.name == "ignore_message_backup_errors" then
+                if opt.value.kind == "Boolean" then
+                    opts.IgnoreMessageBackupErrors = opt.value.value
+                end
+            elseif opt.name == "rollover_leftovers" then
+                if opt.value.kind == "Boolean" then
+                    opts.RolloverLeftovers = opt.value.value
+                end
+            elseif opt.name == "special_allocations" then
+                if opt.value.kind == "String" then 
+                    local specialAllocationsStr = opt.value.value
+                    for _, pair in string.split(specialAllocationsStr, ",") do
+                        local key, value = string.match(pair, "(%d+)=(%d+)")
+                        if key and value then
+                            opts.SpecialAllocations[key] = tonumber(value)
+                        else 
+                            return interactionutils.replySimple(
+                                data.ctx,
+                                data.interaction,
+                                nil,
+                                {
+                                    {
+                                        title = "Error processing command",
+                                        description = "Invalid format for special allocations. Use channel_id=number,channel_id=number. Failing entry was: ``" .. pair .. "``",
+                                    },
+                                },
+                                false
+                            )
+                        end
+                    end                    
+                end
+            elseif opt.name == "password" then
+                if opt.value.kind == "String" then
+                    opts.Encrypt = opt.value.value
+                end
+            end
+        end
+
+        -- Send spawning message
+        interactionutils.replySimple(
+            data.ctx,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "Creating backup",
+                    description = "Spawning backup job...",
+                },
+            },
+            false
+        )
+
+        data.sethasEdited(true)
+
+        -- Now spawn the job to create the backup
+        local jobId = jss.spawn({
+            name = "guild_create_backup",
+            data = {
+                Options = opts
+            },
+            create = true,
+            execute = true,
+        })
+
+        jsp.pollJobserverTillComplete(
+            data.ctx, 
+            {
+                jobId = jobId,
+                callback = function(job) 
+                    local embed, components = jsp.jobToEmbed(
+                        lss.links().api_url,
+                        job,
+                        true
+                    )
+
+                    -- Edit original interaction response with the job status
+                    interactionutils.editSimple(
+                        data.ctx,
+                        data.interaction,
+                        nil,
+                        {embed},
+                        components
+                    )
+
+                    return nil
+                end
+            }
+        )
+
+        return nil
     else
         return interactionutils.replySimple(
             data.ctx,

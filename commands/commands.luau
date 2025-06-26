@@ -10,7 +10,8 @@ local commands = {
     stings = require"./stings/stings",
     stats = require"./stats/stats",
     help = require"./help/help",
-    moderation = require"./moderation/moderation"
+    moderation = require"./moderation/moderation",
+    backups = require"./backups/backups",
 } :: { [string]: data.Command }
 
 return {
