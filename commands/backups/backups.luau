@@ -444,6 +444,12 @@ local function run(data: data.RunData): nil
             error("LinksStore is not available in the context")
         end
 
+        canModeratorDo(
+            data.ctx,
+            extractUserIdFromInteraction(data.interaction),
+            "backups.restore"
+        )
+
         local opts: BackupRestoreOpts = {
             IgnoreRestoreErrors = true,
             ProtectedChannels = setmetatable({}, interop.array_metatable),
@@ -629,6 +635,12 @@ local function run(data: data.RunData): nil
         if not lss then
             error("LinksStore is not available in the context")
         end
+
+        canModeratorDo(
+            data.ctx,
+            extractUserIdFromInteraction(data.interaction),
+            "backups.list"
+        )
 
         local backups = jss.list_named("guild_create_backup", false)
         if #backups == 0 then
