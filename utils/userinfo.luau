@@ -253,8 +253,10 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
             
             else 
                 -- Loop over all resolved members in the interaction to find the one matching the user ID
-                if interaction.data and interaction.data.resolved and interaction.data.resolved.members then 
-                    local member = interaction.data.resolved.members[user_id]
+                local resolvedMembers = interaction.data and interaction.data.resolved and interaction.data.resolved.members
+
+                if type(resolvedMembers) == "table" then 
+                    local member = resolvedMembers[user_id]
                     if member then 
                         -- Fast path 2: if the interaction has resolved members and we find the user ID, we can use that
                         local resolvedPerms = member.permissions or error("Interaction resolved member does not have permissions. This is a bug and should not happen.")
