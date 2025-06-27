@@ -6,7 +6,11 @@
 local commands = require "./commands/commands"
 local commandList = {}
 for _, command in commands.commands do
-    local cmd = command.register()
+    local commandD = command()
+
+    if commandD.devOnly then continue end -- Do not register dev only commands globally
+
+    local cmd = commandD.register()
     table.insert(commandList, cmd)
 end
 

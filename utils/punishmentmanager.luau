@@ -159,9 +159,7 @@ local _cachedUserPunishments: {[string]: {punishments: {Punishment}, createdAt: 
 local maxBurstCacheTime = 120 -- 2 minutes
 
 local function PunishmentManager(ctx: Primitives.TemplateContext, stingmanager: stingmanager.StingManager): PunishmentManager
-    local self = setmetatable({}, {
-        __index = PunishmentManager,
-    })
+    local self = {}
 
     -- Create a new key-value executor with the builtins.punishments kv-scope
     local builtinsettingsmanager = builtinSettingsManager(ctx)

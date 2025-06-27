@@ -29,9 +29,7 @@ export type BuiltinSettingsManager = {
 }
 
 local function BuiltinSettingsManager(ctx: Primitives.TemplateContext): BuiltinSettingsManager
-    local self = setmetatable({}, {
-        __index = BuiltinSettingsManager,
-    })
+    local self = {}
 
     local storeTab = ctx.store :: any
 

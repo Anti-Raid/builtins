@@ -13,7 +13,8 @@ export type Command = {
     autocompleter: ((data: AutocompleteRunData) -> {discord.ApplicationCommandOptionChoiceObject})?,
     keyexpiries: {
         [string]: (data: KeyExpiryData) -> nil
-    }?
+    }?,
+    devOnly: boolean?
 }
 
 export type KeyExpiryData = {

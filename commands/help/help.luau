@@ -81,7 +81,7 @@ local function renderPage(page: number)
     if #_G.cachedHelpMessagePages == 0 then
         local helpMessagePages = {}
         for commandName, command in commands.commands do
-            local parsedCommands = appcommands.parseApplicationCommandData(command.register())
+            local parsedCommands = appcommands.parseApplicationCommandData(command().register())
             local helpText = createHelpForCommand(commandName, parsedCommands)
             
             for _, v in splitHelpDescriptionIntoPages(helpText, 4000) do 

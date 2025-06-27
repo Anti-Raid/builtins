@@ -57,9 +57,7 @@ local _cachedUserStings: {[string]: {stings: {Sting}, createdAt: number }} = {}
 local maxBurstCacheTime = 120 -- 2 minutes
 
 local function StingManager(ctx: Primitives.TemplateContext): StingManager
-    local self = setmetatable({}, {
-        __index = StingManager,
-    })
+    local self = {}
 
     local builtinsettingsmanager = builtinSettingsManager(ctx)
     local storeTab = ctx.store :: any

@@ -661,12 +661,16 @@ local function run(data: data.RunData): nil
         :setLabel("Next Page")
         :setCustomId(jlNextId)
         
-        task.delay(60, function() 
+        task.delay(120, function() 
             data.dropButtonCallback(jlPrevId) -- Make sure to remove the callback so it doesn't get called again
             data.dropButtonCallback(jlNextId) -- Make sure to remove the callback so it doesn't get called again
         end)    
 
+        local authorId = extractUserIdFromInteraction(data.interaction)
         data.attachButtonCallback(jlPrevId, function(data: data.ButtonCallbackData): nil 
+            local interactor = extractUserIdFromInteraction(data.interaction)
+            if authorId ~= interactor then return nil end
+            
             currentJobIdx -= 1
             if currentJobIdx < 1 then
                 currentJobIdx = 1
@@ -703,6 +707,8 @@ local function run(data: data.RunData): nil
         end)
 
         data.attachButtonCallback(jlNextId, function(data: data.ButtonCallbackData): nil 
+            local interactor = extractUserIdFromInteraction(data.interaction)
+            if authorId ~= interactor then return nil end
             currentJobIdx += 1
             if currentJobIdx > #backups then
                 currentJobIdx = #backups
