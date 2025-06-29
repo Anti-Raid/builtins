@@ -5,7 +5,7 @@ local devs = {
     ["564164277251080208"] = true,
     ["787241442770419722"] = true,
 }
-local cmdLabel = "-ron"
+local cmdLabel = "-rod"
 
 return {
     isInDevMode = isInDevMode,
