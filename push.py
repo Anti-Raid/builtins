@@ -44,7 +44,7 @@ for path in pathlib.Path(".").rglob("*"):
     print(path)
 
     if path.is_file():
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
             contents[str(path)] = f.read()
 
 if USE_BUNDLED_TEMPLATING_TYPES:
