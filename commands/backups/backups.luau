@@ -228,6 +228,25 @@ local function register()
             :build()
         end
     )
+    :option(
+        function(opt)
+            return opt
+            :setType("SubCommand")
+            :setName("delete")
+            :setDescription("Deletes a backup by its ID")
+            :option(
+                function(opt)
+                    return opt
+                    :setType("String")
+                    :setName("backup_id")
+                    :setDescription("The backup ID to delete")
+                    :setRequired(true)
+                    :build()
+                end
+            )
+            :build()
+        end
+    )
     :build()
 end
 
@@ -786,6 +805,51 @@ local function run(data: data.RunData): nil
     
         data.sethasEdited(true)
         return nil    
+    elseif cmdname == "delete" then
+        local jss = data.ctx.DataStores.JobServerStore
+        if not jss then
+            error("JobServerStore is not available in the context")
+        end
+        canModeratorDo(
+            data.ctx,
+            extractUserIdFromInteraction(data.interaction),
+            "backups.delete"
+        )
+        local backupId = nil
+        for _, opt in data.command.options do
+            if opt.name == "backup_id" and opt.value.kind == "String" then
+                backupId = opt.value.value
+            end
+        end
+        if not backupId then
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Error processing command",
+                        description = "You must specify a backup ID to delete.",
+                    },
+                },
+                false
+            )
+        end
+        -- Directly call delete, rely on global xpcall for error handling
+        jss.delete(backupId)
+        interactionutils.replySimple(
+            data.ctx,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "Backup Deleted",
+                    description = string.format("Backup with ID `%s` has been deleted.", backupId),
+                },
+            },
+            false
+        )
+        return nil
     else
         return interactionutils.replySimple(
             data.ctx,
