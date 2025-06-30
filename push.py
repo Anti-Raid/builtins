@@ -24,7 +24,9 @@ IGNORE_FILES = [
     "push.py",
     "requirements.txt",
     "LICENSE",
-    ".darklua.json5"
+    ".darklua.json5",
+    ".venv",
+    ".net"
 ]
 
 contents = {}
