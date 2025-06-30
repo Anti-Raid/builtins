@@ -34,6 +34,8 @@ local function run(data)
     local emojiCount = guild.emojis and #guild.emojis or 0
     local boostLevel = guild.premium_tier or "None"
     local boostCount = guild.premium_subscription_count or 0
+    local verificationLevel = guild.verification_level or "Unknown"
+    local features = guild.features and table.concat(guild.features, ", ") or "None"
 
     local embed = {
         title = guild.name or "Server Info",
@@ -49,6 +51,8 @@ local function run(data)
             { name = "Channels", value = tostring(channelCount), inline = true },
             { name = "Emojis", value = tostring(emojiCount), inline = true },
             { name = "Boosts", value = string.format("Level %s (%d boosts)", boostLevel, boostCount), inline = true },
+            { name = "Verification", value = tostring(verificationLevel), inline = true },
+            { name = "Features", value = features, inline = false },
         },
         thumbnail = { url = guild.icon_url or "" },
     }

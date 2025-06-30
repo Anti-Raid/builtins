@@ -835,36 +835,20 @@ local function run(data: data.RunData): nil
                 false
             )
         end
-        local ok, err = pcall(function()
-            jss.delete(backupId)
-        end)
-        if ok then
-            interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
+        -- Directly call delete, rely on global xpcall for error handling
+        jss.delete(backupId)
+        interactionutils.replySimple(
+            data.ctx,
+            data.interaction,
+            nil,
+            {
                 {
-                    {
-                        title = "Backup Deleted",
-                        description = string.format("Backup with ID `%s` has been deleted.", backupId),
-                    },
+                    title = "Backup Deleted",
+                    description = string.format("Backup with ID `%s` has been deleted.", backupId),
                 },
-                false
-            )
-        else
-            interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Error deleting backup",
-                        description = string.format("Failed to delete backup: %s", tostring(err)),
-                    },
-                },
-                false
-            )
-        end
+            },
+            false
+        )
         return nil
     else
         return interactionutils.replySimple(
