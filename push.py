@@ -46,8 +46,10 @@ for path in pathlib.Path(".").rglob("*"):
     print(path)
 
     if path.is_file():
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            contents[str(path)] = f.read()
+        # Replace backslashes with forward slashes in the path string
+        normalized_path = str(path).replace("\\", "/")
+        with open(path, "r", errors="replace") as f:
+            contents[normalized_path] = f.read()
 
 if USE_BUNDLED_TEMPLATING_TYPES:
     NEEDED_CAPS.append("assetmanager:use_bundled_templating_types")
