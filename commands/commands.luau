@@ -13,6 +13,7 @@ local commands = {
     moderation = function() return require"./moderation/moderation" end,
     backups = function() return require"./backups/backups" end,
     vmeval = function() return require"./vmeval/vmeval" end,
+    serverinfo = function() return require"./serverinfo/serverinfo" end,
 } :: { [string]: () -> data.Command }
 
 return {
