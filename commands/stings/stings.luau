@@ -152,21 +152,18 @@ local function run(data: data.RunData): nil
                 { name = "Creation Date", value = "<t:" .. sting.created_at.timestamp_seconds .. ">", inline = true },
             }
     
-            if #stings < 5 then 
-                local _, stingExpiry = data.stingManager.getStingExpiration(sting.userId, sting.stingId)
-                if stingExpiry then 
-                    table.insert(fields, {
-                        name = "Sting Expiry",
-                        value = "<t:" .. stingExpiry.timestamp_seconds .. ">",
-                        inline = true,
-                    })
-                else
-                    table.insert(fields, {
-                        name = "Sting Expiry",
-                        value = "Never",
-                        inline = true,
-                    })
-                end
+            if sting.expires_at then 
+            table.insert(fields, {
+                name = "Sting Expiry",
+                value = "<t:" .. sting.expires_at.timestamp_seconds .. ">",
+                inline = true,
+            })
+            else
+                table.insert(fields, {
+                    name = "Sting Expiry",
+                    value = "Never",
+                    inline = true,
+                })
             end
     
             local embed = {
@@ -461,7 +458,8 @@ local function autocompleter(data: data.AutocompleteRunData): {apitypes.Applicat
             if #choices >= 25 then
                 break
             end
-            if typedName and not string.find(sting.stingId:lower(), typedName:lower()) then
+            local matches, _, _ = string.find(sting.stingId:lower(), if typedName then typedName:lower() else "")
+            if typedName and not matches then
                 continue
             end
             table.insert(choices, {

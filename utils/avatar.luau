@@ -17,6 +17,14 @@ local function avatarUrl(user: apiTypes.UserObject)
     return avatarUrl
 end
 
+local function guildIconUrl(guild: apiTypes.GuildObject): string
+    if guild.icon then
+        return "https://cdn.discordapp.com/icons/" .. guild.id .. "/" .. guild.icon .. ".png" :: any
+    end
+    return "https://cdn.discordapp.com/embed/avatars/0.png"
+end
+
 return {
     avatarUrl = avatarUrl,
+    guildIconUrl = guildIconUrl,
 }
