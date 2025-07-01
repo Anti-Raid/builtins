@@ -76,7 +76,7 @@ local function run(data)
         fields = {
             -- { name = "Members", value = tostring(memberCount), inline = true },
             { name = "Highest Role", value = highestRole and string.format("<@&%s>", highestRole.id) or "Unknown", inline = true },
-
+            { name = "Roles", value = tostring(#roles), inline = true }, 
             { name = "Text Channels", value = tostring(textChannels), inline = true },
             { name = "Voice Channels", value = tostring(voiceChannels), inline = true },
             { name = "Categories", value = tostring(categories), inline = true },
