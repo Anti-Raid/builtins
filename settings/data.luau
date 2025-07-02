@@ -1,6 +1,7 @@
 local settings = require"@antiraid-core/settings"
 local events = require"@antiraid-core/events"
 local userinfo = require"../utils/userinfo"
+local primitives = require "@antiraid-core/primitives"
 
 export type Setting = {
     schema: settings.Setting,
@@ -8,7 +9,8 @@ export type Setting = {
 }
 
 export type SettingsData = {
-    userinfomanager: userinfo.UserInfoManager
+    userinfomanager: userinfo.UserInfoManager,
+    ctx: primitives.TemplateContext, 
 }
 
 return {}

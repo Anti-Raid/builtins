@@ -4,32 +4,41 @@ local compare = require"./compare"
 local kc = require "@antiraid-core/kittycat"
 
 export type VerifyOpts = {
-    op: "View"
+    op: "View",
 } | {
     op: "Create",
+    author: discord.Snowflake,
     index: number,
     roleid: string,
     perms: {string},
+    userinfo: UserInfo.UserInfo
 } | {
     op: "Update",
+    author: discord.Snowflake,
     index: number,
     roleid: string,
     perms: {string},
+    userinfo: UserInfo.UserInfo
 } | {
     op: "Delete",
+    author: discord.Snowflake,
     roleid: string,
+    userinfo: UserInfo.UserInfo
 }
 
-local function verifyRolePerms(vp: VerifyOpts, author: discord.Snowflake, userinfo: UserInfo.UserInfo) 
-    if userinfo.guild_owner_id == author then
-        return -- No further checks needed, owner can do anything, early return
-    end
-
+--- Verify role permissions
+--- Note that the userinfo passed to verifyRolePerms VerifyOpts argument
+--- must be the userinfo of the author of the command, not the user being modified.
+local function verifyRolePerms(vp: VerifyOpts) 
     if vp.op == "View" then 
         return -- For now, we do not limit view access to guild roles API
     end
 
-    local settingsRole = userinfo.guild_roles and userinfo.guild_roles[vp.roleid]
+    if vp.userinfo.guild_owner_id == vp.author then
+        return -- No further checks needed, owner can do anything, early return
+    end
+
+    local settingsRole = vp.userinfo.guild_roles and vp.userinfo.guild_roles[vp.roleid]
     if not settingsRole then
         error("Role with ID " .. vp.roleid .. " does not exist in guild roles")
     end
@@ -38,8 +47,8 @@ local function verifyRolePerms(vp: VerifyOpts, author: discord.Snowflake, userin
     local lowestIndex = math.huge
 
     -- Find the highest role in the user's member roles
-    for _, memberRoleId in userinfo.member_roles do 
-        local role = userinfo.guild_roles and userinfo.guild_roles[memberRoleId]
+    for _, memberRoleId in vp.userinfo.member_roles do 
+        local role = vp.userinfo.guild_roles and vp.userinfo.guild_roles[memberRoleId]
         if not role then
             continue -- Skip roles that are not present in guild_roles
         end
@@ -59,14 +68,14 @@ local function verifyRolePerms(vp: VerifyOpts, author: discord.Snowflake, userin
     end
 
     -- Find lowest index
-    for _, position in userinfo.kittycat_staff_permissions.user_positions do 
+    for _, position in vp.userinfo.kittycat_staff_permissions.user_positions do 
         if position.index < lowestIndex then
             lowestIndex = position.index
         end
     end
 
     if vp.op == "Create" then 
-        if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_roles.create")) then
+        if not kc.has_perm(vp.userinfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_roles.create")) then
             error("You do not have permission to create guild roles. Please ask an administrator to give you the 'guild_roles.create' permission.")
         end
 
@@ -79,13 +88,13 @@ local function verifyRolePerms(vp: VerifyOpts, author: discord.Snowflake, userin
             table.insert(permsMapped, kc.Permission.from_string(perm))
         end    
 
-        local ok, err = kc.check_patch_changes(userinfo.kittycat_resolved_permissions, {}, permsMapped)
+        local ok, err = kc.check_patch_changes(vp.userinfo.kittycat_resolved_permissions, {}, permsMapped)
         if not ok then 
             error(kc.cpce_to_string(err)) 
         end
 
     elseif vp.op == "Update" then
-        if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_roles.update")) then
+        if not kc.has_perm(vp.userinfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_roles.update")) then
             error("You do not have permission to update guild roles. Please ask an administrator to give you the 'guild_roles.update' permission.")
         end
 
@@ -98,7 +107,7 @@ local function verifyRolePerms(vp: VerifyOpts, author: discord.Snowflake, userin
             table.insert(permsMapped, kc.Permission.from_string(perm))
         end    
 
-        local currentData = userinfo.guild_permissions[vp.roleid]
+        local currentData = vp.userinfo.guild_permissions[vp.roleid]
 
         if not currentData then
             error("Role with ID " .. vp.roleid .. " does not have any permissions set")
@@ -108,17 +117,17 @@ local function verifyRolePerms(vp: VerifyOpts, author: discord.Snowflake, userin
             error("You do not have permission to edit this role's permissions as the current index of said role is lower than you and hence higher in hierarchy: " .. currentData.position.index .. " < " .. lowestIndex)
         end
 
-        local ok, err = kc.check_patch_changes(userinfo.kittycat_resolved_permissions, currentData.position.perms, permsMapped)
+        local ok, err = kc.check_patch_changes(vp.userinfo.kittycat_resolved_permissions, currentData.position.perms, permsMapped)
         if not ok then 
             error(kc.cpce_to_string(err)) 
         end
 
     elseif vp.op == "Delete" then
-        if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_roles.delete")) then
+        if not kc.has_perm(vp.userinfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_roles.delete")) then
             error("You do not have permission to delete guild roles. Please ask an administrator to give you the 'guild_roles.delete' permission.")
         end
 
-        local currentData = userinfo.guild_permissions[vp.roleid]
+        local currentData = vp.userinfo.guild_permissions[vp.roleid]
 
         if not currentData then
             error("Role with ID " .. vp.roleid .. " does not have any permissions set")
@@ -128,13 +137,103 @@ local function verifyRolePerms(vp: VerifyOpts, author: discord.Snowflake, userin
             error("You do not have permission to edit this role's permissions as the current index of said role is lower than you and hence higher in hierarchy: " .. currentData.position.index .. " < " .. lowestIndex)
         end
 
-        local ok, err = kc.check_patch_changes(userinfo.kittycat_resolved_permissions, currentData.position.perms, {})
+        local ok, err = kc.check_patch_changes(vp.userinfo.kittycat_resolved_permissions, currentData.position.perms, {})
         if not ok then 
             error(kc.cpce_to_string(err)) 
         end
     end
 end
 
+export type VerifyMemberOpts = {
+    op: "View"
+} | {
+    op: "Create",
+    author: discord.Snowflake,
+    perm_overrides: {string},
+    authorUserInfo: UserInfo.UserInfo,
+    targetUserInfo: UserInfo.UserInfo,
+} | {
+    op: "Update",
+    author: discord.Snowflake,
+    perm_overrides: {string},
+    authorUserInfo: UserInfo.UserInfo,
+    targetUserInfo: UserInfo.UserInfo,
+} | {
+    op: "Delete",
+    author: discord.Snowflake,
+    authorUserInfo: UserInfo.UserInfo,
+    targetUserInfo: UserInfo.UserInfo,
+}
+
+local function verifyMemberPermOverrideChange(vp: VerifyMemberOpts) 
+    if vp.op == "View" then 
+        return -- For now, we do not limit view access to guild members API
+    end
+
+    if vp.authorUserInfo.guild_owner_id == vp.author then
+        return -- No further checks needed, owner can do anything, early return
+    end
+
+    -- Get lowest index of both current user and target user
+    local lowestIndexCurr = math.huge
+    for _, position in vp.authorUserInfo.kittycat_staff_permissions.user_positions do 
+        if position.index < lowestIndexCurr then
+            lowestIndexCurr = position.index
+        end
+    end
+
+    local lowestIndexTarget = math.huge
+    for _, position in vp.targetUserInfo.kittycat_staff_permissions.user_positions do
+        if position.index < lowestIndexTarget then
+            lowestIndexTarget = position.index
+        end
+    end
+    
+    if lowestIndexTarget < lowestIndexCurr then
+        error("You do not have permission to edit this user's permissions as their lowest index is lower than yours: " .. lowestIndexTarget .. " < " .. lowestIndexCurr)
+    end
+
+    if vp.op == "Create" then 
+        if not kc.has_perm(vp.authorUserInfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_members.set_permission_overrides")) then
+            error("You do not have permission to set guild member permission overrides. Please ask an administrator to give you the 'guild_members.set_permission_overrides' permission.")
+        end
+
+        local permsMapped = {}
+        for _, perm in vp.perm_overrides do 
+            table.insert(permsMapped, kc.Permission.from_string(perm))
+        end    
+
+        local ok, err = kc.check_patch_changes(vp.authorUserInfo.kittycat_resolved_permissions, {}, permsMapped)
+        if not ok then 
+            error(kc.cpce_to_string(err)) 
+        end
+    elseif vp.op == "Update" then
+        if not kc.has_perm(vp.authorUserInfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_members.update_permission_overrides")) then
+            error("You do not have permission to update guild member permission overrides. Please ask an administrator to give you the 'guild_members.update_permission_overrides' permission.")
+        end
+
+        local permsMapped = {}
+        for _, perm in vp.perm_overrides do 
+            table.insert(permsMapped, kc.Permission.from_string(perm))
+        end    
+
+        local ok, err = kc.check_patch_changes(vp.authorUserInfo.kittycat_resolved_permissions, vp.targetUserInfo.kittycat_staff_permissions.perm_overrides, permsMapped)
+        if not ok then 
+            error(kc.cpce_to_string(err)) 
+        end
+    elseif vp.op == "Delete" then
+        if not kc.has_perm(vp.authorUserInfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_members.delete_permission_overrides")) then
+            error("You do not have permission to delete guild member permission overrides. Please ask an administrator to give you the 'guild_members.delete_permission_overrides' permission.")
+        end
+
+        local ok, err = kc.check_patch_changes(vp.authorUserInfo.kittycat_resolved_permissions, vp.targetUserInfo.kittycat_staff_permissions.perm_overrides, {})
+        if not ok then 
+            error(kc.cpce_to_string(err))  
+        end
+    end
+end
+
 return {
-    verifyRolePerms = verifyRolePerms
+    verifyRolePerms = verifyRolePerms,
+    verifyMemberPermOverrideChange = verifyMemberPermOverrideChange
 }

@@ -19,7 +19,7 @@ export type GuildRolePermission = {
 --- @field guild_owner_id discord.Snowflake The ID of the guild owner
 --- @field guild_roles {[discord.Snowflake]: discord.GuildRoleObject} The users guild roles (may not be present if guildRolesNeeded is not set)
 --- @field member_roles {discord.Snowflake} The users member roles
---- @field guild_permissions {Kittycat.PartialStaffPosition} The guild permissions configured for the user
+--- @field guild_permissions {Kittycat.PartialStaffPosition} The guild permissions configured on the server
 export type UserInfo = {
     discord_permissions: discord.Snowflake,
     kittycat_staff_permissions: Kittycat.StaffPermissions,
@@ -28,6 +28,7 @@ export type UserInfo = {
     guild_roles: {[discord.Snowflake]: discord.GuildRoleObject}?,
     member_roles: {discord.Snowflake},
     guild_permissions: {[discord.Snowflake]: GuildRolePermission}, 
+    permission_override_entry: MemberPermissionOverrideEntry
 }
 
 --- Stage1Data is a basic collation of user info that can then be cheaply expanded into a full UserInfo object
@@ -37,6 +38,12 @@ export type Stage1Data = {
     guildRoles: {discord.GuildRoleObject},
     guildOwnerId: discord.Snowflake,
     pathUsed: string
+}
+
+export type MemberPermissionOverrideEntry = {
+    userid: discord.Snowflake,
+    perm_overrides: {Kittycat.Permission},
+    raw: kv.KvRecord
 }
 
 --- UserInfoManager is a utility for fetching user info in a performant way
@@ -71,10 +78,15 @@ export type UserInfoManager = {
     --- @return nil
     deleteGuildPermission: (roleid: discord.Snowflake) -> nil,
 
+    --- Gets all member permission overrides available
+    ---
+    --- @return {MemberPermissionOverwriteEntry} The permission overrides available on the server
+    getMemberPermissionOverrides: () -> {MemberPermissionOverrideEntry},
+
     --- Gets the member permission overrides for a user
     --- @param userid discord.Snowflake The ID of the user to get the overrides for
     --- @return {Kittycat.Permission} The member permission overrides for the user
-    getMemberPermissionOverrides: (userid: discord.Snowflake) -> {Kittycat.Permission},
+    getMemberPermissionOverridesForUser: (userid: discord.Snowflake) -> MemberPermissionOverrideEntry,
 
     --- Sets the member permission overrides for a user
     --- @param userid discord.Snowflake The ID of the user to set the overrides for
@@ -200,15 +212,46 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
         return nil
     end
 
-    local function getMemberPermissionOverrides(userid: discord.Snowflake): {Kittycat.Permission}
-        local overrides = ctx.KV:get(userid, {"builtins.guild_permissions.overrides"})
+    local function getMemberPermissionOverrides(): {MemberPermissionOverrideEntry} 
+        local overridesList = ctx.KV:find("%%", {"builtins.guild_permissions.overrides"})
 
-        if not overrides or type(overrides) ~= "table" then
-            return {}
+        local overrideEntries = table.create(#overridesList) :: {MemberPermissionOverrideEntry}
+
+        for _, record in overridesList do 
+            if not record.exists then continue end
+
+            if not record.value or type(record.value) ~= "table" then
+                continue
+            end
+
+            local kittycatPermissions = table.create(#record.value) :: {Kittycat.Permission}
+            for _, perm in record.value do
+                if type(perm) ~= "string" then
+                    continue -- Ignore non-string permissions
+                end
+                local kittycatPerm = Kittycat.Permission.from_string(perm)
+                table.insert(kittycatPermissions, kittycatPerm)
+            end
+
+            table.insert(overrideEntries, {userid = record.key, perm_overrides = kittycatPermissions})
         end
 
-        local kittycatPermissions = table.create(#overrides) :: {Kittycat.Permission}
-        for _, perm in overrides do
+        return overrideEntries
+    end
+
+    local function getMemberPermissionOverridesForUser(userid: discord.Snowflake): MemberPermissionOverrideEntry
+        local overrides = ctx.KV:getrecord(userid, {"builtins.guild_permissions.overrides"})
+
+        if not overrides.exists or type(overrides.value) ~= "table" then
+            return {
+                userid = userid,
+                perm_overrides = {},
+                raw = overrides
+            }
+        end
+
+        local kittycatPermissions = table.create(#overrides.value) :: {Kittycat.Permission}
+        for _, perm in overrides.value do
             if type(perm) ~= "string" then
                 continue -- Ignore non-string permissions
             end
@@ -216,7 +259,11 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
             table.insert(kittycatPermissions, kittycatPerm)
         end
 
-        return kittycatPermissions
+        return {
+            userid = userid,
+            perm_overrides = kittycatPermissions,
+            raw = overrides
+        }
     end
 
     local function setMemberPermissionOverrides(userid: discord.Snowflake, permissions: {Kittycat.Permission}): nil
@@ -352,13 +399,13 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
         for _, role in stage1Data.memberRoles do
             local roleObj = guildPermsMap[role]
             if roleObj then
-                table.insert(memberPositions, roleObj)
+                table.insert(memberPositions, roleObj.position)
             end
         end
 
-        local permOverrides = getMemberPermissionOverrides(user_id)
+        local permOverrides = getMemberPermissionOverridesForUser(user_id)
 
-        local staffPerms = Kittycat.StaffPermissions.new(memberPositions, permOverrides)
+        local staffPerms = Kittycat.StaffPermissions.new(memberPositions, permOverrides.perm_overrides)
 
         local guildRolesMap = {}
         if stage1Data.guildRoles then
@@ -378,6 +425,7 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
             guild_roles = guildRolesMap,
             member_roles = stage1Data.memberRoles,
             guild_permissions = guildPermsMap,
+            permission_override_entry = permOverrides
         }
     end
 
@@ -388,6 +436,7 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
     self.setGuildPermission = setGuildPermission
     self.deleteGuildPermission = deleteGuildPermission
     self.getMemberPermissionOverrides = getMemberPermissionOverrides
+    self.getMemberPermissionOverridesForUser = getMemberPermissionOverridesForUser
     self.setMemberPermissionOverrides = setMemberPermissionOverrides
     self.deleteMemberPermissionOverrides = deleteMemberPermissionOverrides
 
