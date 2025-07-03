@@ -410,7 +410,7 @@ local function run(data: data.RunData): nil
                     description = "Spawning backup job...",
                 },
             },
-            false
+            true
         )
 
         data.sethasEdited(true)
