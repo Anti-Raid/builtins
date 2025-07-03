@@ -6,6 +6,7 @@ local events = require "@antiraid-core/events"
 local stingmanager = require "../utils/stingmanager"
 local punishmentmanager = require"../utils/punishmentmanager"
 local builtinSettingsManager = require "../utils/builtinsettingsmanager"
+local userinfomanager = require "../utils/userinfo"
 
 export type Command = {
     register: () -> discordRestTypes.CreateGuildApplicationCommandRequest,
@@ -24,6 +25,7 @@ export type KeyExpiryData = {
     stingManager: stingmanager.StingManager,
     punishmentmanager: punishmentmanager.PunishmentManager,
     builtinSettingsManager: builtinSettingsManager.BuiltinSettingsManager,
+    userinfomanager: userinfomanager.UserInfoManager
 }
 
 export type ButtonCallbackData = {
@@ -40,6 +42,7 @@ export type RunData = {
     stingManager: stingmanager.StingManager,
     punishmentmanager: punishmentmanager.PunishmentManager,
     builtinSettingsManager: builtinSettingsManager.BuiltinSettingsManager, 
+    userinfomanager: userinfomanager.UserInfoManager,
     command: appcommands.ParsedApplicationCommand,
     attachButtonCallback: ((buttonId: string, callback: (bcd: ButtonCallbackData) -> nil) -> nil),
     dropButtonCallback: ((buttonId: string) -> nil),

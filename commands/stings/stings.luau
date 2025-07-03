@@ -272,7 +272,12 @@ local function run(data: data.RunData): nil
     
         local modid = extractUserIdFromInteraction(data.interaction)
         
-        canModeratorAffectTarget(data.ctx, modid, user.id, "moderation.sting")
+        canModeratorAffectTarget(
+            data.ctx, 
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
+            user.id, 
+            "moderation.sting"
+        )
     
         local createdSting = data.stingManager.createUserSting({
             userId = user.id,
@@ -376,7 +381,12 @@ local function run(data: data.RunData): nil
         end
     
         local modId = extractUserIdFromInteraction(data.interaction)
-        canModeratorAffectTarget(data.ctx, modId, user.id, "moderation.curesting")
+        canModeratorAffectTarget(
+            data.ctx, 
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction), 
+            user.id, 
+            "moderation.curesting"
+        )
     
         -- Check that the sting exists
         local sting = data.stingManager.getSting(user.id, stingId)

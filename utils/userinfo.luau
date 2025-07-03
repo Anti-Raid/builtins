@@ -13,6 +13,7 @@ export type GuildRolePermission = {
 --- Represents a summary of a users permission related 
 --- information on AntiRaid
 ---
+--- @field userid discord.Snowflake The ID of the user
 --- @field discord_permissions discord.Snowflake The users discord permissions
 --- @field kittycat_staff_permissions Kittycat.StaffPermissions The users kittycat staff permissions
 --- @field kittycat_resolved_permissions {Kittycat.Permission} The users resolved kittycat permissions
@@ -21,6 +22,7 @@ export type GuildRolePermission = {
 --- @field member_roles {discord.Snowflake} The users member roles
 --- @field guild_permissions {Kittycat.PartialStaffPosition} The guild permissions configured on the server
 export type UserInfo = {
+    userid: discord.Snowflake,
     discord_permissions: discord.Snowflake,
     kittycat_staff_permissions: Kittycat.StaffPermissions,
     kittycat_resolved_permissions: {Kittycat.Permission},
@@ -418,6 +420,7 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
         end
 
         return {
+            userid = user_id,
             discord_permissions = stage1Data.resolvedPerms,
             kittycat_staff_permissions = staffPerms,
             kittycat_resolved_permissions = staffPerms:resolve(),

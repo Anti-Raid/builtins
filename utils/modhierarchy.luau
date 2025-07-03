@@ -4,6 +4,7 @@ local kc = require "@antiraid-core/kittycat"
 local Primitives = require "@antiraid-core/primitives"
 local typesext = require "@antiraid/typesext"  
 local apitypes = require "@discord-types/apiTypes" 
+local userinfo = require "./userinfo"
 
 local SupportedAltPerms: {[string]: permissions.Permissions} = {
     ["moderation.sting"] = "ModerateMembers" :: "ModerateMembers",
@@ -16,16 +17,15 @@ local SupportedAltPerms: {[string]: permissions.Permissions} = {
     ["moderation.setlogchannel"] = "ManageChannels" :: "ManageChannels"
 }
 
-local function canModeratorDo(ctx: Primitives.TemplateContext, mod: string, cap: string) 
-    local modInfo = ctx.UserInfo:get(mod)
-    if modInfo.guild_owner_id == mod then 
+local function canModeratorDo(userinfo: userinfo.UserInfo, cap: string) 
+    if userinfo.guild_owner_id == userinfo.userid then 
         return
     end
 
-    if not kc.has_perm(modInfo.kittycat_resolved_permissions, kc.Permission.from_string(cap)) then
+    if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string(cap)) then
         -- Check if an alternative discord permission is present on the mod
         if SupportedAltPerms[cap] then
-            local modPerms = permissionsFromBf(modInfo.discord_permissions)
+            local modPerms = permissionsFromBf(userinfo.discord_permissions)
             if not table.find(modPerms, SupportedAltPerms[cap]) then
                 error("Missing permission: ``" .. cap .. "`` or ``" .. SupportedAltPerms[cap] .. "``")
             end
@@ -43,23 +43,22 @@ local function canBotDoInChannel(channelId: string, ctx: Primitives.TemplateCont
     })
 end
 
-local function canModeratorAffectTarget(ctx: Primitives.TemplateContext, mod: string, targetId: string, cap: string)
-    if mod == targetId then
+local function canModeratorAffectTarget(ctx: Primitives.TemplateContext, userinfo: userinfo.UserInfo, targetId: string, cap: string)
+    if userinfo.userid == targetId then
         error("You cannot moderate yourself!")
     end
     
-    local modInfo = ctx.UserInfo:get(mod)
-    if modInfo.guild_owner_id == targetId then
+    if userinfo.guild_owner_id == targetId then
         error("Target user is the guild owner")
-    elseif modInfo.guild_owner_id == mod then 
+    elseif userinfo.guild_owner_id == userinfo.userid then 
         return
     end
 
     -- Check caps
-    if not kc.has_perm(modInfo.kittycat_resolved_permissions, kc.Permission.from_string(cap)) then
+    if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string(cap)) then
         -- Check if an alternative discord permission is present on the mod
         if SupportedAltPerms[cap] then
-            local modPerms = permissionsFromBf(modInfo.discord_permissions)
+            local modPerms = permissionsFromBf(userinfo.discord_permissions)
             if not table.find(modPerms, SupportedAltPerms[cap]) then
                 error("Missing permission: ``" .. cap .. "`` or ``" .. SupportedAltPerms[cap] .. "``")
             end
@@ -72,7 +71,7 @@ local function canModeratorAffectTarget(ctx: Primitives.TemplateContext, mod: st
     ctx.Discord:antiraid_check_permissions_and_hierarchy({
         needed_permissions = "0",
         target_id = targetId,
-        user_id = mod,
+        user_id = userinfo.userid,
     })
 end
 

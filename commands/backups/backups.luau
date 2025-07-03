@@ -318,8 +318,7 @@ local function run(data: data.RunData): nil
         end
 
         canModeratorDo(
-            data.ctx,
-            extractUserIdFromInteraction(data.interaction),
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
             "backups.create"
         )
 
@@ -465,8 +464,7 @@ local function run(data: data.RunData): nil
         end
 
         canModeratorDo(
-            data.ctx,
-            extractUserIdFromInteraction(data.interaction),
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
             "backups.restore"
         )
 
@@ -658,8 +656,7 @@ local function run(data: data.RunData): nil
         end
 
         canModeratorDo(
-            data.ctx,
-            extractUserIdFromInteraction(data.interaction),
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
             "backups.list"
         )
 
@@ -813,8 +810,7 @@ local function run(data: data.RunData): nil
             error("JobServerStore is not available in the context")
         end
         canModeratorDo(
-            data.ctx,
-            extractUserIdFromInteraction(data.interaction),
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
             "backups.delete"
         )
         local backupId = nil

@@ -16,6 +16,8 @@ local Primitives = require "@antiraid-core/primitives"
 local Message = require "@antiraid-ext/events/discord/Message"
 local InteractionCreate = require "@antiraid-ext/events/discord/InteractionCreate"
 local KeyExpiry = require "@antiraid-ext/events/antiraid/KeyExpiry"
+local GetSettings = require "@antiraid-ext/events/antiraid/GetSettings"
+local ExecuteSetting = require "@antiraid-ext/events/antiraid/ExecuteSetting"
 local appcommands = require"@antiraid-ext/appcommands"
 local interactionutils = require"./utils/interaction"
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
@@ -27,6 +29,7 @@ end
 
 local apiTypes = require"@discord-types/apiTypes"
 local commands = require "./commands/commands"
+local settings = require "./settings/settings"
 local data = require "./commands/data"
 local apitypes = require "@discord-types/apiTypes"
 
@@ -37,6 +40,7 @@ end
 local stingmanager = require "./utils/stingmanager"
 local punishmentmanager = require"./utils/punishmentmanager"
 local builtinSettingsManager = require"./utils/builtinsettingsmanager" 
+local userinfomanager = require"./utils/userinfo"
 local onceLocal = require"@antiraid-ext/once".onceLocal
 local Interaction = require"@discord-types/interaction"
 local devData = require"./devs"
@@ -48,6 +52,12 @@ if RECORDING then
     _G.memusage = interop.memusage() - _G.memusage
 end
 
+local SETTINGS = {}
+for name, setting in settings.settings do 
+    local settingData = setting()
+    settingData.schema.id = name -- Just in case...
+    table.insert(SETTINGS, settingData.schema)
+end
 
 -- Internal function to attach a button callback
 local function attachButtonCallback(buttonId: string, callback: (bcd: data.ButtonCallbackData) -> nil) 
@@ -66,7 +76,7 @@ local function dropButtonCallback(buttonId: string): nil
     return nil
 end    
 
-local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext) 
+local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
     onceLocal("builtins.init", function(): nil
         local storeTab = ctx.store :: any
         if storeTab.onBuiltinsLoad and type(storeTab.onBuiltinsLoad) == "function" then 
@@ -74,9 +84,10 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
         end
 
         -- Register builtins
-        storeTab.stingManager = stingmanager(ctx)
+        storeTab.stingManager = stingmanager(ctx:withlimits({capabilities = {"kv[builtins.stings]:*"}}))
         storeTab.punishmentManager = punishmentmanager(ctx, storeTab.stingManager)
         storeTab.builtinSettingsManager = builtinSettingsManager(ctx)
+        storeTab.userinfomanager = userinfomanager(ctx)
 
         _G.storeTab = storeTab
         return nil
@@ -215,6 +226,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
             stingManager = _G.storeTab.stingManager,
             punishmentmanager = _G.storeTab.punishmentManager,
             builtinSettingsManager = _G.storeTab.builtinSettingsManager,
+            userinfomanager = _G.storeTab.userinfomanager,
             attachButtonCallback = attachButtonCallback,
             sethasEdited = function(to: boolean): nil
                 hasEdited = to
@@ -304,12 +316,44 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext)
                             stingManager = _G.storeTab.stingManager,
                             punishmentmanager = _G.storeTab.punishmentManager,
                             builtinSettingsManager = _G.storeTab.builtinSettingsManager,
+                            userinfomanager = _G.storeTab.userinfomanager,
                         })
                     end
                 end
             end                
         end
     end)
+
+    -- Handle GetSettings event
+    local res = GetSettings(evt, function(_) 
+        return SETTINGS
+    end)
+
+    if res.isGetSettings then return res end
+
+    -- Handle ExecuteSetting event
+    res = ExecuteSetting(evt, function(data)
+        local setting = settings.settings[data.id]
+        if not setting then
+            error("Setting not found: " .. data.id)
+        end
+
+        local settingData = setting()
+
+        if not settingData.execute then
+            error("Setting execute function not found: " .. data.id)
+        end
+
+        settingData.execute(data, {
+            ctx = ctx,
+            userinfomanager = _G.storeTab.userinfomanager,
+        })
+    end)
+
+    if res then return res end
+
+
+    return nil
 end
 
 return {

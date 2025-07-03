@@ -79,7 +79,13 @@ local punishmentActions: {[string]: PunishmentAction} = {
         description = "Bans the user from the server",
         check = function(ctx: Primitives.TemplateContext, p: Punishment) 
             if p.modId then
-                canModeratorAffectTarget(ctx, p.modId, p.userId, "moderation.ban")
+                local storeTab = ctx.store :: any
+                canModeratorAffectTarget(
+                    ctx, 
+                    storeTab.userinfomanager.get(p.modId),
+                    p.userId, 
+                    "moderation.ban"
+                )
             end
             return
         end,
@@ -107,7 +113,13 @@ local punishmentActions: {[string]: PunishmentAction} = {
             end
 
             if p.modId then
-                canModeratorAffectTarget(ctx, p.modId, p.userId, "moderation.kick")
+                local storeTab = ctx.store :: any
+                canModeratorAffectTarget(
+                    ctx, 
+                    storeTab.userinfomanager.get(p.modId), 
+                    p.userId, 
+                    "moderation.kick"
+                )
             end
         end,
         needsReversal = false,
@@ -128,7 +140,13 @@ local punishmentActions: {[string]: PunishmentAction} = {
             end
 
             if p.modId then
-                canModeratorAffectTarget(ctx, p.modId, p.userId, "moderation.timeout")
+                local storeTab = ctx.store :: any
+                canModeratorAffectTarget(
+                    ctx, 
+                    storeTab.userinfomanager.get(p.modId),
+                    p.userId, 
+                    "moderation.timeout"
+                )
             end
         end,
         needsReversal = false,

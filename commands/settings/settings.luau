@@ -2,6 +2,7 @@ local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local apitypes = require "@discord-types/apiTypes"
 local data = require "../data"
 local interactionutils = require "../../utils/interaction"
+local extractUserIdFromInteraction = require "../../utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorDo = require "../../utils/modhierarchy".canModeratorDo
 local canBotDoInChannel = require "../../utils/modhierarchy".canBotDoInChannel
 local permissions = require "@discord-types/permission"
@@ -197,8 +198,7 @@ local function run(data: data.RunData): nil
 
         if view then 
             canModeratorDo(
-                data.ctx,
-                data.interaction.user.id,
+                data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
                 "moderation.viewlogchannel"
             )
 
@@ -250,8 +250,7 @@ local function run(data: data.RunData): nil
 
         -- Check that the user has the right permissions
         canModeratorDo(
-            data.ctx,
-            data.interaction.user.id,
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
             "moderation.setlogchannel"
         )
 
@@ -383,8 +382,7 @@ local function run(data: data.RunData): nil
 
         if view then 
             canModeratorDo(
-                data.ctx,
-                data.interaction.user.id,
+                data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
                 "moderation.viewbasestings"
             )
 
@@ -436,8 +434,7 @@ local function run(data: data.RunData): nil
 
         -- Check that the user has the right permissions
         canModeratorDo(
-            data.ctx,
-            data.interaction.user.id,
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
             "moderation.setbasestings"
         )
 

@@ -3,6 +3,7 @@ local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local apitypes = require "@discord-types/apiTypes"
 local data = require "../data"
 local interactionutils = require "../../utils/interaction"
+local extractUserIdFromInteraction = require "../../utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorDo = require "../../utils/modhierarchy".canModeratorDo
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
 local ButtonBuilder = require"@discord-types/builders/message/components/button"
@@ -431,8 +432,6 @@ local function removeLockdown(
 end
 
 local function run(data: data.RunData): nil
-    local modid = if data.interaction.user then data.interaction.user.id elseif (data.interaction.member and data.interaction.member.user) then data.interaction.member.user.id else error("No user found")
-
     local cmdname = data.command.nameList[2]
 
     if cmdname == "list" then
@@ -498,7 +497,10 @@ local function run(data: data.RunData): nil
             error("No reason specified")
         end
 
-        canModeratorDo(data.ctx, modid, "lockdowns.qsl")
+        canModeratorDo(
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
+            "lockdowns.qsl"
+        )
 
         local lockdownType = data.ctx.Lockdowns.QuickServerLockdown()
 
@@ -524,7 +526,10 @@ local function run(data: data.RunData): nil
             error("No reason specified")
         end
 
-        canModeratorDo(data.ctx, modid, "lockdowns.tsl")
+        canModeratorDo(
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
+            "lockdowns.tsl"
+        )
 
         local lockdownType = data.ctx.Lockdowns.TraditionalServerLockdown()
 
@@ -559,7 +564,10 @@ local function run(data: data.RunData): nil
 
         local channelid: string = if channel then channel.id else error("No channel specified")
         
-        canModeratorDo(data.ctx, modid, "lockdowns.scl")
+        canModeratorDo(
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction), 
+            "lockdowns.scl"
+        )
 
         local lockdownType = data.ctx.Lockdowns.SingleChannelLockdown(channelid)
 
@@ -594,7 +602,10 @@ local function run(data: data.RunData): nil
 
         local roleid: string = if role then role.id else error("No role specified")
 
-        canModeratorDo(data.ctx, modid, "lockdowns.srl")
+        canModeratorDo(
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
+            "lockdowns.srl"
+        )
 
         local lockdownType = data.ctx.Lockdowns.RoleLockdown(roleid)
 
@@ -620,7 +631,10 @@ local function run(data: data.RunData): nil
             error("No ID specified")
         end
 
-        canModeratorDo(data.ctx, modid, "lockdowns.remove")
+        canModeratorDo(
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
+            "lockdowns.remove"
+        )
 
         return removeLockdown(
             data,
