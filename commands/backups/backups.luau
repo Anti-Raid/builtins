@@ -432,8 +432,9 @@ local function run(data: data.RunData): nil
                 poll_interval = POLL_INTERVAL_CREATE,
                 callback = function(job) 
                     local embed, components = jsp.jobToEmbed(
-                        lss.links().api_url,
+                        data.ctx,
                         job,
+                        true,
                         true
                     )
 
@@ -624,8 +625,9 @@ local function run(data: data.RunData): nil
                 poll_interval = POLL_INTERVAL_RESTORE,
                 callback = function(job) 
                     local embed, components = jsp.jobToEmbed(
-                        lss.links().api_url,
+                        data.ctx,
                         job,
+                        true,
                         true
                     )
 
@@ -708,7 +710,7 @@ local function run(data: data.RunData): nil
             end
 
             local embed, _ = jsp.jobToEmbed(
-                lss.links().api_url,
+                data.ctx,
                 backups[currentJobIdx],
                 false
             )
@@ -746,7 +748,7 @@ local function run(data: data.RunData): nil
             end
 
             local embed, _ = jsp.jobToEmbed(
-                lss.links().api_url,
+                data.ctx,
                 backups[currentJobIdx],
                 false
             )
@@ -776,7 +778,7 @@ local function run(data: data.RunData): nil
         end)
 
         local embed, _ = jsp.jobToEmbed(
-            lss.links().api_url,
+            data.ctx,
             backups[currentJobIdx],
             false
         )

@@ -4,6 +4,7 @@ local apitypes = require "@discord-types/apiTypes"
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
 local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local EmojiBuilder = require"@discord-types/builders/emoji"
+local datetime = require"@antiraid/datetime"
 
 export type PollOptions = {
     jobId: string,
@@ -87,9 +88,10 @@ local function _formatValue(value: any): string
 end
 
 local function jobToEmbed(
-    baseApiUrl: string,
+    ctx: Primitives.TemplateContext,
     job: dsP.Job,
-    showStatuses: boolean?
+    showStatuses: boolean?,
+    showDownloadLink: boolean?
 ): (apitypes.EmbedObject, {apitypes.ComponentObjects})
     local jobStatuses: {string} = {}
     local jobStatusesLength = 0
@@ -145,8 +147,9 @@ local function jobToEmbed(
         description ..= string.format("\n\n%s", table.concat(jobStatuses, "\n"))
     end
 
-    if job.state == "completed" and job.output then 
-        local furl = string.format("%s/jobs/%s/ioauth/download-link", baseApiUrl, job.id)
+    if showDownloadLink and job.state == "completed" and job.output and job.job_file_path then 
+        -- Create presigned URL
+        local furl = ctx.ObjectStorage:get_file_url(job.job_file_path, datetime.timedelta_minutes(5))
         description ..= string.format("\n\n[Download %s](%s)", job.output.filename, furl)
 
         table.insert(
