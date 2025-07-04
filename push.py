@@ -76,50 +76,27 @@ if not error_channel:
 
 print("Pushing script to AntiRaid...")
 
-def create():
-    return requests.post(f"{API_URL}/guilds/{guild_id}/settings", 
-        json={
-            "fields": {
-                "name": TEMPLATE_NAME,
-                "language": "luau",
-                "paused": False,
-                "allowed_caps": NEEDED_CAPS,
-                "events": EVENTS,
-                "content": contents,
-                "error_channel": error_channel,
-            },
-            "operation": "Create",
-            "setting": "scripts"
-        },
-        headers={
-            "Authorization": api_token,
-            "Content-Type": "application/json"
-        },
-        timeout=180
-    )
 
-def update():
-    return requests.post(f"{API_URL}/guilds/{guild_id}/settings", 
-        json={
-            "fields": {
-                "name": TEMPLATE_NAME,
-                "language": "luau",
-                "paused": False,
-                "allowed_caps": NEEDED_CAPS,
-                "events": EVENTS,
-                "content": contents,
-                "error_channel": error_channel,
-            },
-            "operation": "Update",
-            "setting": "scripts"
+res = requests.post(f"{API_URL}/guilds/{guild_id}/settings", 
+    json={
+        "fields": {
+            "name": TEMPLATE_NAME,
+            "language": "luau",
+            "paused": False,
+            "allowed_caps": NEEDED_CAPS,
+            "events": EVENTS,
+            "content": contents,
+            "error_channel": error_channel,
         },
-        headers={
-            "Authorization": api_token,
-            "Content-Type": "application/json"
-        }
-    )
-
-res = create()
+        "operation": "CreateOrUpdate",
+        "setting": "scripts"
+    },
+    headers={
+        "Authorization": api_token,
+        "Content-Type": "application/json"
+    },
+    timeout=180
+)
 
 if res.status_code != 200:
     print("Err: ", res.text)
@@ -129,15 +106,6 @@ builtins_resp = res.json()["$builtins"]
 
 if builtins_resp["type"] != "Ok":
     print(f"Error pushing script\n{builtins_resp["data"]}")
-    if "Template already exists" in builtins_resp["data"]:
-        print("Template already exists, updating script...")
-        res = update()
-        if res.status_code != 200:
-            print("Error updating script:", res.text)
-            exit(1)
-        if res.json()["$builtins"]["type"] != "Ok":
-            print("Error updating script:", res.json()["$builtins"]["data"])
-            exit(1)
-        print(f"Script updated successfully with resp: {res.json()}")
-    else:
-        exit(1)
+    exit(1)
+
+print("Script pushed successfully with a resp of: ", res.json())

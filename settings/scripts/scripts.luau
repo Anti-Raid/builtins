@@ -140,13 +140,15 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
                 if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.update")) then
                     error("You need the `scripts.update` permission to update scripts [this script already exists]")
                 end
-                return data.ctx.DataStores.TemplateStore.update(event.fields)
+                data.ctx.DataStores.TemplateStore.update(event.fields)
+
+                return {remark = "Used CreateOrUpdate fastpath", type = "Update"} -- Return the result of the create operation
             else
                 error(err) -- Re-throw the error if it's not about existence
             end
         end
 
-        return ok -- Return the result of the create operation
+        return {remark = "Used CreateOrUpdate fastpath", type = "Create"} -- Return the result of the create operation
     elseif event.op == "Delete" then
         if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.delete")) then
             error("You need the `scripts.delete` permission to delete scripts")
