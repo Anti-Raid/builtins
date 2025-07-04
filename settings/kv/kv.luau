@@ -2,7 +2,9 @@ local settings = require"@antiraid-core/settings"
 local settingsExt = require"@antiraid-ext/settings"
 local events = require"@antiraid-core/events"
 local data = require"../data"
+local array_metatable = require"@antiraid/interop".array_metatable
 
+local EMPTY_ARRAY = setmetatable({}, array_metatable)
 local kv: settings.Setting = {
     id = "kv",
     name = "Key Value API",
@@ -41,7 +43,7 @@ local kv: settings.Setting = {
             nullable = false,
             secret = false,
             suggestions = settingsExt.noSuggestions(),
-            readonly = {}
+            readonly = EMPTY_ARRAY
         },
         {
             id = "scopes",
@@ -52,7 +54,7 @@ local kv: settings.Setting = {
             nullable = false,
             secret = false,
             suggestions = settingsExt.noSuggestions(),
-            readonly = {}
+            readonly = EMPTY_ARRAY
         },
         settingsExt.columnCreatedAt(),
         settingsExt.columnLastUpdatedAt(),

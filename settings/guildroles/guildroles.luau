@@ -4,9 +4,10 @@ local events = require"@antiraid-core/events"
 local verifyRolePerms = require"../../utils/permvalidator".verifyRolePerms
 local kc = require"@antiraid-core/kittycat"
 local data = require"../data"
-local array_metatable = require"@antiraid/interop".array_metatable
 local datetime = require"@antiraid/datetime"
+local array_metatable = require"@antiraid/interop".array_metatable
 
+local EMPTY_ARRAY = setmetatable({}, array_metatable)
 local guildroles: settings.Setting = {
     id = "roles",
     name = "Server Roles",
@@ -34,7 +35,7 @@ local guildroles: settings.Setting = {
             nullable = false,
             secret = false,
             suggestions = settingsExt.noSuggestions(),
-            readonly = {}
+            readonly = EMPTY_ARRAY
         },
         {
             id = "index",
@@ -45,7 +46,7 @@ local guildroles: settings.Setting = {
             nullable = false,
             secret = false,
             suggestions = settingsExt.noSuggestions(),
-            readonly = {}
+            readonly = EMPTY_ARRAY
         },
         settingsExt.columnCreatedAt(),
         settingsExt.columnLastUpdatedAt(),

@@ -8,6 +8,7 @@ local array_metatable = require"@antiraid/interop".array_metatable
 local datetime = require"@antiraid/datetime"
 local userinfoP = require"../../utils/userinfo"
 
+local EMPTY_ARRAY = setmetatable({}, array_metatable)
 local guildmembers: settings.Setting = {
     id = "members",
     name = "Server Members",
@@ -35,7 +36,7 @@ local guildmembers: settings.Setting = {
             nullable = false,
             secret = false,
             suggestions = settingsExt.noSuggestions(),
-            readonly = {}
+            readonly = EMPTY_ARRAY
         },
         settingsExt.columnCreatedAt(),
         settingsExt.columnLastUpdatedAt(),
