@@ -52,13 +52,6 @@ if RECORDING then
     _G.memusage = interop.memusage() - _G.memusage
 end
 
-local SETTINGS = {}
-for name, setting in settings.settings do 
-    local settingData = setting()
-    settingData.schema.id = name -- Just in case...
-    table.insert(SETTINGS, settingData.schema)
-end
-
 -- Internal function to attach a button callback
 local function attachButtonCallback(buttonId: string, callback: (bcd: data.ButtonCallbackData) -> nil) 
     if not _G.attachedButtonCallbacks then
@@ -90,6 +83,18 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
         storeTab.userinfomanager = userinfomanager(ctx)
 
         _G.storeTab = storeTab
+
+        _G.storeTab.builtinSettings = {}
+        for name, setting in settings.settings do 
+            local settingData = setting()
+
+            if settingData.dynSchema then 
+                settingData.schema = settingData.dynSchema(ctx)
+            end
+
+            settingData.schema.id = name -- Just in case...
+            table.insert(_G.storeTab.builtinSettings :: {any}, settingData.schema :: any)
+        end
         return nil
     end)
 
@@ -326,7 +331,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
 
     -- Handle GetSettings event
     local res = GetSettings(evt, function(_) 
-        return SETTINGS
+        return _G.storeTab.builtinSettings
     end)
 
     if res.isGetSettings then return res end

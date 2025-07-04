@@ -117,7 +117,6 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
             end
 
             local value: {
-                id: discord.Snowflake?,
                 index: number?,
                 perms: {string}?
             } = record.value

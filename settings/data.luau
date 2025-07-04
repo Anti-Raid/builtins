@@ -5,6 +5,7 @@ local primitives = require "@antiraid-core/primitives"
 
 export type Setting = {
     schema: settings.Setting,
+    dynSchema: (ctx: primitives.TemplateContext) -> settings.Setting,
     execute: (event: events.SettingExecuteEvent, data: SettingsData) -> any
 }
 

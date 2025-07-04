@@ -18,6 +18,7 @@ EVENTS = [
     "GetSettings",
     "ExecuteSetting[members]",
     "ExecuteSetting[roles]",
+    "ExecuteSetting[scripts]",
 ] # List of events to listen to
 USE_BUNDLED_TEMPLATING_TYPES = True # Use bundled types
 TEMPLATE_NAME = "builtins-dev" # Name of the template
@@ -123,6 +124,7 @@ if res.status_code == 400:
 
 if res.ok:
     print("Script pushed successfully")
+    print(res.text)
 else:
     print(f"Failed to push script with status code {res.status_code}")
     print("Response:")
