@@ -75,58 +75,69 @@ if not error_channel:
     raise ValueError("ERROR_CHANNEL is not set in the environment variables")
 
 print("Pushing script to AntiRaid...")
-res = requests.post(f"{API_URL}/guilds/{guild_id}/settings", 
-    json={
-        "fields": {
-            "name": TEMPLATE_NAME,
-            "language": "luau",
-            "paused": False,
-            "allowed_caps": NEEDED_CAPS,
-            "events": EVENTS,
-            "content": contents,
-            "error_channel": error_channel,
-        },
-        "operation": "Create",
-        "setting": "scripts"
-    },
-    headers={
-        "Authorization": api_token,
-        "Content-Type": "application/json"
-    },
-    timeout=180
-)
 
-message: str = None
-# Handle template already exists
-if res.status_code == 400:
-    print("Template already exists, updating...")
-    message = res.json().get("message")
-    if message == "Template already exists":
-        res = requests.post(f"{API_URL}/guilds/{guild_id}/settings", 
-            json={
-                "fields": {
-                    "name": TEMPLATE_NAME,
-                    "language": "luau",
-                    "paused": False,
-                    "allowed_caps": NEEDED_CAPS,
-                    "events": EVENTS,
-                    "content": contents,
-                    "error_channel": error_channel,
-                },
-                "operation": "Update",
-                "setting": "scripts"
+def create():
+    return requests.post(f"{API_URL}/guilds/{guild_id}/settings", 
+        json={
+            "fields": {
+                "name": TEMPLATE_NAME,
+                "language": "luau",
+                "paused": False,
+                "allowed_caps": NEEDED_CAPS,
+                "events": EVENTS,
+                "content": contents,
+                "error_channel": error_channel,
             },
-            headers={
-                "Authorization": api_token,
-                "Content-Type": "application/json"
-            }
-        )
+            "operation": "Create",
+            "setting": "scripts"
+        },
+        headers={
+            "Authorization": api_token,
+            "Content-Type": "application/json"
+        },
+        timeout=180
+    )
 
-if res.ok:
-    print("Script pushed successfully")
-    print(res.text)
-else:
-    print(f"Failed to push script with status code {res.status_code}")
-    print("Response:")
-    print(res.json())
+def update():
+    return requests.post(f"{API_URL}/guilds/{guild_id}/settings", 
+        json={
+            "fields": {
+                "name": TEMPLATE_NAME,
+                "language": "luau",
+                "paused": False,
+                "allowed_caps": NEEDED_CAPS,
+                "events": EVENTS,
+                "content": contents,
+                "error_channel": error_channel,
+            },
+            "operation": "Update",
+            "setting": "scripts"
+        },
+        headers={
+            "Authorization": api_token,
+            "Content-Type": "application/json"
+        }
+    )
+
+res = create()
+
+if res.status_code != 200:
+    print("Err: ", res.text)
     exit(1)
+
+builtins_resp = res.json()["$builtins"]
+
+if builtins_resp["type"] != "Ok":
+    print(f"Error pushing script\n{builtins_resp["data"]}")
+    if "Template already exists" in builtins_resp["data"]:
+        print("Template already exists, updating script...")
+        res = update()
+        if res.status_code != 200:
+            print("Error updating script:", res.text)
+            exit(1)
+        if res.json()["$builtins"]["type"] != "Ok":
+            print("Error updating script:", res.json()["$builtins"]["data"])
+            exit(1)
+        print(f"Script updated successfully with resp: {res.json()}")
+    else:
+        exit(1)

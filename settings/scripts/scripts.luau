@@ -4,7 +4,9 @@ local events = require"@antiraid-core/events"
 local kc = require"@antiraid-core/kittycat"
 local data = require"../data"
 local primitives = require"@antiraid-core/primitives"
+local array_metatable = require"@antiraid/interop".array_metatable
 
+local EMPTY_ARRAY = setmetatable({}, array_metatable)
 local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(ctx: primitives.TemplateContext) 
     local lss = ctx.DataStores.LinksStore
     if not lss then
@@ -27,7 +29,7 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 nullable = false,
                 secret = false,
                 suggestions = settingsExt.noSuggestions(),
-                readonly = {}
+                readonly = EMPTY_ARRAY
             },
             {
                 id = "language",
@@ -38,7 +40,7 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 nullable = false,
                 secret = false,
                 suggestions = settingsExt.noSuggestions(),
-                readonly = {}
+                readonly = EMPTY_ARRAY
             },
             {
                 id = "content",
@@ -49,7 +51,7 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 nullable = false,
                 secret = false,
                 suggestions = settingsExt.noSuggestions(),
-                readonly = {}
+                readonly = EMPTY_ARRAY
             },
             {
                 id = "paused",
@@ -60,7 +62,7 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 nullable = false,
                 secret = false,
                 suggestions = settingsExt.noSuggestions(),
-                readonly = {}
+                readonly = EMPTY_ARRAY
             },
             {
                 id = "events",
@@ -71,7 +73,7 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 nullable = true,
                 secret = false,
                 suggestions = settingsExt.staticSuggestions(lss.event_list()),
-                readonly = {}
+                readonly = EMPTY_ARRAY
             },
             {
                 id = "allowed_caps",
@@ -82,7 +84,7 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 nullable = true,
                 secret = false,
                 suggestions = settingsExt.noSuggestions(),
-                readonly = {}
+                readonly = EMPTY_ARRAY
             },
             {
                 id = "error_channel",
@@ -93,7 +95,7 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 nullable = true,
                 secret = false,
                 suggestions = settingsExt.noSuggestions(),
-                readonly = {}
+                readonly = EMPTY_ARRAY
             },
             settingsExt.columnCreatedAt(),
             settingsExt.columnLastUpdatedAt(),

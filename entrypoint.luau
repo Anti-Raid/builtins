@@ -93,6 +93,11 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
             end
 
             settingData.schema.id = name -- Just in case...
+
+            if isInDevMode then 
+                settingData.schema.id ..= cmdLabel
+            end
+
             table.insert(_G.storeTab.builtinSettings :: {any}, settingData.schema :: any)
         end
         return nil
@@ -334,10 +339,22 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
         return _G.storeTab.builtinSettings
     end)
 
-    if res.isGetSettings then return res end
+    if res.isGetSettings then 
+        return res.data 
+    end
 
     -- Handle ExecuteSetting event
     res = ExecuteSetting(evt, function(data)
+        if isInDevMode then 
+            -- Check if setting id starts with command label
+            if not data.id:find(cmdLabel, 1, true) then
+                return {remark = "Not dev command", isNop = true} :: {}
+            end
+
+            -- Remove command label from id
+            data.id = data.id:gsub(cmdLabel, "")
+        end
+
         local setting = settings.settings[data.id]
         if not setting then
             error("Setting not found: " .. data.id)
@@ -349,7 +366,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
             error("Setting execute function not found: " .. data.id)
         end
 
-        settingData.execute(data, {
+        return settingData.execute(data, {
             ctx = ctx,
             userinfomanager = _G.storeTab.userinfomanager,
         })
