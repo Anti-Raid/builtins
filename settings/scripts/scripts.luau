@@ -17,7 +17,7 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
         id = "scripts",
         name = "Server Scripts",
         description = "Configure the server scripts (AKA templates) running on AntiRaid",
-        title_template = "{name}",
+        title_template = "local args = ...; return `{data.fields.name} ({data.fields.language})`",
         operations = {"View", "Create", "Update", "Delete"},
         columns = {
             {
