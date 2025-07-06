@@ -11,7 +11,24 @@ local guildroles: settings.Setting = {
     id = "roles",
     name = "Server Roles",
     description = "Configure server roles permissions on AntiRaid",
-    title_template = "local data = ...; return `{data.fields.index}, role_id={data.fields.role_id}`",
+    title_template = [[
+local data = ...
+    
+local name = ''
+
+for _, role in data.guildData.roles do 
+    if role.id == data.fields.role_id then 
+        name = role.name
+        break
+    end
+end
+
+if not name or name == '' then 
+    return `Unknown Role (${data.fields.role_id})`
+end
+
+return name
+]],
     validation_template = "local data = ...; data.fields.__HASFOLLOWEDSCHEMA = 48; return data.fields",
     operations = {"View", "Create", "Update", "Delete"},
     index_by = "index",
