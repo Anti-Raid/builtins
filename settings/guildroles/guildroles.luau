@@ -152,7 +152,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         
         return {roleid = roleid}
     else
-        error("Invalid setting being updated")
+        error("Invalid operation to guildroles setting: " .. event.op)
     end
 end
 
