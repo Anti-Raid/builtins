@@ -12,6 +12,7 @@ local guildroles: settings.Setting = {
     name = "Server Roles",
     description = "Configure server roles permissions on AntiRaid",
     title_template = "local data = ...; return `{data.fields.index}, role_id={data.fields.role_id}`",
+    validation_template = "local data = ...; data.fields.__HASFOLLOWEDSCHEMA = 48; return data.fields",
     operations = {"View", "Create", "Update", "Delete"},
     index_by = "index",
     footer = {
@@ -81,7 +82,9 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         return result
     elseif event.op == "Create" then
-        local userinfo = data.userinfomanager.get(event.author, nil)
+        assert(event.fields.__HASFOLLOWEDSCHEMA == 48, "Test failed: This setting must follow the schema provided by the setting")
+
+        local userinfo = data.userinfomanager.get(event.author :: string, nil)
 
         local index = settingsExt.assertInteger("index", event.fields.index)
         local roleid = settingsExt.assertString("role_id", event.fields.role_id)
@@ -99,7 +102,9 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         return {}
     elseif event.op == "Update" then
-        local userinfo = data.userinfomanager.get(event.author, nil)
+        assert(event.fields.__HASFOLLOWEDSCHEMA == 48, "Test failed: This setting must follow the schema provided by the setting")
+
+        local userinfo = data.userinfomanager.get(event.author :: string, nil)
         
         local index = settingsExt.assertInteger("index", event.fields.index)
         local roleid = settingsExt.assertString("role_id", event.fields.role_id)
@@ -118,6 +123,8 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         return {}
     elseif event.op == "Delete" then
+        assert(event.fields.__HASFOLLOWEDSCHEMA == 48, "Test failed: This setting must follow the schema provided by the setting")
+
         local userinfo = data.userinfomanager.get(event.author, nil)
         
         local roleid = settingsExt.assertString("role_id", event.fields.role_id)
