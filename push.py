@@ -16,8 +16,8 @@ EVENTS = [
     "INTERACTION_CREATE", 
     "KeyExpiry[builtins.remindme]", 
     "GetSettings",
-    "ExecuteSetting[members]",
-    "ExecuteSetting[roles]",
+    "ExecuteSetting[guildmembers]",
+    "ExecuteSetting[guildroles]",
     "ExecuteSetting[scripts]",
 ] # List of events to listen to
 USE_BUNDLED_TEMPLATING_TYPES = True # Use bundled types
