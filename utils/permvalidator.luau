@@ -40,7 +40,7 @@ local function verifyRolePerms(vp: VerifyOpts)
 
     local settingsRole = vp.userinfo.guild_roles and vp.userinfo.guild_roles[vp.roleid]
     if not settingsRole then
-        error("Role with ID " .. vp.roleid .. " does not exist in guild roles")
+        return -- Role does not exist in guild_roles, no need to verify permissions
     end
 
     local highestRole = nil
