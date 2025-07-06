@@ -18,7 +18,7 @@ EVENTS = [
     "GetSettings",
     "ExecuteSetting[guildmembers-rod]",
     "ExecuteSetting[guildroles-rod]",
-    "ExecuteSetting[scripts]",
+    "ExecuteSetting[scripts-rod]",
 ] # List of events to listen to
 USE_BUNDLED_TEMPLATING_TYPES = True # Use bundled types
 TEMPLATE_NAME = "builtins-dev" # Name of the template
