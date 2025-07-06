@@ -13,6 +13,7 @@ local guildroles: settings.Setting = {
     description = "Configure server roles permissions on AntiRaid",
     title_template = "local data = ...; return `{data.fields.index}, role_id={data.fields.role_id}`",
     operations = {"View", "Create", "Update", "Delete"},
+    index_by = "index",
     columns = {
         {
             id = "role_id",
