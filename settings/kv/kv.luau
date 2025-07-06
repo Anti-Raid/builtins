@@ -20,7 +20,6 @@ local kv: settings.Setting = {
             primary_key = true,
             nullable = false,
             secret = false,
-            suggestions = settingsExt.noSuggestions(),
             readonly = {"View"}
         },
         {
@@ -31,7 +30,6 @@ local kv: settings.Setting = {
             primary_key = false,
             nullable = false,
             secret = false,
-            suggestions = settingsExt.noSuggestions(),
             readonly = {"View"}
         },
         {
@@ -42,7 +40,6 @@ local kv: settings.Setting = {
             primary_key = false,
             nullable = false,
             secret = false,
-            suggestions = settingsExt.noSuggestions(),
             readonly = EMPTY_ARRAY
         },
         {
@@ -53,7 +50,6 @@ local kv: settings.Setting = {
             primary_key = false,
             nullable = false,
             secret = false,
-            suggestions = settingsExt.noSuggestions(),
             readonly = EMPTY_ARRAY
         },
         settingsExt.columnCreatedAt(),
@@ -67,7 +63,6 @@ local kv: settings.Setting = {
             nullable = true,
             readonly = {"View", "Create", "Update", "Delete"},
             secret = false,
-            suggestions = settingsExt.noSuggestions(),
         }
     }
 }

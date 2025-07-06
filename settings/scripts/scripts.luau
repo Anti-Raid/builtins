@@ -28,7 +28,6 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 primary_key = false,
                 nullable = false,
                 secret = false,
-                suggestions = settingsExt.noSuggestions(),
                 readonly = EMPTY_ARRAY
             },
             {
@@ -39,7 +38,6 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 primary_key = false,
                 nullable = false,
                 secret = false,
-                suggestions = settingsExt.noSuggestions(),
                 readonly = EMPTY_ARRAY
             },
             {
@@ -50,7 +48,6 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 primary_key = false,
                 nullable = false,
                 secret = false,
-                suggestions = settingsExt.noSuggestions(),
                 readonly = EMPTY_ARRAY
             },
             {
@@ -61,18 +58,16 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 primary_key = false,
                 nullable = false,
                 secret = false,
-                suggestions = settingsExt.noSuggestions(),
                 readonly = EMPTY_ARRAY
             },
             {
                 id = "events",
                 name = "Events", 
                 description = "The events that this script can be executed on.",
-                column_type = settingsExt.stringColumnType("Array", nil, nil, {}, "normal"),
+                column_type = settingsExt.stringColumnType("Array", nil, nil, {}, "normal", lss.event_list()),
                 primary_key = false,
                 nullable = true,
                 secret = false,
-                suggestions = settingsExt.staticSuggestions(lss.event_list()),
                 readonly = EMPTY_ARRAY
             },
             {
@@ -83,7 +78,6 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 primary_key = false,
                 nullable = true,
                 secret = false,
-                suggestions = settingsExt.noSuggestions(),
                 readonly = EMPTY_ARRAY
             },
             {
@@ -94,7 +88,6 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
                 primary_key = false,
                 nullable = true,
                 secret = false,
-                suggestions = settingsExt.noSuggestions(),
                 readonly = EMPTY_ARRAY
             },
             settingsExt.columnCreatedAt(),

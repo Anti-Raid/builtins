@@ -5,7 +5,6 @@ local verifyMemberPermOverrideChange = require"../../utils/permvalidator".verify
 local kc = require"@antiraid-core/kittycat"
 local data = require"../data"
 local array_metatable = require"@antiraid/interop".array_metatable
-local datetime = require"@antiraid/datetime"
 local userinfoP = require"../../utils/userinfo"
 
 local EMPTY_ARRAY = setmetatable({}, array_metatable)
@@ -24,7 +23,6 @@ local guildmembers: settings.Setting = {
             primary_key = true,
             nullable = false,
             secret = false,
-            suggestions = settingsExt.noSuggestions(),
             readonly = {"View"}
         },
         {
@@ -35,7 +33,6 @@ local guildmembers: settings.Setting = {
             primary_key = false,
             nullable = false,
             secret = false,
-            suggestions = settingsExt.noSuggestions(),
             readonly = EMPTY_ARRAY
         },
         settingsExt.columnCreatedAt(),
@@ -62,8 +59,8 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
             table.insert(result, {
                 user_id = memberPermissions.userid,
                 perm_overrides = permsMap,
-                created_at = memberPermissions.raw.created_at,
-                last_updated_at = memberPermissions.raw.last_updated_at,
+                created_at = tostring(memberPermissions.raw.created_at),
+                last_updated_at = tostring(memberPermissions.raw.last_updated_at),
             })
         end
 
@@ -85,12 +82,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         data.userinfomanager.setMemberPermissionOverrides(userid, permsMapped)
 
-        return {
-            userid = userid,
-            perm_overrides = perm_overrides,
-            created_at = datetime.UTC:now(),
-            last_updated_at = datetime.UTC:now(),
-        }
+        return {}
     elseif event.op == "Update" then
         local userid = settingsExt.assertString("user_id", event.fields.user_id)
         local perm_overrides = settingsExt.assertStringArray("perm_overrides", event.fields.perms)
@@ -113,12 +105,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         data.userinfomanager.setMemberPermissionOverrides(userid, permsMapped)
 
-        return {
-            userid = userid,
-            perm_overrides = perm_overrides,
-            created_at = datetime.UTC:now(),
-            last_updated_at = datetime.UTC:now(),
-        }
+        return {}
     elseif event.op == "Delete" then
         local userid = settingsExt.assertString("userid", event.fields.user_id)
 

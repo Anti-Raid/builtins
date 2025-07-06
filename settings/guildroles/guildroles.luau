@@ -4,7 +4,6 @@ local events = require"@antiraid-core/events"
 local verifyRolePerms = require"../../utils/permvalidator".verifyRolePerms
 local kc = require"@antiraid-core/kittycat"
 local data = require"../data"
-local datetime = require"@antiraid/datetime"
 local array_metatable = require"@antiraid/interop".array_metatable
 
 local EMPTY_ARRAY = setmetatable({}, array_metatable)
@@ -23,7 +22,6 @@ local guildroles: settings.Setting = {
             primary_key = true,
             nullable = false,
             secret = false,
-            suggestions = settingsExt.noSuggestions(),
             readonly = {"View"}
         },
         {
@@ -34,7 +32,6 @@ local guildroles: settings.Setting = {
             primary_key = false,
             nullable = false,
             secret = false,
-            suggestions = settingsExt.noSuggestions(),
             readonly = EMPTY_ARRAY
         },
         {
@@ -45,7 +42,6 @@ local guildroles: settings.Setting = {
             primary_key = false,
             nullable = false,
             secret = false,
-            suggestions = settingsExt.noSuggestions(),
             readonly = EMPTY_ARRAY
         },
         settingsExt.columnCreatedAt(),
@@ -74,8 +70,8 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
                 role_id = perm.position.id,
                 perms = permsMap,
                 index = perm.position.index,
-                created_at = perm.raw.created_at,
-                last_updated_at = perm.raw.last_updated_at,
+                created_at = tostring(perm.raw.created_at),
+                last_updated_at = tostring(perm.raw.last_updated_at),
             })
         end
 
@@ -97,13 +93,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         local new = kc.PartialStaffPosition.new(roleid, index, permsMapped)
         data.userinfomanager.setGuildPermission(new)
 
-        return {
-            role_id = roleid,
-            perms = perms,
-            index = index,
-            created_at = datetime.UTC:now(),
-            last_updated_at = datetime.UTC:now(),
-        }
+        return {}
     elseif event.op == "Update" then
         local userinfo = data.userinfomanager.get(event.author, nil)
         
@@ -122,12 +112,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
             kc.PartialStaffPosition.new(roleid, index, permsMapped)
         )
 
-        return {
-            role_id = roleid,
-            perms = perms,
-            index = index,
-            last_updated_at = datetime.UTC:now(),
-        }
+        return {}
     elseif event.op == "Delete" then
         local userinfo = data.userinfomanager.get(event.author, nil)
         
