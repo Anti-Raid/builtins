@@ -104,7 +104,25 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.view")) then
             error("You need the `scripts.view` permission to view scripts")
         end
-        return data.ctx.DataStores.TemplateStore.list()
+        local entries = data.ctx.DataStores.TemplateStore.list()
+
+        local templates = {}
+        for _, entry in entries do 
+            local template = {
+                name = entry.name,
+                language = entry.lang,
+                content = entry.content,
+                paused = entry.paused,
+                events = entry.events or EMPTY_ARRAY,
+                allowed_caps = entry.allowed_caps or EMPTY_ARRAY,
+                error_channel = entry.error_channel,
+                created_at = tostring(entry.created_at),
+            }
+
+            table.insert(templates, template)
+        end
+
+        return setmetatable(templates, array_metatable)
     elseif event.op == "Create" then
         if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.create")) then
             error("You need the `scripts.create` permission to create scripts")
