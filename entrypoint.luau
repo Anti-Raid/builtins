@@ -84,7 +84,9 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
 
         _G.storeTab = storeTab
 
-        _G.storeTab.builtinSettings = {}
+        local tab = if isInDevMode then "builtinSettings" else "builtinSettings__prod"
+
+        _G.storeTab[tab] = {}
         for name, setting in settings.settings do 
             local settingData = setting()
 
@@ -98,7 +100,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
                 settingData.schema.id ..= cmdLabel
             end
 
-            table.insert(_G.storeTab.builtinSettings :: {any}, settingData.schema :: any)
+            table.insert(_G.storeTab[tab] :: {any}, settingData.schema :: any)
         end
         return nil
     end)
@@ -336,7 +338,8 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
 
     -- Handle GetSettings event
     local res = GetSettings(evt, function(_) 
-        return _G.storeTab.builtinSettings
+        local tab = if isInDevMode then "builtinSettings" else "builtinSettings__prod"
+        return _G.storeTab[tab]
     end)
 
     if res.isGetSettings then 
