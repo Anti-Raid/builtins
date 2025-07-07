@@ -24,6 +24,16 @@ export type VerifyOpts = {
     author: discord.Snowflake,
     roleid: string,
     userinfo: UserInfo.UserInfo
+} | {
+    op: "Reorder",
+    author: discord.Snowflake,
+    reorderList: {
+        {
+            role_id: discord.Snowflake,
+            index: number,
+        }
+    },
+    userinfo: UserInfo.UserInfo
 }
 
 --- Verify role permissions
@@ -36,11 +46,6 @@ local function verifyRolePerms(vp: VerifyOpts)
 
     if vp.userinfo.guild_owner_id == vp.author then
         return -- No further checks needed, owner can do anything, early return
-    end
-
-    local settingsRole = vp.userinfo.guild_roles and vp.userinfo.guild_roles[vp.roleid]
-    if not settingsRole then
-        return -- Role does not exist in guild_roles, no need to verify permissions
     end
 
     local highestRole = nil
@@ -63,10 +68,6 @@ local function verifyRolePerms(vp: VerifyOpts)
         error("User does not have any roles in the guild")
     end
 
-    if compare.IsRoleALessThanOrEqualToRoleB(highestRole, settingsRole) then
-        error("You do not have permission to edit this role's permissions as your highest role is less than or equal to the role you are trying to edit: " .. (highestRole.id or "nil") .. " < " .. (settingsRole.id or "nil"))
-    end
-
     -- Find lowest index
     for _, position in vp.userinfo.kittycat_staff_permissions.user_positions do 
         if position.index < lowestIndex then
@@ -74,12 +75,58 @@ local function verifyRolePerms(vp: VerifyOpts)
         end
     end
 
+    -- Handle reorder separately
+    if vp.op == "Reorder" then 
+        if not kc.has_perm(vp.userinfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_roles.reorder")) then
+            error("You do not have permission to mass reorder guild roles. Please ask an administrator to give you the 'guild_roles.reorder' permission.")
+        end
+
+        -- Validate all changed indices
+        for _, newroledata in vp.reorderList do 
+            local role = vp.userinfo.guild_roles and vp.userinfo.guild_roles[newroledata.role_id]
+            if not role then
+                error("Role with ID " .. newroledata.role_id .. " does not exist in guild_roles")
+            end
+
+            -- Get current index
+            local currentData = vp.userinfo.guild_permissions[newroledata.role_id]
+
+            if not currentData then
+                error("Role with ID " .. newroledata.role_id .. " does not have any permissions set")
+            end
+
+            if currentData.position.index == newroledata.index then
+                continue -- No change in index, skip
+            end
+
+            if newroledata.index <= lowestIndex then
+                error("You do not have permission to reorder this role as its index is lower than you and hence higher in hierarchy: " .. newroledata.index .. " < " .. lowestIndex .. " for role " .. newroledata.role_id)
+            end
+
+        end
+        
+        return -- No further checks needed, early return
+    end
+
+    local settingsRole = vp.userinfo.guild_roles and vp.userinfo.guild_roles[vp.roleid]
+    if not settingsRole then
+        if vp.op ~= "Delete" then 
+            error("Role with ID " .. vp.roleid .. " does not exist in guild_roles")
+        end
+        return -- Role does not exist in guild_roles, no need to verify permissions
+    end
+
+    assert(highestRole, "internal error: highest role is nil, this should not happen")
+    if compare.IsRoleALessThanOrEqualToRoleB(highestRole, settingsRole) then
+        error("You do not have permission to edit this role's permissions as your highest role is less than or equal to the role you are trying to edit: " .. (highestRole.id or "nil") .. " < " .. (settingsRole.id or "nil"))
+    end
+
     if vp.op == "Create" then 
         if not kc.has_perm(vp.userinfo.kittycat_resolved_permissions, kc.Permission.from_string("guild_roles.create")) then
             error("You do not have permission to create guild roles. Please ask an administrator to give you the 'guild_roles.create' permission.")
         end
 
-        if vp.index < lowestIndex then
+        if vp.index <= lowestIndex then
             error("You do not have permission to edit this role's permissions as the new index would be lower than you and hence higher in hierarchy: " .. lowestIndex .. " < " .. vp.roleid)
         end     
 
@@ -98,7 +145,7 @@ local function verifyRolePerms(vp: VerifyOpts)
             error("You do not have permission to update guild roles. Please ask an administrator to give you the 'guild_roles.update' permission.")
         end
 
-        if vp.index < lowestIndex then
+        if vp.index <= lowestIndex then
             error("You do not have permission to edit this role's permissions as the new index would be lower than you and hence higher in hierarchy: " .. lowestIndex .. " < " .. vp.roleid)
         end     
 
@@ -133,8 +180,8 @@ local function verifyRolePerms(vp: VerifyOpts)
             error("Role with ID " .. vp.roleid .. " does not have any permissions set")
         end
 
-        if currentData.position.index < lowestIndex then
-            error("You do not have permission to edit this role's permissions as the current index of said role is lower than you and hence higher in hierarchy: " .. currentData.position.index .. " < " .. lowestIndex)
+        if currentData.position.index <= lowestIndex then
+            error("You do not have permission to delete this role's permissions as the current index of said role is lower than you and hence higher in hierarchy: " .. currentData.position.index .. " < " .. lowestIndex)
         end
 
         local ok, err = kc.check_patch_changes(vp.userinfo.kittycat_resolved_permissions, currentData.position.perms, {})

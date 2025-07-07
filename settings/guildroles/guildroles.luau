@@ -29,7 +29,7 @@ end
 
 return name
 ]],
-    validation_template = "local data = ...; data.fields.__HASFOLLOWEDSCHEMA = 48; return data.fields",
+    validation_template = "local data = ...; if data.op ~= 'Reorder' then data.fields.__HASFOLLOWEDSCHEMA = 48 end; return data.fields",
     operations = {"View", "Create", "Update", "Delete"},
     index_by = "index",
     footer = {
@@ -151,6 +151,31 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         data.userinfomanager.deleteGuildPermission(roleid)
         
         return {roleid = roleid}
+    elseif event.op == "Reorder" then
+        local userinfo = data.userinfomanager.get(event.author, nil)
+
+        local reorderList: {
+            {
+                role_id: string,
+                index: number,
+            }
+        } = event.fields :: any
+
+        for _, item in reorderList do
+            settingsExt.assertString("role_id", item.role_id)
+            settingsExt.assertInteger("index", item.index)
+        end
+
+        verifyRolePerms({
+            op = "Reorder" :: "Reorder",
+            reorderList = reorderList,
+            userinfo = userinfo,
+            author = event.author
+        })
+
+        data.userinfomanager.applyReorder(reorderList)
+
+        return {}
     else
         error("Invalid operation to guildroles setting: " .. event.op)
     end

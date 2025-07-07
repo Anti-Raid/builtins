@@ -75,6 +75,11 @@ export type UserInfoManager = {
     --- @return nil
     setGuildPermission: (position: Kittycat.PartialStaffPosition) -> nil,
 
+    --- Reorders the guild permissions for a list of roles
+    --- @param reorderList { {role_id: discord.Snowflake, index: number} } The list of roles to reorder with their new indices
+    --- @return nil
+    applyReorder: (reorderList: { {role_id: discord.Snowflake, index: number} }) -> nil,
+
     --- Deletes the guild permission for a role
     --- @param roleid discord.Snowflake The ID of the role to delete the permissions
     --- @return nil
@@ -201,6 +206,34 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
             index = position.index,
             perms = permsSet,
         }, {"builtins.guild_permissions"})
+
+        return nil
+    end
+
+    local function applyReorder(reorderList: { {role_id: discord.Snowflake, index: number} }): nil
+        assert(reorderList, "Reorder list is required.")
+
+        for _, entry in reorderList do
+            assert(entry.role_id, "Role ID is required.")
+            assert(entry.index, "Index is required.")
+
+            local record = ctx.KV:getrecord(entry.role_id, {"builtins.guild_permissions"})
+            if not record.exists then
+                error("Role with ID " .. entry.role_id .. " does not exist in guild permissions.")
+            end
+
+            if not record.value or type(record.value) ~= "table" then
+                error("Role with ID " .. entry.role_id .. " has invalid permissions data.")
+            end
+
+            local value: {
+                index: number?,
+                perms: {string}?
+            } = record.value :: any
+
+            value.index = entry.index -- Update the index
+            ctx.KV:set(entry.role_id, value, {"builtins.guild_permissions"})
+        end
 
         return nil
     end
@@ -440,6 +473,7 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
     self.getGuildPermissions = getGuildPermissions
     self.getGuildPermissionForRole = getGuildPermissionForRole
     self.setGuildPermission = setGuildPermission
+    self.applyReorder = applyReorder
     self.deleteGuildPermission = deleteGuildPermission
     self.getMemberPermissionOverrides = getMemberPermissionOverrides
     self.getMemberPermissionOverridesForUser = getMemberPermissionOverridesForUser
