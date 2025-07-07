@@ -406,6 +406,10 @@ local function UserInfoManager(ctx: Primitives.TemplateContext): UserInfoManager
 
         local permOverrides = getMemberPermissionOverridesForUser(user_id)
 
+        if stage1Data.guildOwnerId == user_id then 
+            table.insert(permOverrides.perm_overrides, Kittycat.Permission.from_string("global.*"))    
+        end
+
         local staffPerms = Kittycat.StaffPermissions.new(memberPositions, permOverrides.perm_overrides)
 
         local guildRolesMap = {}
