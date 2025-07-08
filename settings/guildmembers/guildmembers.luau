@@ -67,7 +67,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         return result
     elseif event.op == "Create" then
         local userid = settingsExt.assertString("user_id", event.fields.user_id)
-        local perm_overrides = settingsExt.assertStringArray("perm_overrides", event.fields.perms)
+        local perm_overrides = settingsExt.assertStringArray("perm_overrides", event.fields.perm_overrides)
 
         -- TODO: Optimize multiple userinfo fetches
         local targetUserInfo = data.userinfomanager.get(userid)
@@ -85,7 +85,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         return {}
     elseif event.op == "Update" then
         local userid = settingsExt.assertString("user_id", event.fields.user_id)
-        local perm_overrides = settingsExt.assertStringArray("perm_overrides", event.fields.perms)
+        local perm_overrides = settingsExt.assertStringArray("perm_overrides", event.fields.perm_overrides)
 
         -- TODO: Optimize multiple userinfo fetches
         local targetUserInfo = data.userinfomanager.get(userid)
@@ -107,7 +107,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         return {}
     elseif event.op == "Delete" then
-        local userid = settingsExt.assertString("userid", event.fields.user_id)
+        local userid = settingsExt.assertString("user_id", event.fields.user_id)
 
         -- TODO: Optimize multiple userinfo fetches
         local targetUserInfo = data.userinfomanager.get(userid)

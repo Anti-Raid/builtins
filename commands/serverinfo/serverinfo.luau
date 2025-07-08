@@ -65,6 +65,8 @@ local function run(data)
     local afkChannel = if guild.afk_channel_id then string.format("<#%s>", guild.afk_channel_id) else "None"
     local nsfwLevel = guild.nsfw_level or "Unknown"
 
+    local totalMemberCount = tostring(data.ctx.Discord:antiraid_guild_member_count().data or "Unknown")
+
     local embed: apitypes.EmbedObject = {
         title = guild.name or "Server Info",
         description = string.format(
@@ -93,6 +95,7 @@ local function run(data)
             { name = "AFK Timeout", value = string.format("%d minutes", afkTimeout), inline = true },
 
             { name = "Features", value = features, inline = false },
+            { name = "Total Members", value = totalMemberCount, inline = true },
         },
         thumbnail = { url = guildIconUrl(guild) or "" },
     }
