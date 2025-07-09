@@ -2,7 +2,7 @@ local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local NewSnowflake = require "@discord-types/snowflake"
 local apitypes = require "@discord-types/apiTypes"
-local compare = require "@antiraid-ext/utils/compare"
+local compare = require "@antiraid-ext/utils/rolecmp"
 local guildIconUrl = require "@antiraid-ext/utils/avatar".guildIconUrl
 
 local function getCreationTimestampFromSnowflake(snowflake: string): number
