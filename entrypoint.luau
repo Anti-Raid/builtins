@@ -19,7 +19,7 @@ local KeyExpiry = require "@antiraid-ext/events/antiraid/KeyExpiry"
 local GetSettings = require "@antiraid-ext/events/antiraid/GetSettings"
 local ExecuteSetting = require "@antiraid-ext/events/antiraid/ExecuteSetting"
 local appcommands = require"@antiraid-ext/appcommands"
-local interactionutils = require"./utils/interaction"
+local interactionutils = require"@antiraid-ext/utils/interaction"
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
 local ButtonBuilder = require"@discord-types/builders/message/components/button"
 
@@ -37,10 +37,10 @@ if RECORDING then
     _G.memusage_half = interop.memusage() - _G.memusage_half
 end
 
-local stingmanager = require "./utils/stingmanager"
-local punishmentmanager = require"./utils/punishmentmanager"
-local builtinSettingsManager = require"./utils/builtinsettingsmanager" 
-local userinfomanager = require"./utils/userinfo"
+local stingmanager = require "@antiraid-ext/utils/stingmanager"
+local punishmentmanager = require"@antiraid-ext/utils/punishmentmanager"
+local builtinSettingsManager = require"@antiraid-ext/utils/builtinsettingsmanager" 
+local userinfomanager = require"@antiraid-ext/utils/userinfo"
 local onceLocal = require"@antiraid-ext/once".onceLocal
 local Interaction = require"@discord-types/interaction"
 local devData = require"./devs"
