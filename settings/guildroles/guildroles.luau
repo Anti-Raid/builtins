@@ -81,7 +81,6 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         local rolePerms = data.userinfomanager.getGuildPermissions()
 
         for _, perm in rolePerms do 
-            
             local permsMap = {} 
             for _, _perm in perm.position.perms do 
                 table.insert(permsMap, tostring(_perm))
@@ -91,7 +90,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
             
             table.insert(result, {
                 role_id = perm.position.id,
-                perms = permsMap,
+                perms = if #permsMap > 0 then permsMap else EMPTY_ARRAY,
                 index = perm.position.index,
                 created_at = tostring(perm.raw.created_at),
                 last_updated_at = tostring(perm.raw.last_updated_at),
