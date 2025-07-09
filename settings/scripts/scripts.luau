@@ -20,8 +20,8 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
         view_template = [[
 local data = ...
 if data.perm_error then return {error = data.perm_error or "Unknown perm error"} end
-data.title = `{data.fields.name} ({data.fields.language})`
-return data
+data.fields.title = `{data.fields.name} ({data.fields.language})`
+return data.fields
 ]],
         operations = {"View", "Create", "Update", "Delete"},
         columns = {
@@ -30,7 +30,7 @@ return data
                 name = "Name", 
                 description = "The name of the script",
                 column_type = settingsExt.stringColumnType("Scalar", nil, 64, {}, "normal"),
-                primary_key = false,
+                primary_key = true,
                 nullable = false,
                 secret = false,
                 readonly = EMPTY_ARRAY
@@ -118,8 +118,8 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
                 language = entry.lang,
                 content = entry.content,
                 paused = entry.paused,
-                events = entry.events or EMPTY_ARRAY,
-                allowed_caps = entry.allowed_caps or EMPTY_ARRAY,
+                events = if #entry.events > 0 then entry.events else EMPTY_ARRAY,
+                allowed_caps = if #entry.allowed_caps > 0 then entry.allowed_caps else EMPTY_ARRAY,
                 error_channel = entry.error_channel,
                 created_at = tostring(entry.created_at),
             }

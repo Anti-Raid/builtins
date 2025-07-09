@@ -27,8 +27,8 @@ if not name or name == '' then
     return `Unknown Role (${data.fields.role_id})`
 end
 
-data.title = name
-return data   
+data.fields.title = name
+return data.fields   
 ]],
     validation_template = "local data = ...; if data.op ~= 'Reorder' then data.fields.__HASFOLLOWEDSCHEMA = 48 end; return data.fields",
     operations = {"View", "Create", "Update", "Delete"},
