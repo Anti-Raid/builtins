@@ -433,7 +433,7 @@ local function run(data: data.RunData): nil
                     local embed, components = jsp.jobToEmbed(
                         data.ctx,
                         job,
-                        true,
+                        false,
                         true
                     )
 
@@ -625,7 +625,7 @@ local function run(data: data.RunData): nil
                     local embed, components = jsp.jobToEmbed(
                         data.ctx,
                         job,
-                        true,
+                        false,
                         true
                     )
 
@@ -709,7 +709,7 @@ local function run(data: data.RunData): nil
             local embed, _ = jsp.jobToEmbed(
                 data.ctx,
                 backups[currentJobIdx],
-                true,
+                false,
                 true
             )
 
@@ -748,7 +748,7 @@ local function run(data: data.RunData): nil
             local embed, _ = jsp.jobToEmbed(
                 data.ctx,
                 backups[currentJobIdx],
-                true,
+                false,
                 true
             )
 
@@ -779,7 +779,7 @@ local function run(data: data.RunData): nil
         local embed, _ = jsp.jobToEmbed(
             data.ctx,
             backups[currentJobIdx],
-            true,
+            false,
             true
         )
 
