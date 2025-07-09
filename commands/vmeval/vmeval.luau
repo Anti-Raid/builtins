@@ -5,8 +5,8 @@ local toArray = require "@antiraid-ext/array".toArray
 local apitypes = require "@discord-types/apiTypes"
 local serde = require "@lune/serde"
 local interop = require "@antiraid/interop"
-local interactionutils = require "../../utils/interaction"
-local UserInfoManager = require"../../utils/userinfo"
+local interactionutils = require "@antiraid-ext/utils/interaction"
+local UserInfoManager = require"@antiraid-ext/utils/userinfo"
 
 local function register() 
     return commandBuilder.new({

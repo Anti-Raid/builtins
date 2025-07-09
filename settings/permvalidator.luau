@@ -1,6 +1,6 @@
 local discord = require("@discord-types/apiTypes")
-local UserInfo = require"./userinfo"
-local compare = require"./compare"
+local UserInfo = require"@antiraid-ext/utils/userinfo"
+local compare = require"@antiraid-ext/utils/rolecmp"
 local kc = require "@antiraid-core/kittycat"
 
 export type VerifyOpts = {

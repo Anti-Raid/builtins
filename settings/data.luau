@@ -1,6 +1,6 @@
 local settings = require"@antiraid-core/settings"
 local events = require"@antiraid-core/events"
-local userinfo = require"../utils/userinfo"
+local userinfo = require"@antiraid-ext/utils/userinfo"
 local primitives = require "@antiraid-core/primitives"
 
 export type Setting = {

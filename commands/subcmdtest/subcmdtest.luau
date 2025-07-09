@@ -1,6 +1,6 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local data = require "../data"
-local interactionutils = require "../../utils/interaction"
+local interactionutils = require "@antiraid-ext/utils/interaction"
 
 local function register() 
     return commandBuilder.new({

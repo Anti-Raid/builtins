@@ -1,10 +1,10 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local apitypes = require "@discord-types/apiTypes"
 local data = require "../data"
-local interactionutils = require "../../utils/interaction"
-local extractUserIdFromInteraction = require "../../utils/modhierarchy".extractUserIdFromInteraction
-local canModeratorDo = require "../../utils/modhierarchy".canModeratorDo
-local canBotDoInChannel = require "../../utils/modhierarchy".canBotDoInChannel
+local interactionutils = require "@antiraid-ext/utils/interaction"
+local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
+local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
+local canBotDoInChannel = require "@antiraid-ext/utils/modhierarchy".canBotDoInChannel
 local permissions = require "@discord-types/permission"
 local permissionsToBf = permissions.toBitFlag
 

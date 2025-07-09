@@ -2,9 +2,9 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local apitypes = require "@discord-types/apiTypes"
 local data = require "../data"
-local interactionutils = require "../../utils/interaction"
-local extractUserIdFromInteraction = require "../../utils/modhierarchy".extractUserIdFromInteraction
-local canModeratorDo = require "../../utils/modhierarchy".canModeratorDo
+local interactionutils = require "@antiraid-ext/utils/interaction"
+local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
+local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
 local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local typesext = require"@antiraid/typesext"

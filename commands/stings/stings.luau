@@ -1,9 +1,9 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local data = require "../data"
-local interactionutils = require "../../utils/interaction"
-local extractUserIdFromInteraction = require "../../utils/modhierarchy".extractUserIdFromInteraction
+local interactionutils = require "@antiraid-ext/utils/interaction"
+local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
 local datetime = require "@antiraid/datetime"
-local canModeratorAffectTarget = require "../../utils/modhierarchy".canModeratorAffectTarget
+local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
 local parseunit = require "@antiraid-ext/unit"
 local apitypes = require "@discord-types/apiTypes"
 

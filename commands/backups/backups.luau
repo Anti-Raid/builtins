@@ -1,10 +1,10 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local interactionChoiceBuilder = require "@discord-types/builders/interaction/choice"
 local data = require "../data"
-local interactionutils = require "../../utils/interaction"
-local extractUserIdFromInteraction = require "../../utils/modhierarchy".extractUserIdFromInteraction
-local canModeratorDo = require "../../utils/modhierarchy".canModeratorDo
-local jsp = require"../../utils/jobserverpoll"
+local interactionutils = require "@antiraid-ext/utils/interaction"
+local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
+local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
+local jsp = require"@antiraid-ext/utils/jobserverpoll"
 local interop = require"@antiraid/interop"
 local typesext = require"@antiraid/typesext"
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"

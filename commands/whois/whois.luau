@@ -2,13 +2,13 @@ local commandBuilder = require "@discord-types/builders/interaction/interaction"
 --local commandOptionBuilder = require "@discord-types/builders/interaction/option"
 local data = require "../data"
 local apiTypes = require "@discord-types/apiTypes"
-local interactionutils = require "../../utils/interaction"
-local avatarUrl = require "../../utils/avatar".avatarUrl
-local stingmanager = require("../../utils/stingmanager")
+local interactionutils = require "@antiraid-ext/utils/interaction"
+local avatarUrl = require "@antiraid-ext/utils/avatar".avatarUrl
+local stingmanager = require("@antiraid-ext/utils/stingmanager")
 local kc = require "@antiraid-core/kittycat"
 local permissions = require "@discord-types/permission"
 local permissionsFromBf = permissions.fromBitFlag
-local userinfoplugin = require "../../utils/userinfo"
+local userinfoplugin = require "@antiraid-ext/utils/userinfo"
 
 local function register() 
     return commandBuilder.new({

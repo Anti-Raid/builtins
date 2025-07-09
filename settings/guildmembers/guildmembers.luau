@@ -1,11 +1,11 @@
 local settings = require"@antiraid-core/settings"
 local settingsExt = require"@antiraid-ext/settings"
 local events = require"@antiraid-core/events"
-local verifyMemberPermOverrideChange = require"../../utils/permvalidator".verifyMemberPermOverrideChange
+local verifyMemberPermOverrideChange = require"../permvalidator".verifyMemberPermOverrideChange
 local kc = require"@antiraid-core/kittycat"
 local data = require"../data"
 local array_metatable = require"@antiraid/interop".array_metatable
-local userinfoP = require"../../utils/userinfo"
+local userinfoP = require"@antiraid-ext/utils/userinfo"
 
 local EMPTY_ARRAY = setmetatable({}, array_metatable)
 local guildmembers: settings.Setting = {

@@ -3,10 +3,10 @@ local primitives = require "@antiraid-core/primitives"
 local discord = require "@discord-types/apiTypes"
 local discordRestTypes = require "@discord-types/restTypes" 
 local events = require "@antiraid-core/events"
-local stingmanager = require "../utils/stingmanager"
-local punishmentmanager = require"../utils/punishmentmanager"
-local builtinSettingsManager = require "../utils/builtinsettingsmanager"
-local userinfomanager = require "../utils/userinfo"
+local stingmanager = require "@antiraid-ext/utils/stingmanager"
+local punishmentmanager = require"@antiraid-ext/utils/punishmentmanager"
+local builtinSettingsManager = require "@antiraid-ext/utils/builtinsettingsmanager"
+local userinfomanager = require "@antiraid-ext/utils/userinfo"
 
 export type Command = {
     register: () -> discordRestTypes.CreateGuildApplicationCommandRequest,
