@@ -672,7 +672,7 @@ local function run(data: data.RunData): nil
                         description = "There are no backups available for this server.",
                     },
                 },
-                false
+                true
             )
         end
 
@@ -709,7 +709,8 @@ local function run(data: data.RunData): nil
             local embed, _ = jsp.jobToEmbed(
                 data.ctx,
                 backups[currentJobIdx],
-                false
+                false,
+                true
             )
 
             if embed.title then
@@ -747,7 +748,8 @@ local function run(data: data.RunData): nil
             local embed, _ = jsp.jobToEmbed(
                 data.ctx,
                 backups[currentJobIdx],
-                false
+                true,
+                true
             )
 
             if embed.title then
@@ -777,7 +779,8 @@ local function run(data: data.RunData): nil
         local embed, _ = jsp.jobToEmbed(
             data.ctx,
             backups[currentJobIdx],
-            false
+            false,
+            true
         )
 
         if embed.title then
@@ -789,7 +792,7 @@ local function run(data: data.RunData): nil
             data.interaction,
             nil, 
             {embed},
-            false,
+            true,
             {
                 ActionRowBuilder.new()
                 :addComponent(
