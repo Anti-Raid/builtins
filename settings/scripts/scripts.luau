@@ -115,7 +115,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         for _, entry in entries do 
             local template = {
                 name = entry.name,
-                language = entry.lang,
+                language = entry.language,
                 content = entry.content,
                 paused = entry.paused,
                 events = if #entry.events > 0 then entry.events else EMPTY_ARRAY,
