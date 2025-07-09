@@ -12,7 +12,7 @@ local guildmembers: settings.Setting = {
     id = "members",
     name = "Server Members",
     description = "Manage server members on AntiRaid",
-    title_template = "local data = ...; return `{data.fields.user_id}, perm_overrides={data.fields.perm_overrides}`",
+    view_template = "local data = ...; data.title = `{data.fields.user_id}, perm_overrides={table.concat(data.fields.perm_overrides, ', ')}`; return data",
     operations = {"View", "Create", "Update", "Delete"},
     columns = {
         {

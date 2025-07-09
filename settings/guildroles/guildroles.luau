@@ -11,7 +11,7 @@ local guildroles: settings.Setting = {
     id = "roles",
     name = "Server Roles",
     description = "Configure server roles permissions on AntiRaid",
-    title_template = [[
+    view_template = [[
 local data = ...
     
 local name = ''
@@ -27,7 +27,8 @@ if not name or name == '' then
     return `Unknown Role (${data.fields.role_id})`
 end
 
-return name
+data.title = name
+return data   
 ]],
     validation_template = "local data = ...; if data.op ~= 'Reorder' then data.fields.__HASFOLLOWEDSCHEMA = 48 end; return data.fields",
     operations = {"View", "Create", "Update", "Delete"},
@@ -99,8 +100,6 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         return result
     elseif event.op == "Create" then
-        assert(event.fields.__HASFOLLOWEDSCHEMA == 48, "Test failed: This setting must follow the schema provided by the setting")
-
         local userinfo = data.userinfomanager.get(event.author :: string, nil)
 
         local index = settingsExt.assertInteger("index", event.fields.index)
@@ -119,8 +118,6 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         return {}
     elseif event.op == "Update" then
-        assert(event.fields.__HASFOLLOWEDSCHEMA == 48, "Test failed: This setting must follow the schema provided by the setting")
-
         local userinfo = data.userinfomanager.get(event.author :: string, nil)
         
         local index = settingsExt.assertInteger("index", event.fields.index)
@@ -140,8 +137,6 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         return {}
     elseif event.op == "Delete" then
-        assert(event.fields.__HASFOLLOWEDSCHEMA == 48, "Test failed: This setting must follow the schema provided by the setting")
-
         local userinfo = data.userinfomanager.get(event.author, nil)
         
         local roleid = settingsExt.assertString("role_id", event.fields.role_id)

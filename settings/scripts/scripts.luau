@@ -17,7 +17,12 @@ local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(
         id = "scripts",
         name = "Server Scripts",
         description = "Configure the server scripts (AKA templates) running on AntiRaid",
-        title_template = "local data = ...; return `{data.fields.name} ({data.fields.language})`",
+        view_template = [[
+local data = ...
+if data.perm_error then return {error = data.perm_error or "Unknown perm error"} end
+data.title = `{data.fields.name} ({data.fields.language})`
+return data
+]],
         operations = {"View", "Create", "Update", "Delete"},
         columns = {
             {
@@ -102,7 +107,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
     
     if event.op == "View" then 
         if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.view")) then
-            error("You need the `scripts.view` permission to view scripts")
+            return {perm_error = "You need the `scripts.view` permission to view scripts"}
         end
         local entries = data.ctx.DataStores.TemplateStore.list()
 
@@ -125,20 +130,20 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         return setmetatable(templates, array_metatable)
     elseif event.op == "Create" then
         if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.create")) then
-            error("You need the `scripts.create` permission to create scripts")
+            return {perm_error = "You need the `scripts.create` permission to create scripts"}
         end
 
         return data.ctx.DataStores.TemplateStore.create(event.fields)
     elseif event.op == "Update" then
         if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.update")) then
-            error("You need the `scripts.update` permission to view scripts")
+            return {perm_error = "You need the `scripts.update` permission to update scripts"}
         end
 
         return data.ctx.DataStores.TemplateStore.update(event.fields)
     elseif event.op == "CreateOrUpdate" then
         -- Custom operation to create or update a script depending on whether it exists
         if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.create")) then
-            error("You need the `scripts.create` permission to create scripts")
+            return {perm_error = "You need the `scripts.create` permission to create scripts"}
         end
 
         local ok, err = pcall(function()
@@ -149,7 +154,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
             if err and err:find("already exists") then
                 -- If it already exists, update it instead
                 if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.update")) then
-                    error("You need the `scripts.update` permission to update scripts [this script already exists]")
+                    return {perm_error = "You need the `scripts.update` permission to update scripts [the script already exists]"}
                 end
                 data.ctx.DataStores.TemplateStore.update(event.fields)
 
