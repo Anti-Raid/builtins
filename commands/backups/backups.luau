@@ -709,7 +709,7 @@ local function run(data: data.RunData): nil
             local embed, _ = jsp.jobToEmbed(
                 data.ctx,
                 backups[currentJobIdx],
-                false,
+                true,
                 true
             )
 
@@ -779,7 +779,7 @@ local function run(data: data.RunData): nil
         local embed, _ = jsp.jobToEmbed(
             data.ctx,
             backups[currentJobIdx],
-            false,
+            true,
             true
         )
 
