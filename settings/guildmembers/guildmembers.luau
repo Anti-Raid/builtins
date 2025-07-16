@@ -6,13 +6,31 @@ local kc = require"@antiraid-core/kittycat"
 local data = require"../data"
 local array_metatable = require"@antiraid/interop".array_metatable
 local userinfoP = require"@antiraid-ext/utils/userinfo"
+local typesext = require"@antiraid/typesext"
 
 local EMPTY_ARRAY = setmetatable({}, array_metatable)
 local guildmembers: settings.Setting = {
     id = "members",
     name = "Server Members",
     description = "Manage server members on AntiRaid",
-    view_template = "local data = ...; data.fields.title = `{data.fields.user_id}, perm_overrides={table.concat(data.fields.perm_overrides, ', ')}`; return data.fields",
+    validation_template = [[
+local typesext = require"@antiraid/typesext"
+local data = ...
+
+if data.op == "Create" or data.op == "Update" then
+    local ok, err = pcall(
+        typesext.U64,
+        data.fields.user_id
+    )
+
+    if not ok then
+        error("User ID must be a valid Discord User ID with error" .. tostring(err))
+    end
+end
+
+data.fields.title = `{data.fields.user_id}, perm_overrides={table.concat(data.fields.perm_overrides, ', ')}`
+return data.fields
+]],
     operations = {"View", "Create", "Update", "Delete"},
     columns = {
         {
@@ -69,6 +87,19 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         local userid = settingsExt.assertString("user_id", event.fields.user_id)
         local perm_overrides = settingsExt.assertStringArray("perm_overrides", event.fields.perm_overrides)
 
+        if #userid == 0 then
+            error("User ID cannot be empty")
+        end
+
+        local ok, _ = pcall(
+            typesext.U64,
+            userid
+        )
+
+        if not ok then
+            error("User ID must be a valid Discord User ID")
+        end
+
         -- TODO: Optimize multiple userinfo fetches
         local targetUserInfo = data.userinfomanager.get(userid)
         local authorUserinfo = data.userinfomanager.get(event.author)
@@ -86,6 +117,19 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
     elseif event.op == "Update" then
         local userid = settingsExt.assertString("user_id", event.fields.user_id)
         local perm_overrides = settingsExt.assertStringArray("perm_overrides", event.fields.perm_overrides)
+
+        if #userid == 0 then
+            error("User ID cannot be empty")
+        end
+
+        local ok, _ = pcall(
+            typesext.U64,
+            userid
+        )
+
+        if not ok then
+            error("User ID must be a valid Discord User ID")
+        end
 
         -- TODO: Optimize multiple userinfo fetches
         local targetUserInfo = data.userinfomanager.get(userid)
@@ -108,6 +152,19 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         return {}
     elseif event.op == "Delete" then
         local userid = settingsExt.assertString("user_id", event.fields.user_id)
+
+        if #userid == 0 then
+            error("User ID cannot be empty")
+        end
+
+        local ok, _ = pcall(
+            typesext.U64,
+            userid
+        )
+
+        if not ok then
+            error("User ID must be a valid Discord User ID")
+        end
 
         -- TODO: Optimize multiple userinfo fetches
         local targetUserInfo = data.userinfomanager.get(userid)
