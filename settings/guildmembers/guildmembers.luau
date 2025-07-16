@@ -18,6 +18,10 @@ local typesext = require"@antiraid/typesext"
 local data = ...
 
 if data.op == "Create" or data.op == "Update" then
+    if not data.fields.user_id or #data.fields.user_id == 0 then
+        error("User ID cannot be empty")
+    end
+    
     local ok, err = pcall(
         typesext.U64,
         data.fields.user_id
