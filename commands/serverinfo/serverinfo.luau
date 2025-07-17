@@ -93,9 +93,9 @@ local function run(data)
 
             { name = "AFK Channel", value = afkChannel, inline = true },
             { name = "AFK Timeout", value = string.format("%d minutes", afkTimeout), inline = true },
+            { name = "Total Members", value = totalMemberCount, inline = true },
 
             { name = "Features", value = features, inline = false },
-            { name = "Total Members", value = totalMemberCount, inline = true },
         },
         thumbnail = { url = guildIconUrl(guild) or "" },
     }

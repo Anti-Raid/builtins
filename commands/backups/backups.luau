@@ -225,6 +225,26 @@ local function register()
             :setType("SubCommand")
             :setName("list")
             :setDescription("Lists all backups of the server")
+            :option(
+                function(opt)
+                    return opt
+                    :setType("Integer")
+                    :setName("page")
+                    :setDescription("The page number to view (starts at 1)")
+                    :setRequired(false)
+                    :build()
+                end
+            )
+            :option(
+                function(opt)
+                    return opt
+                    :setType("Integer")
+                    :setName("per_page")
+                    :setDescription("Number of backups to show per page (default: 10)")
+                    :setRequired(false)
+                    :build()
+                end
+            )
             :build()
         end
     )
@@ -610,7 +630,8 @@ local function run(data: data.RunData): nil
         local jobId = jss.spawn({
             name = "guild_restore_backup",
             data = {
-                Options = opts
+                Options = opts,
+                RestoreStartedAt = os.time()
             },
             create = true,
             execute = true,
@@ -628,6 +649,54 @@ local function run(data: data.RunData): nil
                         false,
                         true
                     )
+
+                    -- Add restoration details to embed
+                    if embed.fields then
+                        -- Add restore timestamp
+                        if job.data and job.data.RestoreStartedAt then
+                            table.insert(embed.fields, {
+                                name = "Restored at",
+                                value = os.date("%Y-%m-%d %H:%M:%S", job.data.RestoreStartedAt),
+                                inline = true
+                            })
+                        end
+
+                        -- Add restoration summary
+                        if job.data and job.data.Options then
+                            local details = {}
+                            
+                            -- Check what was restored based on job data and status
+                            if job.status and job.status.restored_items then
+                                if job.status.restored_items.channels then
+                                    table.insert(details, string.format("✓ %d Channels", #job.status.restored_items.channels))
+                                end
+                                if job.status.restored_items.roles then
+                                    table.insert(details, string.format("✓ %d Roles", #job.status.restored_items.roles))
+                                end
+                                if job.status.restored_items.settings then
+                                    table.insert(details, "✓ Server Settings")
+                                end
+                                if job.status.restored_items.messages then
+                                    table.insert(details, string.format("✓ %d Messages", job.status.restored_items.messages))
+                                end
+                            end
+
+                            -- If no specific details available, show planned restore items
+                            if #details == 0 then
+                                if job.data.Options.ChannelRestoreMode then
+                                    table.insert(details, "• Channels")
+                                end
+                                table.insert(details, "• Roles")
+                                table.insert(details, "• Server Settings")
+                            end
+
+                            table.insert(embed.fields, {
+                                name = "Details",
+                                value = #details > 0 and table.concat(details, "\n") or "No details available",
+                                inline = false
+                            })
+                        end
+                    end
 
                     -- Edit original interaction response with the job status
                     interactionutils.editSimple(
@@ -676,7 +745,27 @@ local function run(data: data.RunData): nil
             )
         end
 
-        local currentJobIdx = 1
+        -- Get pagination options
+        local page = 1
+        local per_page = 1
+
+        for _, opt in data.command.options do
+            if opt.name == "page" and opt.value.kind == "Integer" then
+                page = math.max(1, opt.value.value)
+            elseif opt.name == "per_page" and opt.value.kind == "Integer" then
+                per_page = math.clamp(opt.value.value, 1, 25) -- Limit to reasonable range
+            end
+        end
+
+        -- Calculate total pages
+        local total_pages = math.ceil(#backups / per_page)
+        page = math.min(page, total_pages)
+
+        -- Calculate start and end indices for current page
+        local start_idx = (page - 1) * per_page + 1
+        local end_idx = math.min(start_idx + per_page - 1, #backups)
+
+        local currentJobIdx = start_idx
 
         local jlPrevId = `helpcmd:prev:${typesext.randstring(16)}`
         local jlNextId = `helpcmd:next:${typesext.randstring(16)}`
@@ -685,15 +774,17 @@ local function run(data: data.RunData): nil
         :setStyle("Grey")
         :setLabel("Previous Page")
         :setCustomId(jlPrevId)
+        :setDisabled(page <= 1)
     
         local nextButton = ButtonBuilder.new()
         :setStyle("Grey")
         :setLabel("Next Page")
         :setCustomId(jlNextId)
+        :setDisabled(page >= total_pages)
         
         task.delay(120, function() 
-            data.dropButtonCallback(jlPrevId) -- Make sure to remove the callback so it doesn't get called again
-            data.dropButtonCallback(jlNextId) -- Make sure to remove the callback so it doesn't get called again
+            data.dropButtonCallback(jlPrevId)
+            data.dropButtonCallback(jlNextId)
         end)    
 
         local authorId = extractUserIdFromInteraction(data.interaction)
@@ -701,21 +792,13 @@ local function run(data: data.RunData): nil
             local interactor = extractUserIdFromInteraction(data.interaction)
             if authorId ~= interactor then return nil end
             
-            currentJobIdx -= 1
-            if currentJobIdx < 1 then
-                currentJobIdx = 1
-            end
+            currentJobIdx = math.max(start_idx - per_page, 1)
+            local newPage = math.floor((currentJobIdx - 1) / per_page) + 1
 
-            local embed, _ = jsp.jobToEmbed(
-                data.ctx,
-                backups[currentJobIdx],
-                false,
-                true
-            )
+            local embed = createBackupEmbed(backups[currentJobIdx], newPage, total_pages, per_page)
 
-            if embed.title then
-                embed.title ..= string.format(" (%d/%d)", currentJobIdx, #backups)
-            end
+            prevButton:setDisabled(newPage <= 1)
+            nextButton:setDisabled(newPage >= total_pages)
     
             interactionutils.replyUpdate(
                 data.ctx,
@@ -740,21 +823,14 @@ local function run(data: data.RunData): nil
         data.attachButtonCallback(jlNextId, function(data: data.ButtonCallbackData): nil 
             local interactor = extractUserIdFromInteraction(data.interaction)
             if authorId ~= interactor then return nil end
-            currentJobIdx += 1
-            if currentJobIdx > #backups then
-                currentJobIdx = #backups
-            end
+            
+            currentJobIdx = math.min(currentJobIdx + per_page, #backups)
+            local newPage = math.floor((currentJobIdx - 1) / per_page) + 1
 
-            local embed, _ = jsp.jobToEmbed(
-                data.ctx,
-                backups[currentJobIdx],
-                false,
-                true
-            )
+            local embed = createBackupEmbed(backups[currentJobIdx], newPage, total_pages, per_page)
 
-            if embed.title then
-                embed.title ..= string.format(" (%d/%d)", currentJobIdx, #backups)
-            end
+            prevButton:setDisabled(newPage <= 1)
+            nextButton:setDisabled(newPage >= total_pages)
 
             interactionutils.replyUpdate(
                 data.ctx,
@@ -776,22 +852,54 @@ local function run(data: data.RunData): nil
             return nil    
         end)
 
-        local embed, _ = jsp.jobToEmbed(
-            data.ctx,
-            backups[currentJobIdx],
-            false,
-            true
-        )
+        -- Helper function to create backup embed
+        local function createBackupEmbed(job, current_page, total_pages, items_per_page)
+            local embed, _ = jsp.jobToEmbed(
+                data.ctx,
+                job,
+                false,
+                true
+            )
 
-        if embed.title then
-            embed.title ..= string.format(" (%d/%d)", currentJobIdx, #backups)
+            if embed.title then
+                embed.title ..= string.format(" (Page %d/%d)", current_page, total_pages)
+            end
+
+            -- Add file size and protection status
+            if job.job_file_path and embed.fields then
+                local file_stats = jss.get_file_stats(job.job_file_path)
+                local file_size = file_stats and file_stats.size or 0
+                local formatted_size = string.format("%.2f MB", file_size / (1024 * 1024))
+                
+                -- Check if backup is password protected
+                local is_protected = false
+                if job.data and job.data.Options and job.data.Options.Encrypt and job.data.Options.Encrypt ~= "" then
+                    is_protected = true
+                end
+
+                table.insert(embed.fields, {
+                    name = "File Size",
+                    value = formatted_size,
+                    inline = true
+                })
+
+                table.insert(embed.fields, {
+                    name = "Protected",
+                    value = is_protected and "🔒 Yes" or "🔓 No",
+                    inline = true
+                })
+            end
+
+            return embed
         end
+
+        local initial_embed = createBackupEmbed(backups[currentJobIdx], page, total_pages, per_page)
 
         interactionutils.replySimple(
             data.ctx, 
             data.interaction,
             nil, 
-            {embed},
+            {initial_embed},
             true,
             {
                 ActionRowBuilder.new()
@@ -806,7 +914,7 @@ local function run(data: data.RunData): nil
         )
     
         data.sethasEdited(true)
-        return nil    
+        return nil
     elseif cmdname == "delete" then
         local jss = data.ctx.DataStores.JobServerStore
         if not jss then

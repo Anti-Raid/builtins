@@ -2,15 +2,17 @@ local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local data = require "../data"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
+local permissions = require "@discord-types/permission"
+local permissionsFromBf = permissions.fromBitFlag
 
 local function register() 
     return commandBuilder.new({
         name = "moderation",
+        description = "Moderation related commands"
     })
     :addIntegrationType("GuildInstall")
     :setType("ChatInput")
     :addContext("Guild")
-    :setDescription("Moderation related commands")
     :option(
         function(opt) 
             return opt
@@ -79,7 +81,7 @@ local function register()
                     return opt
                     :setType("String")
                     :setName("reason")
-                    :setDescription("Reason for the ban")  
+                    :setDescription("Reason for the unban")  
                     :setRequired(true)
                     :build()
                 end
@@ -116,11 +118,74 @@ local function register()
             :build()      
         end
     )
+    :option(
+        function(opt) 
+            return opt
+            :setType("SubCommand")
+            :setName("purge")
+            :setDescription("Bulk delete messages from a channel")
+            :option(
+                function(opt)
+                    return opt
+                    :setType("Integer")
+                    :setName("amount")
+                    :setDescription("Number of messages to delete (max 100)")
+                    :setRequired(true)
+                    :setMinValue(1)
+                    :setMaxValue(100)
+                    :build()
+                end
+            )
+            :option(
+                function(opt)
+                    return opt
+                    :setType("String")
+                    :setName("reason")
+                    :setDescription("Reason for purging messages")
+                    :setRequired(true)
+                    :build()
+                end
+            )
+            :option(
+                function(opt)
+                    return opt
+                    :setType("User")
+                    :setName("user")
+                    :setDescription("Only delete messages from this user")
+                    :setRequired(false)
+                    :build()
+                end
+            )
+            :option(
+                function(opt)
+                    return opt
+                    :setType("Integer")
+                    :setName("days")
+                    :setDescription("Number of days to look back for messages (default: 14, max: 14)")
+                    :setRequired(false)
+                    :setMinValue(1)
+                    :setMaxValue(14)
+                    :build()
+                end
+            )
+            :option(
+                function(opt)
+                    return opt
+                    :setType("Channel")
+                    :setName("channel")
+                    :setDescription("Channel to purge messages from (default: current channel)")
+                    :setRequired(false)
+                    :build()
+                end
+            )
+            :build()      
+        end
+    )
     :build()
 end
 
 local function run(data: data.RunData): nil
-    local cmdname = data.command.nameList[2]
+    local cmdname = data.command.nameList[2] -- Changed back to 2 since we removed the actions group
 
     if cmdname == "ban" then
         local userid = nil
@@ -156,6 +221,7 @@ local function run(data: data.RunData): nil
         end
 
         if not userid then
+            data.sethasEdited(true)
             return interactionutils.replySimple(
                 data.ctx,
                 data.interaction,
@@ -172,6 +238,7 @@ local function run(data: data.RunData): nil
         end
 
         if not reason or reason == "" then
+            data.sethasEdited(true)
             return interactionutils.replySimple(
                 data.ctx,
                 data.interaction,
@@ -195,6 +262,7 @@ local function run(data: data.RunData): nil
             delete_message_seconds = delete_message_seconds,
         })
 
+        data.sethasEdited(true)
         return interactionutils.replySimple(
             data.ctx,
             data.interaction,
@@ -229,6 +297,7 @@ local function run(data: data.RunData): nil
         end
 
         if not userid then
+            data.sethasEdited(true)
             return interactionutils.replySimple(
                 data.ctx,
                 data.interaction,
@@ -245,6 +314,7 @@ local function run(data: data.RunData): nil
         end
 
         if not reason or reason == "" then
+            data.sethasEdited(true)
             return interactionutils.replySimple(
                 data.ctx,
                 data.interaction,
@@ -267,6 +337,7 @@ local function run(data: data.RunData): nil
             reason
         )
 
+        data.sethasEdited(true)
         return interactionutils.replySimple(
             data.ctx,
             data.interaction,
@@ -301,6 +372,7 @@ local function run(data: data.RunData): nil
         end
 
         if not userid then
+            data.sethasEdited(true)
             return interactionutils.replySimple(
                 data.ctx,
                 data.interaction,
@@ -317,6 +389,7 @@ local function run(data: data.RunData): nil
         end
 
         if not reason or reason == "" then
+            data.sethasEdited(true)
             return interactionutils.replySimple(
                 data.ctx,
                 data.interaction,
@@ -339,6 +412,7 @@ local function run(data: data.RunData): nil
             reason = reason,
         })
 
+        data.sethasEdited(true)
         return interactionutils.replySimple(
             data.ctx,
             data.interaction,
@@ -352,7 +426,287 @@ local function run(data: data.RunData): nil
             },
             false
         )
+elseif cmdname == "purge" then
+        local amount = nil
+        local user_id = nil
+        local reason = nil
+        local days = 14  -- Default to 14 days if not specified
+        local channel_id = data.interaction.channel_id  -- Default to current channel
+        local channels = {}  -- Will be populated based on channel_id
+
+        for _, opt in data.command.options do
+            if opt.name == "amount" then
+                if opt.value.kind == "Integer" then
+                    amount = math.clamp(opt.value.value, 1, 100)
+                end
+            elseif opt.name == "user" then
+                if opt.value.kind == "User" then
+                    user_id = opt.value.user.id
+                elseif opt.value.kind == "Unresolved" then
+                    user_id = opt.value.id
+                end
+            elseif opt.name == "reason" then
+                if opt.value.kind == "String" then
+                    reason = opt.value.value
+                end
+            elseif opt.name == "days" then
+                if opt.value.kind == "Integer" then
+                    days = math.clamp(opt.value.value, 1, 14)
+                end
+            elseif opt.name == "channel" then
+                if opt.value.kind == "Channel" then
+                    channel_id = opt.value.channel.id
+                end
+            end
+        end
+
+        if not amount or not reason then
+            data.sethasEdited(true)
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Error processing command",
+                        description = "Amount and reason are required for purge command",
+                    },
+                },
+                true
+            )
+        end
+
+        -- Add the selected channel to the channels list
+        table.insert(channels, channel_id)
+
+        -- Check if user has permission to purge messages
+        local moderator = data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction)
+        local discordPerms = permissionsFromBf(moderator.discord_permissions)
+        local hasManageMessages = false
+        for _, perm in discordPerms do
+            if perm == "ManageMessages" then
+                hasManageMessages = true
+                break
+            end
+        end
+        if not hasManageMessages then
+            data.sethasEdited(true)
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Permission Denied",
+                        description = "You need the Manage Messages permission to use this command",
+                    },
+                },
+                true
+            )
+        end
+
+        -- Check if JobServerStore is available
+        local jss = data.ctx.DataStores.JobServerStore
+        if not jss then
+            data.sethasEdited(true)
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Error",
+                        description = "JobServerStore is not available in the context",
+                        color = 0xFF0000
+                    },
+                },
+                true
+            )
+        end
+
+        -- Submit purge job to jobserver
+        local jobId = jss.spawn({
+            name = "message_prune",
+            data = {
+                Options = {
+                    per_channel = math.max(amount, 100),  -- Use amount or minimum 100, whichever is higher
+                    max_messages = amount,
+                    prune_from = days * 24 * 60 * 60,
+                    rollover_leftovers = false,
+                    special_allocations = {},
+                    channels = channels,
+                    user_id = user_id
+                }
+            },
+            create = true,
+            execute = true
+        })
+
+        -- Send confirmation
+        data.sethasEdited(true)
+        return interactionutils.replySimple(
+            data.ctx,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "Purge Started",
+                    description = string.format(
+                        "Starting to purge %d messages%s in <#%s>\nLooking back %d days\nReason: %s", 
+                        amount,
+                        user_id and string.format(" from <@%s>", user_id) or "",
+                        channel_id,
+                        days,
+                        reason
+                    ),
+                    color = 0x00FF00
+                },
+            },
+            true
+        )
+    elseif cmdname == "purge" then
+        local amount = nil
+        local user_id = nil
+        local reason = nil
+        local days = 14  -- Default to 14 days if not specified
+        local channel_id = data.interaction.channel_id  -- Default to current channel
+        local channels = {}  -- Will be populated based on channel_id
+
+        for _, opt in data.command.options do
+            if opt.name == "amount" then
+                if opt.value.kind == "Integer" then
+                    amount = math.clamp(opt.value.value, 1, 100)
+                end
+            elseif opt.name == "user" then
+                if opt.value.kind == "User" then
+                    user_id = opt.value.user.id
+                elseif opt.value.kind == "Unresolved" then
+                    user_id = opt.value.id
+                end
+            elseif opt.name == "reason" then
+                if opt.value.kind == "String" then
+                    reason = opt.value.value
+                end
+            elseif opt.name == "days" then
+                if opt.value.kind == "Integer" then
+                    days = math.clamp(opt.value.value, 1, 14)
+                end
+            elseif opt.name == "channel" then
+                if opt.value.kind == "Channel" then
+                    channel_id = opt.value.channel.id
+                end
+            end
+        end
+
+        if not amount or not reason then
+            data.sethasEdited(true)
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Error processing command",
+                        description = "Amount and reason are required for purge command",
+                    },
+                },
+                true
+            )
+        end
+
+        -- Add the selected channel to the channels list
+        table.insert(channels, channel_id)
+
+        -- Check if user has permission to purge messages
+        local moderator = data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction)
+        local discordPerms = permissionsFromBf(moderator.discord_permissions)
+        local hasManageMessages = false
+        for _, perm in discordPerms do
+            if perm == "ManageMessages" then
+                hasManageMessages = true
+                break
+            end
+        end
+        if not hasManageMessages then
+            data.sethasEdited(true)
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Permission Denied",
+                        description = "You need the Manage Messages permission to use this command",
+                    },
+                },
+                true
+            )
+        end
+
+        -- Check if JobServerStore is available
+        local jss = data.ctx.DataStores.JobServerStore
+        if not jss then
+            data.sethasEdited(true)
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Error",
+                        description = "JobServerStore is not available in the context",
+                        color = 0xFF0000
+                    },
+                },
+                true
+            )
+        end
+
+        -- Submit purge job to jobserver
+        local jobId = jss.spawn({
+            name = "message_prune",
+            data = {
+                Options = {
+                    PerChannel = 20,  -- Remove the math.max(amount, 100)
+                    MaxMessages = 10,
+                    PruneFrom = days * 24 * 60 * 60 * 1000000000,  -- Convert to nanoseconds
+                    RolloverLeftovers = false,
+                    SpecialAllocations = {},
+                    Channels = channels,
+                    UserID = user_id,  -- Capital U
+                    -- Remove non-Options fields:
+                    -- channel_id, amount, reason, moderator_id don't belong in Options
+                }
+            },
+            create = true,
+            execute = true
+        })
+
+        -- Send confirmation
+        data.sethasEdited(true)
+        return interactionutils.replySimple(
+            data.ctx,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "Purge Started",
+                    description = string.format(
+                        "Starting to purge %d messages%s in <#%s>\nLooking back %d days\nReason: %s\nJob ID: %s", 
+                        amount,
+                        user_id and string.format(" from <@%s>", user_id) or "",
+                        channel_id,
+                        days,
+                        reason,
+                        jobId
+                    ),
+                    color = 0x00FF00
+                },
+            },
+            true
+        )
     else 
+        data.sethasEdited(true)
         return interactionutils.replySimple(
             data.ctx,
             data.interaction,
