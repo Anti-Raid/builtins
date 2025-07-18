@@ -191,7 +191,7 @@ local function createLockdown(
 
     data.sethasEdited(true)
 
-    local ok, result = pcall(lockdownSet.apply, lockdownType, reason)
+    local ok, result = xpcall(lockdownSet.apply, debug.traceback, lockdownType, reason)
     if not ok then 
         local autofixCustomId = `lockdowns:autofix:${typesext.randstring(16)}`
         data.attachButtonCallback(autofixCustomId, function(data: data.ButtonCallbackData): nil 
@@ -326,7 +326,7 @@ local function removeLockdown(
 
     data.sethasEdited(true)
 
-    local ok, err = pcall(lockdownSet.remove, id)
+    local ok, err = xpcall(lockdownSet.remove, debug.traceback, id)
     if not ok then 
         err = tostring(err) :: string
         if #err > 2000 then 
