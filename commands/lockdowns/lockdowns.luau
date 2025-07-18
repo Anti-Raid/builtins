@@ -8,7 +8,13 @@ local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
 local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local typesext = require"@antiraid/typesext"
-local lockdowns = require"@antiraid-core/plugins/lockdowns"
+local mode = require"@antiraid-ext/lockdowns/mode"
+local lockdownset = require"@antiraid-ext/lockdowns/lockdownset"
+
+local QuickServerLockdown = require"@antiraid-ext/lockdowns/modes/quickserverlockdown"
+local TraditionalServerLockdown = require"@antiraid-ext/lockdowns/modes/traditionalserverlockdown"
+local SingleChannelLockdown = require"@antiraid-ext/lockdowns/modes/singlechannellockdown"
+local RoleLockdown = require"@antiraid-ext/lockdowns/modes/rolelockdown"
 
 local function register() 
     return commandBuilder.new({
@@ -146,33 +152,27 @@ local function register()
     :build()
 end
 
-local lockdownSetBurstCache: {data: lockdowns.LockdownSet, createdAt: number}? = nil
+local lockdownSetBurstCache: {data: lockdownset.LockdownSet, createdAt: number}? = nil
 local maxBurstCacheTime = 120 -- 2 minutes
 
-local function quickGetLockdownSet(data: data.RunData | data.AutocompleteRunData): lockdowns.LockdownSet
+local function quickGetLockdownSet(data: data.RunData | data.AutocompleteRunData): lockdownset.LockdownSet
     if not lockdownSetBurstCache or lockdownSetBurstCache.createdAt - os.clock() > maxBurstCacheTime then 
         lockdownSetBurstCache = {
-            data = data.ctx.Lockdowns.Client:fetch_lockdown_set(),
+            data = lockdownset(data.ctx),
             createdAt = os.clock()
         }
-        return (lockdownSetBurstCache :: {data: lockdowns.LockdownSet, createdAt: number}).data
+        return (lockdownSetBurstCache :: {data: lockdownset.LockdownSet, createdAt: number}).data
     end
     return lockdownSetBurstCache.data
 end
 
 local function createLockdown(
     data: data.RunData,
-    lockdownType: lockdowns.LockdownMode, 
+    lockdownType: mode.LockdownMode, 
     reason: string,
     ephemeral: boolean
 ): nil
-    local lockdownSet = data.ctx.Lockdowns.Client:fetch_lockdown_set()
-
-    -- Update the burst cache
-    lockdownSetBurstCache = {
-        data = lockdownSet,
-        createdAt = os.clock()
-    }
+    local lockdownSet = lockdownset(data.ctx)
 
     -- A lockdown may take a long time to apply, so we need to make sure the user knows that something is happening
     interactionutils.replySimple(
@@ -190,13 +190,12 @@ local function createLockdown(
 
     data.sethasEdited(true)
 
-    local result = lockdownSet:apply(lockdownType, reason)
-    if result.type == "LockdownTestFailed" then 
+    local ok, result = pcall(lockdownSet.apply, lockdownType, reason)
+    if not ok then 
         local autofixCustomId = `lockdowns:autofix:${typesext.randstring(16)}`
         data.attachButtonCallback(autofixCustomId, function(data: data.ButtonCallbackData): nil 
             data.removeCallback() -- Make sure to remove the callback so it doesn't get called again
             
-            if not result.test_result then error("Test result is nil") end
             interactionutils.replySimple(
                 data.ctx,
                 data.interaction,
@@ -210,7 +209,7 @@ local function createLockdown(
                 true
             )
 
-            local ok, err = xpcall(result.test_result.try_auto_fix, debug.traceback :: any, result.test_result, lockdownSet)
+            local ok, err = xpcall(lockdownSet.autofix, debug.traceback :: any, lockdownType)
 
             if not ok then
                 interactionutils.editSimple(
@@ -244,14 +243,15 @@ local function createLockdown(
 
             return nil
         end)
+
         interactionutils.editSimple(
             data.ctx,
             data.interaction,
             nil,
             {
                 {
-                    title = "Action Required",
-                    description = "The following actions are required to proceed with the lockdown\n" .. (if result.test_result then result.test_result:display_changeset(lockdownSet) else "No changeset available"),
+                    title = "Lockdown Failed",
+                    description = tostring(result),
                     color = 0xFF0000,
                 },
             },
@@ -268,9 +268,8 @@ local function createLockdown(
             }
         )
         return nil
-    elseif result.type == "Error" then 
-        error(result.error or "An unknown error occurred while trying to apply the lockdown")
-    elseif result.type == "Ok" then
+    else
+        result = result :: mode.Lockdown
         interactionutils.editSimple(
             data.ctx,
             data.interaction,
@@ -278,13 +277,11 @@ local function createLockdown(
             {
                 {
                     title = "Lockdown started",
-                    description = "A lockdown has been started with an ID of " .. (if result.id then result.id else "unknown") .. "\n" .. (if reason then "Reason: " .. reason else "") .. ("\nType: " .. lockdownType.string_form),
+                    description = "A lockdown has been started with an ID of " .. result.id .. "\n" .. (if reason then "Reason: " .. reason else "") .. ("\nType: " .. lockdownType.string_form()),
                 },
             }
         )
         return nil
-    else
-        error(result.error or "An unknown error occurred while trying to apply the lockdown. Recieved invalid type of: " .. tostring(result.type))
     end
 end
 
@@ -292,7 +289,7 @@ local function removeLockdown(
     data: data.RunData,
     id: string
 ): nil
-    local lockdownSet = data.ctx.Lockdowns.Client:fetch_lockdown_set()
+    local lockdownSet = lockdownset(data.ctx)
 
     -- Update the burst cache
     lockdownSetBurstCache = {
@@ -316,103 +313,22 @@ local function removeLockdown(
 
     data.sethasEdited(true)
 
-    local result = lockdownSet:remove(id)
-    if result.type == "LockdownTestFailed" then 
-        local autofixCustomId = `lockdowns:autofix:${typesext.randstring(16)}`
-        data.attachButtonCallback(autofixCustomId, function(data: data.ButtonCallbackData): nil 
-            data.removeCallback() -- Make sure to remove the callback so it doesn't get called again
-            
-            if not result.test_result then error("Test result is nil") end
-            interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Starting lockdown autofixer",
-                        description = "Please wait while the lockdown autofixer tries to fix the issues",
-                    },
-                },
-                true
-            )
-
-            local ok, err = xpcall(result.test_result.try_auto_fix, debug.traceback :: any, result.test_result, lockdownSet)
-
-            if not ok then
-                interactionutils.editSimple(
-                    data.ctx,
-                    data.interaction,
-                    nil,
-                    {
-                        {
-                            title = "Lockdown autofixer failed",
-                            description = "```\n" .. tostring(err) .. "\n```",
-                            color = 0xFF0000,
-                        },
-                    },
-                    nil
-                )
-                return nil
-            end
-
-            interactionutils.editSimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Lockdown autofixer finished",
-                        description = "The lockdown autofixer has finished. You should be able to start the requested lockdown now",
-                    },
-                },
-                nil
-            )
-
-            return nil
-        end)
+    local ok, result = pcall(lockdownSet.remove, id)
+    if not ok then 
         interactionutils.editSimple(
             data.ctx,
             data.interaction,
             nil,
             {
                 {
-                    title = "Action Required",
-                    description = "The following actions are required to proceed with the lockdown\n" .. (if result.test_result then result.test_result:display_changeset(lockdownSet) else "No changeset available"),
+                    title = "Lockdown Failed",
+                    description = tostring(result),
                     color = 0xFF0000,
                 },
-            },
-            {
-                ActionRowBuilder.new()
-                    :addComponent(
-                        ButtonBuilder.new()
-                        :setStyle("Grey")
-                        :setLabel("Try Fixing Automatically")
-                        :setCustomId(autofixCustomId)
-                        :build()
-                    )
-                    :build() :: apitypes.ComponentObjects
             }
         )
         return nil
-    elseif result.type == "Error" then 
-        if result.error == "Lockdown not found" then
-            interactionutils.editSimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Lockdown not found",
-                        description = "The requested lockdown with ID ``" .. id .. "`` was not found",
-                        color = 0xFF0000,
-                    },
-                }
-            )
-            return nil
-        end
-        
-        error(result.error or "An unknown error occurred while trying to remove the lockdown")
-    elseif result.type == "Ok" then
+    else
         interactionutils.editSimple(
             data.ctx,
             data.interaction,
@@ -426,8 +342,6 @@ local function removeLockdown(
             }
         )
         return nil
-    else
-        error(result.error or "An unknown error occurred while trying to remove the lockdown. Recieved invalid type of: " .. tostring(result.type))
     end
 end
 
@@ -502,7 +416,7 @@ local function run(data: data.RunData): nil
             "lockdowns.qsl"
         )
 
-        local lockdownType = data.ctx.Lockdowns.QuickServerLockdown()
+        local lockdownType = QuickServerLockdown()
 
         return createLockdown(
             data,
@@ -531,7 +445,7 @@ local function run(data: data.RunData): nil
             "lockdowns.tsl"
         )
 
-        local lockdownType = data.ctx.Lockdowns.TraditionalServerLockdown()
+        local lockdownType = TraditionalServerLockdown()
 
         return createLockdown(
             data,
@@ -569,7 +483,7 @@ local function run(data: data.RunData): nil
             "lockdowns.scl"
         )
 
-        local lockdownType = data.ctx.Lockdowns.SingleChannelLockdown(channelid)
+        local lockdownType = SingleChannelLockdown(channelid)
 
         return createLockdown(
             data,
@@ -607,7 +521,7 @@ local function run(data: data.RunData): nil
             "lockdowns.srl"
         )
 
-        local lockdownType = data.ctx.Lockdowns.RoleLockdown(roleid)
+        local lockdownType = RoleLockdown(roleid)
 
         return createLockdown(
             data,
@@ -670,7 +584,7 @@ local function autocompleter(data: data.AutocompleteRunData): {apitypes.Applicat
         for _, lockdown in lockdownSet.lockdowns do 
             if #autocompleteResults >= 25 then break end
             table.insert(autocompleteResults, {
-                name = lockdown.type.string_form .. " [" .. lockdown.id .. "]",
+                name = lockdown.type.string_form() .. " [" .. lockdown.id .. "]",
                 value = lockdown.id,
             })
         end
