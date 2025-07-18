@@ -264,8 +264,6 @@ export type BackupCreateOpts = {
     MaxMessages: number,
     --- Whether to backup messages or not
     BackupMessages: boolean?,
-    --- Whether to backup attachments or not. Requires 'messages' to be enabled
-    BackupAttachments: boolean?,
     --- What assets to back up in comma-separated form (icon,splash,banner)
     BackupGuildAssets: {string},
     --- Whether to ignore errors while backing up messages or not and skip these channels
@@ -327,7 +325,6 @@ local function run(data: data.RunData): nil
             PerChannel = 100,
             MaxMessages = 500,
             BackupMessages = false,
-            BackupAttachments = false,
             BackupGuildAssets = {"icon","splash","banner"},
             IgnoreMessageBackupErrors = true,
             RolloverLeftovers = true,
@@ -351,10 +348,6 @@ local function run(data: data.RunData): nil
             elseif opt.name == "messages" then
                 if opt.value.kind == "Boolean" then
                     opts.BackupMessages = opt.value.value
-                end
-            elseif opt.name == "attachments" then
-                if opt.value.kind == "Boolean" then
-                    opts.BackupAttachments = opt.value.value
                 end
             elseif opt.name == "backup_guild_assets" then
                 if opt.value.kind == "String" then
@@ -433,7 +426,7 @@ local function run(data: data.RunData): nil
                     local embed, components = jsp.jobToEmbed(
                         data.ctx,
                         job,
-                        false,
+                        true,
                         true
                     )
 
