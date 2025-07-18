@@ -264,7 +264,7 @@ local function createLockdown(
             {
                 {
                     title = "Lockdown Failed",
-                    description = tostring(result),
+                    description = "```\n" .. result .. "\n```",
                     color = 0xFF0000,
                 },
             },
@@ -341,7 +341,7 @@ local function removeLockdown(
             {
                 {
                     title = "Lockdown Failed",
-                    description = tostring(err),
+                    description = "```\n" .. err .. "\n```",
                     color = 0xFF0000,
                 },
             }
