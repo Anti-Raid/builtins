@@ -11,6 +11,7 @@ local typesext = require"@antiraid/typesext"
 local mode = require"@antiraid-ext/lockdowns/mode"
 local lockdownset = require"@antiraid-ext/lockdowns/lockdownset"
 
+-- Lockdown modes
 local QuickServerLockdown = require"@antiraid-ext/lockdowns/modes/quickserverlockdown"
 local TraditionalServerLockdown = require"@antiraid-ext/lockdowns/modes/traditionalserverlockdown"
 local SingleChannelLockdown = require"@antiraid-ext/lockdowns/modes/singlechannellockdown"
@@ -212,6 +213,12 @@ local function createLockdown(
             local ok, err = xpcall(lockdownSet.autofix, debug.traceback :: any, lockdownType)
 
             if not ok then
+                err = tostring(err) :: string
+                if #err > 2000 then 
+                    -- Limit to 1997 chars and add a ... at the end
+                    err = err:sub(1, 1997) .. "..."
+                end
+
                 interactionutils.editSimple(
                     data.ctx,
                     data.interaction,
@@ -243,6 +250,12 @@ local function createLockdown(
 
             return nil
         end)
+
+        result = tostring(result) :: string
+        if #result > 2000 then 
+            -- Limit to 1997 chars and add a ... at the end
+            result = result:sub(1, 1997) .. "..."
+        end
 
         interactionutils.editSimple(
             data.ctx,
@@ -313,8 +326,14 @@ local function removeLockdown(
 
     data.sethasEdited(true)
 
-    local ok, result = pcall(lockdownSet.remove, id)
+    local ok, err = pcall(lockdownSet.remove, id)
     if not ok then 
+        err = tostring(err) :: string
+        if #err > 2000 then 
+            -- Limit to 1997 chars and add a ... at the end
+            err = err:sub(1, 1997) .. "..."
+        end
+
         interactionutils.editSimple(
             data.ctx,
             data.interaction,
@@ -322,7 +341,7 @@ local function removeLockdown(
             {
                 {
                     title = "Lockdown Failed",
-                    description = tostring(result),
+                    description = tostring(err),
                     color = 0xFF0000,
                 },
             }
