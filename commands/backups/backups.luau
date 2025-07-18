@@ -625,7 +625,7 @@ local function run(data: data.RunData): nil
                     local embed, components = jsp.jobToEmbed(
                         data.ctx,
                         job,
-                        false,
+                        true,
                         true
                     )
 
