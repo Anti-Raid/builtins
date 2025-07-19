@@ -12,8 +12,7 @@ local mode = require"@antiraid-ext/lockdowns/mode"
 local lockdownset = require"@antiraid-ext/lockdowns/lockdownset"
 
 -- Lockdown modes
-local QuickServerLockdown = require"@antiraid-ext/lockdowns/modes/quickserverlockdown"
-local TraditionalServerLockdown = require"@antiraid-ext/lockdowns/modes/traditionalserverlockdown"
+local FullServerLockdown = require"@antiraid-ext/lockdowns/modes/fullserverlockdown"
 local SingleChannelLockdown = require"@antiraid-ext/lockdowns/modes/singlechannellockdown"
 local RoleLockdown = require"@antiraid-ext/lockdowns/modes/rolelockdown"
 
@@ -38,27 +37,8 @@ local function register()
         function(opt) 
             return opt
             :setType("SubCommand")
-            :setName("quick")
-            :setDescription("Launch a quick server lockdown on this server")  
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("String")
-                    :setName("reason")
-                    :setDescription("The reason for the lockdown")
-                    :setRequired(true)  
-                    :build()
-                end
-            )
-            :build()      
-        end
-    )
-    :option(
-        function(opt) 
-            return opt
-            :setType("SubCommand")
-            :setName("traditional")
-            :setDescription("Launch a traditional server lockdown on this server")  
+            :setName("full")
+            :setDescription("Launch a full server lockdown")  
             :option(
                 function(opt) 
                     return opt
@@ -414,7 +394,7 @@ local function run(data: data.RunData): nil
             false
         )
         return nil
-    elseif cmdname == "quick" then 
+    elseif cmdname == "full" then 
         local reason: string? = nil
 
         -- Parse options
@@ -432,39 +412,10 @@ local function run(data: data.RunData): nil
 
         canModeratorDo(
             data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
-            "lockdowns.qsl"
+            "lockdowns.full"
         )
 
-        local lockdownType = QuickServerLockdown()
-
-        return createLockdown(
-            data,
-            lockdownType,
-            reason,
-            false
-        )
-    elseif cmdname == "traditional" then
-        local reason: string? = nil
-
-        -- Parse options
-        for _, opt in data.command.options do 
-            if opt.name == "reason" then
-                if opt.value.kind == "String" then
-                    reason = opt.value.value
-                end
-            end
-        end
-
-        if not reason then 
-            error("No reason specified")
-        end
-
-        canModeratorDo(
-            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
-            "lockdowns.tsl"
-        )
-
-        local lockdownType = TraditionalServerLockdown()
+        local lockdownType = FullServerLockdown()
 
         return createLockdown(
             data,
