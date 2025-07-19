@@ -1,6 +1,7 @@
 local data = require"./data"
 
 local commands = {
+    afk = function() return require"./afk/afk" end,
     whois = function() return require"./whois/whois" end,
     remindme = function() return require"./remindme/remindme" end,
     settings = function() return require"./settings/settings" end,

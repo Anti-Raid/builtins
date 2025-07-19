@@ -22,6 +22,7 @@ local appcommands = require"@antiraid-ext/appcommands"
 local interactionutils = require"@antiraid-ext/utils/interaction"
 local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
 local ButtonBuilder = require"@discord-types/builders/message/components/button"
+local AFKManager = require"./auxutils/afkmanager"
 
 if RECORDING then 
     _G.memusage_quarter = interop.memusage() - _G.memusage_quarter
@@ -107,6 +108,39 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
 
     Message(evt, function(msg)
         require("./devmsg")(ctx, msg)
+
+        -- AFKs
+        if not msg.author then return end
+        if msg.author.bot then return end -- Ignore bot messages
+
+        if not msg.content or #(msg.embeds or {}) ~= 0 then return end
+
+        if #msg.content < 10 then
+            return -- Ignore short messages
+        end
+
+        local mentions = (msg.mentions or {}) :: {apiTypes.UserObject}
+        if #mentions > 5 then return end -- Only 3 mention allowed for AFK
+        for _, mention in mentions do 
+            local afk = AFKManager(ctx).get(mention.id)
+            if not afk then continue end -- No AFK for this user
+            ctx.Discord:create_message({
+                channel_id = msg.channel_id or error("msg.channel_id is nil"),
+                data = {
+                    message_reference = {
+                        channel_id = msg.channel_id or error("msg.channel_id is nil"),
+                        message_id = msg.id,
+                    },  
+                    embeds = {
+                        {
+                            title = "AFK",
+                            description = string.format("<@%s> is AFK: %s", mention.id, afk.reason),
+                            color = 0x00FF00,
+                        }
+                    } :: {apitypes.EmbedObject},
+                },
+            })
+        end
     end)  
 
     InteractionCreate(evt, function(interaction: apitypes.InteractionObject)              
