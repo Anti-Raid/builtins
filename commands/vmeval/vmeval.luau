@@ -107,6 +107,9 @@ local function run(data: data.RunData): nil
                         inline = false,
                     },
                 }),
+                footer = {
+                    text = "Note that all code executed runs in AntiRaids sandboxed custom scripting VM. Have fun :)"
+                },
                 color = if ok then 0x00FF00 else 0xFF0000,
             },
         } :: {apitypes.EmbedObject},
