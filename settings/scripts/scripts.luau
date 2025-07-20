@@ -2,7 +2,7 @@ local settings = require"@antiraid-core/settings"
 local settingsExt = require"@antiraid-ext/settings"
 local events = require"@antiraid-core/events"
 local kc = require"@antiraid-core/kittycat"
-local data = require"../data"
+local data = require"@antiraid-ext/framework/coretypes"
 local primitives = require"@antiraid-core/primitives"
 local array_metatable = require"@antiraid/interop".array_metatable
 

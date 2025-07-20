@@ -1,6 +1,6 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local interactionChoiceBuilder = require "@discord-types/builders/interaction/choice"
-local data = require "../data"
+local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo

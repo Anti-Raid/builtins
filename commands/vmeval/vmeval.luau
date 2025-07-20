@@ -1,5 +1,5 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
-local data = require "../data"
+local data = require"@antiraid-ext/framework/coretypes"
 local luau = require "@antiraid/luau"
 local toArray = require "@antiraid-ext/array".toArray
 local apitypes = require "@discord-types/apiTypes"

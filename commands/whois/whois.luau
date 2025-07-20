@@ -1,6 +1,6 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 --local commandOptionBuilder = require "@discord-types/builders/interaction/option"
-local data = require "../data"
+local data = require"@antiraid-ext/framework/coretypes"
 local apiTypes = require "@discord-types/apiTypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local avatarUrl = require "@antiraid-ext/utils/avatar".avatarUrl

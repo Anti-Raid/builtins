@@ -1,10 +1,10 @@
-local data = require"./data"
+local data = require"@antiraid-ext/framework/coretypes"
 
 local settings = {
-    guildroles = function() return require"./guildroles/guildroles" end,
-    guildmembers = function() return require"./guildmembers/guildmembers" end,
-    scripts = function()  return require"./scripts/scripts" end,
-} :: { [string]: () -> data.Setting }
+    guildroles = require"./guildroles/guildroles",
+    guildmembers = require"./guildmembers/guildmembers",
+    scripts = require"./scripts/scripts",
+} :: { [string]: data.FrameworkSetting }
 
 return {
     settings = settings,

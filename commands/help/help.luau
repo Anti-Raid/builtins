@@ -1,6 +1,6 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local discord = require "@discord-types/apiTypes"    
-local data = require "../data"
+local data = require"@antiraid-ext/framework/coretypes"
 local appcommands = require "@antiraid-ext/appcommands"
 local paginate = require "@antiraid-ext/framework/paginate"
 
@@ -77,9 +77,13 @@ local function renderPage(page: number)
 
     if #_G.cachedHelpMessagePages == 0 then
         local helpMessagePages = {}
-        for commandName, command in commands.commands do
-            local parsedCommands = appcommands.parseApplicationCommandData(command().register())
-            local helpText = createHelpForCommand(commandName, parsedCommands)
+        for _, command in commands.commands do
+            local schema = command.command
+            if command.register then 
+                schema = command.register()
+            end
+            local parsedCommands = appcommands.parseApplicationCommandData(schema)
+            local helpText = createHelpForCommand(parsedCommands.name, parsedCommands)
             
             for _, v in splitHelpDescriptionIntoPages(helpText, 4000) do 
                 table.insert(helpMessagePages, v)
