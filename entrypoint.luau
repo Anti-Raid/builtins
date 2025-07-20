@@ -12,7 +12,7 @@ local cmdLabel = devData.cmdLabel
 -- Setup framework
 local Framework = require"@antiraid-ext/framework"
 local suffix = if isInDevMode then cmdLabel else nil
-local fw = Framework.SimpleFramework(true, suffix, unpack(commands.commands))
+local fw = Framework.SimpleFramework(true, suffix, commands.commands)
 for name, setting in settings.settings do 
     fw.base.registerSetting(name, setting)
 end

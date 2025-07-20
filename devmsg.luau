@@ -1,6 +1,6 @@
 local interop = require"@antiraid/interop"
-local commands = require "./commands/commands"
-local data = require "./commands/data"
+local Framework = require"@antiraid-ext/framework"
+local data = require "@antiraid-ext/framework/coretypes"
 local luau = require "@antiraid/luau"
 local toArray = require "@antiraid-ext/array".toArray
 local apitypes = require "@discord-types/apiTypes"
@@ -9,9 +9,7 @@ local serde = require "@lune/serde"
 local Primitives = require "@antiraid-core/primitives"
 local UserInfoManager = require"@antiraid-ext/utils/userinfo"
 local devData = require"./devs"
-local isInDevMode = devData.isInDevMode
 local devs = devData.devs :: {[string]: boolean}
-local cmdLabel = devData.cmdLabel
 
 local function dev(ctx: Primitives.TemplateContext, msg: apitypes.MessageObject)
     if not msg.author then return end
@@ -33,16 +31,11 @@ local function dev(ctx: Primitives.TemplateContext, msg: apitypes.MessageObject)
         return
     end
 
-    if content == "dev:register" then     
-        local commandList = {}
-        for _, command in commands.commands do
-            local cmd = command().register()
-            if isInDevMode then 
-                cmd.name = cmd.name .. cmdLabel
-            end
-            table.insert(commandList, cmd)
-        end
-    
+    if content == "dev:register-dev" then
+        local framework = Framework.getFramework()
+        assert(framework, "Framework is nil")     
+        local commandList = framework.base.commands()   
+
         local commandsBeingRegistered = {}
     
         for _, command in commandList do
@@ -95,7 +88,6 @@ local function dev(ctx: Primitives.TemplateContext, msg: apitypes.MessageObject)
             end,
             ctx = ctx,
             msg = msg :: any,
-            commands = commands,
             data = data,
             storeTab = ctx.store,
             type = type,
@@ -151,7 +143,6 @@ local function dev(ctx: Primitives.TemplateContext, msg: apitypes.MessageObject)
             end,
             ctx = ctx,
             msg = msg :: any,
-            commands = commands,
             data = data,
             storeTab = ctx.store,
             type = type,
