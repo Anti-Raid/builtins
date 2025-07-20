@@ -82,6 +82,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
         storeTab.punishmentManager = punishmentmanager(ctx, storeTab.stingManager)
         storeTab.builtinSettingsManager = builtinSettingsManager(ctx)
         storeTab.userinfomanager = userinfomanager(ctx)
+        storeTab.afkManager = AFKManager(ctx)
 
         _G.storeTab = storeTab
 
@@ -121,8 +122,9 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
 
         local mentions = (msg.mentions or {}) :: {apiTypes.UserObject}
         if #mentions > 5 then return end -- Only 3 mention allowed for AFK
+        local afkManager: AFKManager.AFKManager = _G.storeTab.afkManager
         for _, mention in mentions do 
-            local afk = AFKManager(ctx).get(mention.id)
+            local afk = afkManager.getcached(mention.id)
             if not afk then continue end -- No AFK for this user
             ctx.Discord:create_message({
                 channel_id = msg.channel_id or error("msg.channel_id is nil"),
@@ -135,7 +137,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
                         {
                             title = "AFK",
                             description = string.format("<@%s> is AFK: %s", mention.id, afk.reason),
-                            color = 0x00FF00,
+                            color = 0x00FFFF,
                         }
                     } :: {apitypes.EmbedObject},
                 },

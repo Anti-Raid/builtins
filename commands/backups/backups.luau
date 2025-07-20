@@ -6,10 +6,8 @@ local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".
 local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
 local jsp = require"@antiraid-ext/utils/jobserverpoll"
 local interop = require"@antiraid/interop"
-local typesext = require"@antiraid/typesext"
-local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
-local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local discord = require "@discord-types/apiTypes"
+local paginate = require "@antiraid-ext/framework/paginate"
 
 local function register() 
     return commandBuilder.new({
@@ -669,136 +667,19 @@ local function run(data: data.RunData): nil
             )
         end
 
-        local currentJobIdx = 1
-
-        local jlPrevId = `helpcmd:prev:${typesext.randstring(16)}`
-        local jlNextId = `helpcmd:next:${typesext.randstring(16)}`
-    
-        local prevButton = ButtonBuilder.new()
-        :setStyle("Grey")
-        :setLabel("Previous Page")
-        :setCustomId(jlPrevId)
-    
-        local nextButton = ButtonBuilder.new()
-        :setStyle("Grey")
-        :setLabel("Next Page")
-        :setCustomId(jlNextId)
-        
-        task.delay(120, function() 
-            data.dropButtonCallback(jlPrevId) -- Make sure to remove the callback so it doesn't get called again
-            data.dropButtonCallback(jlNextId) -- Make sure to remove the callback so it doesn't get called again
-        end)    
-
-        local authorId = extractUserIdFromInteraction(data.interaction)
-        data.attachButtonCallback(jlPrevId, function(data: data.ButtonCallbackData): nil 
-            local interactor = extractUserIdFromInteraction(data.interaction)
-            if authorId ~= interactor then return nil end
-            
-            currentJobIdx -= 1
-            if currentJobIdx < 1 then
-                currentJobIdx = 1
-            end
-
-            local embed, _ = jsp.jobToEmbed(
-                data.ctx,
-                backups[currentJobIdx],
-                false,
-                true
-            )
-
-            if embed.title then
-                embed.title ..= string.format(" (%d/%d)", currentJobIdx, #backups)
-            end
-    
-            interactionutils.replyUpdate(
-                data.ctx,
-                data.interaction,
-                nil,
-                {embed},
-                {
-                    ActionRowBuilder.new()
-                    :addComponent(
-                        prevButton:build()
-                    )
-                    :addComponent(
-                        nextButton:build()
-                    )
-                    :build() :: discord.ComponentObjects
-                }
-            )
-
-            return nil
-        end)
-
-        data.attachButtonCallback(jlNextId, function(data: data.ButtonCallbackData): nil 
-            local interactor = extractUserIdFromInteraction(data.interaction)
-            if authorId ~= interactor then return nil end
-            currentJobIdx += 1
-            if currentJobIdx > #backups then
-                currentJobIdx = #backups
-            end
-
-            local embed, _ = jsp.jobToEmbed(
-                data.ctx,
-                backups[currentJobIdx],
-                false,
-                true
-            )
-
-            if embed.title then
-                embed.title ..= string.format(" (%d/%d)", currentJobIdx, #backups)
-            end
-
-            interactionutils.replyUpdate(
-                data.ctx,
-                data.interaction,
-                nil,
-                {embed},
-                {
-                    ActionRowBuilder.new()
-                    :addComponent(
-                        prevButton:build()
-                    )
-                    :addComponent(
-                        nextButton:build()
-                    )
-                    :build() :: discord.ComponentObjects
-                }
-            )
-    
-            return nil    
-        end)
-
-        local embed, _ = jsp.jobToEmbed(
-            data.ctx,
-            backups[currentJobIdx],
-            false,
-            true
-        )
-
-        if embed.title then
-            embed.title ..= string.format(" (%d/%d)", currentJobIdx, #backups)
-        end
-
-        interactionutils.replySimple(
-            data.ctx, 
-            data.interaction,
-            nil, 
-            {embed},
-            true,
-            {
-                ActionRowBuilder.new()
-                :addComponent(
-                    prevButton:build()
+        paginate.paginate(data, {
+            id = "backups",
+            numPages = #backups,
+            embed = function(currentIdx: number): discord.EmbedObject 
+                local embed, _ = jsp.jobToEmbed(
+                    data.ctx,
+                    backups[currentIdx],
+                    false,
+                    true
                 )
-                :addComponent(
-                    nextButton:build()
-                )
-                :build() :: discord.ComponentObjects
-            }
-        )
-    
-        data.sethasEdited(true)
+                return embed
+            end
+        })
         return nil    
     elseif cmdname == "delete" then
         local jss = data.ctx.DataStores.JobServerStore

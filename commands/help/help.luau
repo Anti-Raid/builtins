@@ -2,10 +2,7 @@ local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local discord = require "@discord-types/apiTypes"    
 local data = require "../data"
 local appcommands = require "@antiraid-ext/appcommands"
-local interactionutils = require"@antiraid-ext/utils/interaction"
-local typesext = require"@antiraid/typesext"
-local ActionRowBuilder = require"@discord-types/builders/message/components/actionRow"
-local ButtonBuilder = require"@discord-types/builders/message/components/button"
+local paginate = require "@antiraid-ext/framework/paginate"
 
 local function register() 
     return commandBuilder.new({
@@ -93,110 +90,20 @@ local function renderPage(page: number)
     end
 
     local helpMessageEmbed = {
-        title = "Help (Page " .. page .. "/" .. #_G.cachedHelpMessagePages .. ")",
+        title = "AntiRaid Help" ,
         description = _G.cachedHelpMessagePages[page],
         color = 0x00FF00,
     }
 
-    return helpMessageEmbed
+    return helpMessageEmbed :: discord.EmbedObject
 end
 
 local function run(data: data.RunData): nil
-    local page = 1
-
-    local helpCustomPrevId = `helpcmd:prev:${typesext.randstring(16)}`
-    local helpCustomNextId = `helpcmd:next:${typesext.randstring(16)}`
-
-    local prevButton = ButtonBuilder.new()
-    :setStyle("Grey")
-    :setLabel("Previous Page")
-    :setCustomId(helpCustomPrevId)
-
-    local nextButton = ButtonBuilder.new()
-    :setStyle("Grey")
-    :setLabel("Next Page")
-    :setCustomId(helpCustomNextId)
-
-    task.delay(60, function() 
-        data.dropButtonCallback(helpCustomPrevId) -- Make sure to remove the callback so it doesn't get called again
-        data.dropButtonCallback(helpCustomNextId) -- Make sure to remove the callback so it doesn't get called again
-    end)
-
-    data.attachButtonCallback(helpCustomPrevId, function(data: data.ButtonCallbackData): nil         
-        page -= 1
-        if page < 1 then
-            page = 1
-        end
-
-        interactionutils.replyUpdate(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                renderPage(page) :: discord.EmbedObject,
-            },
-            {
-                ActionRowBuilder.new()
-                :addComponent(
-                    prevButton:build()
-                )
-                :addComponent(
-                    nextButton:build()
-                )
-                :build() :: discord.ComponentObjects
-            }
-        )
-
-        return nil
-    end)
-
-    data.attachButtonCallback(helpCustomNextId, function(data: data.ButtonCallbackData): nil                 
-        page += 1
-        if page > #_G.cachedHelpMessagePages then
-            page = #_G.cachedHelpMessagePages
-        end
-        
-        interactionutils.replyUpdate(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                renderPage(page) :: discord.EmbedObject,
-            },
-            {
-                ActionRowBuilder.new()
-                :addComponent(
-                    prevButton:build()
-                )
-                :addComponent(
-                    nextButton:build()
-                )
-                :build() :: discord.ComponentObjects
-            }
-        )
-
-        return nil
-    end)
-
-    interactionutils.replySimple(
-        data.ctx, 
-        data.interaction,
-        nil, 
-        {renderPage(1)} :: {discord.EmbedObject},
-        false,
-        {
-            ActionRowBuilder.new()
-            :addComponent(
-                prevButton:build()
-            )
-            :addComponent(
-                nextButton:build()
-            )
-            :build() :: discord.ComponentObjects
-        }
-    )
-
-    data.sethasEdited(true)
+    paginate.paginate(data, {
+        numPages = #_G.cachedHelpMessagePages,
+        id = "builtins.helpcmd",
+        embed = renderPage
+    })
     return nil
 end
 

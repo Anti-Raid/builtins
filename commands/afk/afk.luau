@@ -103,6 +103,7 @@ local function run(data: data.RunData): nil
                     {
                         title = "Error processing command",
                         description = "Something went wrong while trying to find message and time. Please try again?",
+                        color = 0xff0000, -- Red color
                     },
                 },
                 isResponseEphemeral
@@ -125,6 +126,7 @@ local function run(data: data.RunData): nil
                 {
                     title = "AFK Set",
                     description = "Enjoy the peace and quiet!",
+                    color = 0x00ff00, -- Green color
                 },
             },
             isResponseEphemeral
@@ -140,6 +142,7 @@ local function run(data: data.RunData): nil
                     {
                         title = "Error processing command",
                         description = "Something went wrong while trying to find user. Please try again?",
+                        color = 0xff0000, -- Red color
                     },
                 },
                 true
@@ -156,6 +159,7 @@ local function run(data: data.RunData): nil
                     {
                         title = "You are not AFK",
                         description = "You are not AFK, so you cannot stop being AFK.", 
+                        color = 0xff0000, -- Red color
                     },
                 },
                 true
@@ -172,6 +176,7 @@ local function run(data: data.RunData): nil
                 {
                     title = "AFK Stopped",
                     description = "You are no longer AFK. Welcome back!",
+                    color = 0x00ff00, -- Green color
                 },
             },
             true
