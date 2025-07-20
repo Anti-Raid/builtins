@@ -6,6 +6,7 @@ local commands = {
     remindme = require"./remindme/remindme",
     settings = require"./settings/settings",
     urlextract = require"./urlextract/urlextract",
+    urlblock = require"./urlblock/urlblock",
     subcmdtest = require"./subcmdtest/subcmdtest",
     lockdowns = require"./lockdowns/lockdowns",
     stings = require"./stings/stings",
