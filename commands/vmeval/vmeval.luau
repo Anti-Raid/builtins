@@ -7,6 +7,7 @@ local serde = require "@lune/serde"
 local interop = require "@antiraid/interop"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local UserInfoManager = require"@antiraid-ext/utils/userinfo"
+local modutils = require "@antiraid-ext/utils/modhierarchy"
 
 local function register() 
     return commandBuilder.new({
@@ -15,13 +16,13 @@ local function register()
     :addIntegrationType("GuildInstall")
     :setType("ChatInput")
     :addContext("Guild")
-    :setDescription("VM Eval Command")
+    :setDescription("Run code on the VM")
     :option(
         function(opt) 
             return opt
             :setType("String")
             :setName("message")
-            :setDescription("The message to extract URLs from")  
+            :setDescription("The code to run on the VM")  
             :setRequired(true)
             :build()
         end
@@ -30,6 +31,8 @@ local function register()
 end
 
 local function run(data: data.RunData): nil
+    modutils.canModeratorDo(data.userinfomanager.get(modutils.extractUserIdFromInteraction(data.interaction), data.interaction), "vmeval.exec")
+
     local chunkContent: string? = nil
 
     -- Parse options
@@ -114,5 +117,4 @@ end
 return {
     register = register,
     run = run,
-    devOnly = true
 }
