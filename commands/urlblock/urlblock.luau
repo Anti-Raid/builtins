@@ -6,6 +6,7 @@ local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".
 local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
 local apitypes = require "@discord-types/apiTypes"
 local paginate = require "@antiraid-ext/framework/paginate"
+local registerEvent = require "@antiraid-ext/utils/eventmgmt".registerEvent
 
 local function register() 
     return commandBuilder.new({
@@ -164,6 +165,8 @@ local function run(data: data.RunData): nil
                 true
             )
         else 
+            registerEvent(data.ctx, "MESSAGE")
+
             local blockedWithMd = {}
             for _, blockedUrl in blockedUrls do
                 table.insert(blockedWithMd, "- `" .. blockedUrl .. "`")
@@ -284,7 +287,7 @@ local function run(data: data.RunData): nil
                 fields = {
                     {
                         name = "Created At",
-                        value = os.date("%Y-%m-%d %H:%M:%S", block.created_at.timestamp_seconds),
+                        value = tostring(os.date("%Y-%m-%d %H:%M:%S", block.created_at.timestamp_seconds)),
                         inline = true,
                     },
                 },

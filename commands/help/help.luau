@@ -67,16 +67,14 @@ end
 --assert(table.concat(splitHelpDescriptionIntoPages("ABC", 3), "<sep>") == "ABC", "Got: " .. table.concat(splitHelpDescriptionIntoPages("ABC", 3), "<sep>"))
 --assert(table.concat(splitHelpDescriptionIntoPages("ABC", 4), "<sep>") == "ABC", "Got: " .. table.concat(splitHelpDescriptionIntoPages("ABC", 4), "<sep>"))
 
-if not _G.cachedHelpMessagePages then
-    _G.cachedHelpMessagePages = {} :: any
-end
+local cachedHelpMessagePages = {} :: {string}
 
-local function renderPage(page: number)
+local function createPagesIfNeeded() 
     -- Needs to be done inside run to avoid circular dependency
     local commands = require"../commands"
 
-    if #_G.cachedHelpMessagePages == 0 then
-        local helpMessagePages = {}
+    if #cachedHelpMessagePages == 0 then
+        local helpMessagePages = {} :: {string}
         for _, command in commands.commands do
             local schema = command.command
             if command.register then 
@@ -90,12 +88,14 @@ local function renderPage(page: number)
             end
         end
         
-        _G.cachedHelpMessagePages = helpMessagePages
+        cachedHelpMessagePages = helpMessagePages
     end
+end
 
+local function renderPage(page: number)
     local helpMessageEmbed = {
         title = "AntiRaid Help" ,
-        description = _G.cachedHelpMessagePages[page],
+        description = cachedHelpMessagePages[page],
         color = 0x00FF00,
     }
 
@@ -103,8 +103,9 @@ local function renderPage(page: number)
 end
 
 local function run(data: data.RunData): nil
+    createPagesIfNeeded()
     paginate.paginate(data, {
-        numPages = #_G.cachedHelpMessagePages,
+        numPages = #cachedHelpMessagePages,
         id = "builtins.helpcmd",
         embed = renderPage
     })

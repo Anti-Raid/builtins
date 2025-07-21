@@ -77,10 +77,6 @@ local function run(data: data.RunData): nil
         typeof = typeof,
         interop = interop,
         memusage = interop.memusage,
-        requirememusage = _G.memusage,
-        requirememusage_half = _G.memusage_half,
-        requirememusage_quarter = _G.memusage_quarter,
-        requirememusage_initial = _G.memusage_initial,
         userinfomanager = UserInfoManager(data.ctx)
     }
 

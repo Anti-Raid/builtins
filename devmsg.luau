@@ -1,13 +1,7 @@
-local interop = require"@antiraid/interop"
 local Framework = require"@antiraid-ext/framework"
-local data = require "@antiraid-ext/framework/coretypes"
-local luau = require "@antiraid/luau"
-local toArray = require "@antiraid-ext/array".toArray
 local apitypes = require "@discord-types/apiTypes"
 local string_startswith = require "@antiraid-ext/strings/startswith"
-local serde = require "@lune/serde"
 local Primitives = require "@antiraid-core/primitives"
-local UserInfoManager = require"@antiraid-ext/utils/userinfo"
 local devData = require"./devs"
 local devs = devData.devs :: {[string]: boolean}
 
@@ -65,124 +59,6 @@ local function dev(ctx: Primitives.TemplateContext, msg: apitypes.MessageObject)
                 content = "Registered commands",
             }
         })
-    elseif content == "dev:stdout" then
-        ctx.Discord:create_message({
-            channel_id = msg.channel_id,
-            data = {
-                content = "stdout: " .. table.concat(_G.stdout or {} :: any, "\n"),
-            }
-        })
-    -- If it starts with dev:eval, run the code
-    elseif content and content:sub(1, 9) == "dev:eval " then
-        local chunkContent = content:sub(10):gsub("`", "")
-    
-        local chunk = luau.load(chunkContent)
-        chunk.optimization_level = 2
-        chunk.chunk_name = "/init"
-        chunk.environment = {
-            globals = _G,
-            require = require,
-            serde = serde,
-            jsonify = function(obj)
-                return serde.encode("json", obj)
-            end,
-            ctx = ctx,
-            msg = msg :: any,
-            data = data,
-            storeTab = ctx.store,
-            type = type,
-            typeof = typeof,
-            interop = interop,
-            memusage = interop.memusage,
-            requirememusage = _G.memusage,
-            requirememusage_half = _G.memusage_half,
-            requirememusage_quarter = _G.memusage_quarter,
-            requirememusage_initial = _G.memusage_initial,
-            userinfomanager = UserInfoManager(ctx)
-        }
-    
-        local ok, result = pcall(chunk.call_async, chunk, {})    
-
-        local resp = tostring(result)
-        if #resp > 4000 then
-            -- Limit to 3997 chars and add a ... at the end
-            resp = resp:sub(1, 3997) .. "..."   
-        end
-    
-        ctx.Discord:create_message({
-            channel_id = msg.channel_id,
-            data = {
-                embeds = toArray({
-                    {
-                        title = "Result",
-                        description = "```\n" .. tostring(result) .. "\n```",
-                        fields = toArray({
-                            {
-                                name = "OK",
-                                value = tostring(ok),
-                                inline = false,
-                            },
-                        }),
-                        color = if ok then 0x00FF00 else 0xFF0000,
-                    },
-                }) :: {apitypes.EmbedObject}
-            }
-        })
-    elseif content and content:sub(1, 10) == "dev:evalj " then
-        local chunkContent = content:sub(11):gsub("`", "")
-    
-        local chunk = luau.load(chunkContent)
-        chunk.optimization_level = 2
-        chunk.chunk_name = "/init"
-        chunk.environment = {
-            globals = _G,
-            require = require,
-            serde = serde,
-            jsonify = function(obj)
-                return serde.encode("json", obj)
-            end,
-            ctx = ctx,
-            msg = msg :: any,
-            data = data,
-            storeTab = ctx.store,
-            type = type,
-            typeof = typeof,
-            interop = interop,
-            memusage = interop.memusage,
-            requirememusage = _G.memusage,
-            requirememusage_half = _G.memusage_half,
-            requirememusage_quarter = _G.memusage_quarter,
-            requirememusage_initial = _G.memusage_initial,
-            userinfomanager = UserInfoManager(ctx)
-        }
-    
-        local ok, result = pcall(chunk.call_async, chunk, {})  
-        
-        local json = serde.encode("json", result)
-        if #json > 4000 then
-            -- Limit to 3997 chars and add a ... at the end
-            json = json:sub(1, 3997) .. "..."
-        end
-    
-        ctx.Discord:create_message({
-            channel_id = msg.channel_id,
-            data = {
-                embeds = toArray({
-                    {
-                        title = "Result",
-                        description = "```\n" .. json .. "\n```",
-                        fields = toArray({
-                            {
-                                name = "OK",
-                                value = tostring(ok),
-                                inline = false,
-                            },
-                        }),
-                        color = if ok then 0x00FF00 else 0xFF0000,
-                    },
-                }) :: {apitypes.EmbedObject}
-            }
-        })    
     end    
 end
 

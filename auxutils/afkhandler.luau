@@ -2,6 +2,7 @@ local apitypes = require "@discord-types/apiTypes"
 local Primitives = require "@antiraid-core/primitives"
 local AFKManager = require "./afkmanager"
 
+local afkManager: AFKManager.AFKManager? = nil
 local function afkHandler(msg: apitypes.MessageObject, ctx: Primitives.TemplateContext): ()
     -- AFKs
     if not msg.author then return end
@@ -15,7 +16,11 @@ local function afkHandler(msg: apitypes.MessageObject, ctx: Primitives.TemplateC
 
     local mentions = (msg.mentions or {}) :: {apitypes.UserObject}
     if #mentions > 5 then return end -- Only 3 mention allowed for AFK
-    local afkManager: AFKManager.AFKManager = _G.afkManager
+
+    if not afkManager then
+        afkManager = AFKManager(ctx)
+    end
+    assert(afkManager, "Internal error: AFKManager is nil")
     for _, mention in mentions do 
         local afk = afkManager.getcached(mention.id)
         if not afk then continue end -- No AFK for this user

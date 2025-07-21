@@ -1,6 +1,5 @@
 local Primitives = require "@antiraid-core/primitives"
 local Message = require "@antiraid-ext/events/discord/Message"
-local AFKManager = require"./auxutils/afkmanager"
 local commands = require "./commands/commands"
 local settings = require "./settings/settings"
 local afkhandler = require"./auxutils/afkhandler"
@@ -25,8 +24,6 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
         if storeTab.onBuiltinsLoad and type(storeTab.onBuiltinsLoad) == "function" then 
             storeTab.onBuiltinsLoad()
         end
-
-        _G.afkManager = AFKManager(ctx)
         return nil
     end)
 
