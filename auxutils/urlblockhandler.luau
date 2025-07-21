@@ -26,7 +26,7 @@ local function urlblockHandler(msg: apitypes.MessageObject, ctx: Primitives.Temp
     for _, url in urls do
         if not #url then continue end -- Ignore nil URLs
         if blockedUrls.exists(url) then
-            --ctx.Discord:
+            ctx.Discord:delete_message(msg.channel_id or error("msg.channel_id is nil"), msg.id or error("msg.id is nil"), "Blocked URL")
             return -- Stop processing further URLs
         end
     end
