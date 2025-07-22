@@ -1,12 +1,13 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
-local URLBlockManager = require "../../auxutils/urlblockmanager"
 local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
 local apitypes = require "@discord-types/apiTypes"
 local paginate = require "@antiraid-ext/framework/paginate"
 local registerEvent = require "@antiraid-ext/utils/eventmgmt".registerEvent
+local getUrlBlockManager = require"../../auxutils/urlblockhandler".getUrlBlockManager
+
 
 local function register() 
     return commandBuilder.new({
@@ -58,6 +59,24 @@ local function register()
         function(opt) 
             return opt
             :setType("SubCommand")
+            :setName("enable")
+            :setDescription("Enable URL blocking in the server")  
+            :build()      
+        end
+    )
+    :option(
+        function(opt) 
+            return opt
+            :setType("SubCommand")
+            :setName("disable")
+            :setDescription("Disable URL blocking in the server")  
+            :build()      
+        end
+    )
+    :option(
+        function(opt) 
+            return opt
+            :setType("SubCommand")
             :setName("list")
             :setDescription("List all blocked URLs")  
             :build()      
@@ -68,6 +87,7 @@ end
 
 local function run(data: data.RunData): nil
     local userid = extractUserIdFromInteraction(data.interaction)
+    local urlblockmanager = getUrlBlockManager(data.ctx)
 
     local cmdname = data.command.nameList[2]
 
@@ -137,12 +157,12 @@ local function run(data: data.RunData): nil
         end
 
         local blockedUrls = {}
-        local urls = URLBlockManager(data.ctx).listurls()
+        local urls = urlblockmanager.listurls()
 
         for _, urlToBlock in urlstoblock do
             if not urls.exists(urlToBlock) then
                 table.insert(blockedUrls, urlToBlock)
-                URLBlockManager(data.ctx).set({
+                urlblockmanager.set({
                     user_id = userid,
                     url = urlToBlock,
                     reason = "Blocked at moderator request"
@@ -218,10 +238,10 @@ local function run(data: data.RunData): nil
             )
         end
 
-        local urls = URLBlockManager(data.ctx).listurls()
+        local urls = urlblockmanager.listurls()
 
         if urls.exists(url) then
-            URLBlockManager(data.ctx).delete(url)
+            urlblockmanager.delete(url)
             return interactionutils.replySimple(
                 data.ctx,
                 data.interaction,
@@ -250,6 +270,46 @@ local function run(data: data.RunData): nil
                 true
             )
         end
+    elseif cmdname == "enable" then
+        canModeratorDo(
+            data.userinfomanager.get(userid, data.interaction),
+            "urlblock.enable"
+        )
+
+        urlblockmanager.setenabled(true)
+        return interactionutils.replySimple(
+            data.ctx,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "URL Blocking Enabled",
+                    description = "URL blocking has been enabled in this server.",
+                    color = 0x00ff00, -- Green color
+                },
+            },
+            true
+        )
+    elseif cmdname == "disable" then
+        canModeratorDo(
+            data.userinfomanager.get(userid, data.interaction),
+            "urlblock.disable"
+        )  
+
+        urlblockmanager.setenabled(false)
+        return interactionutils.replySimple(
+            data.ctx,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "URL Blocking Disabled",
+                    description = "URL blocking has been disabled in this server.",
+                    color = 0x00ff00, -- Green color
+                },
+            },
+            true
+        )
     elseif cmdname == "list" then
         canModeratorDo(
             data.userinfomanager.get(userid, data.interaction),
@@ -257,7 +317,7 @@ local function run(data: data.RunData): nil
         )
 
         -- Send as paginated set of embeds
-        local urls = URLBlockManager(data.ctx).list()
+        local urls = urlblockmanager.list()
 
         if #urls == 0 then
             return interactionutils.replySimple(

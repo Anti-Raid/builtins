@@ -156,11 +156,11 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
     end
 
     local function listurlscached(): set.Set<string>
-        if os.clock() - blockCache.made > cacheExpiryTime then
+        if os.clock() - blockCache.made < cacheExpiryTime then
             return blockCache.blocked
         end
 
-        return listurlscached()
+        return listurls()
     end
 
     self.enabled = enabled

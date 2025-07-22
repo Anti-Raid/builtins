@@ -3,6 +3,7 @@ local Message = require "@antiraid-ext/events/discord/Message"
 local commands = require "./commands/commands"
 local settings = require "./settings/settings"
 local afkhandler = require"./auxutils/afkhandler"
+local urlblockhandler = require"./auxutils/urlblockhandler".urlblockHandler
 local onceLocal = require"@antiraid-ext/once".onceLocal
 local devData = require"./devs"
 local isInDevMode = devData.isInDevMode
@@ -31,6 +32,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
     Message(evt, function(msg)
         require("./devmsg")(ctx, msg)
         afkhandler(msg, ctx)
+        urlblockhandler(msg, ctx)
     end)  
 
     return Framework.dispatch(evt, ctx)
