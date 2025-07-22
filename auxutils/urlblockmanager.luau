@@ -4,6 +4,9 @@ local assertBoolean = require "@antiraid-ext/settings".assertBoolean
 local kv = require "@antiraid-core/plugins/kv"
 local datetime = require "@antiraid/datetime"
 local set = require"@antiraid-ext/set"
+local isDevMode = require"../devs".isInDevMode
+
+local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
 
 local cacheExpiryTime = 60 -- Cache expiry time
 
@@ -72,7 +75,7 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
     end
 
     local function enabled(): boolean
-        local isEnabled = ctx.KV:get("status", {"builtins.urlblock.status"}) or false
+        local isEnabled = ctx.KV:get("status", {scopePrefix .. ".urlblock.status"}) or false
         return assertBoolean("enabled", isEnabled)
     end
 
@@ -85,14 +88,14 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
     end
 
     local function setenabled(enabled: boolean): ()
-        ctx.KV:set("status", enabled, {"builtins.urlblock.status"})
+        ctx.KV:set("status", enabled, {scopePrefix .. ".urlblock.status"})
         if not nocache then
             blockCache.isenabled = enabled
         end
     end
 
     local function list(): {URLBlock}
-        local data = ctx.KV:find("%%", {"builtins.urlblocks"})
+        local data = ctx.KV:find("%%", {scopePrefix .. ".urlblocks"})
 
         local urls = {}
         local urllinks = set.Set() :: set.Set<string>
@@ -116,7 +119,7 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
     end
 
     local function listurls(): set.Set<string>
-        local data = ctx.KV:find("%%", {"builtins.urlblocks"})
+        local data = ctx.KV:find("%%", {scopePrefix .. ".urlblocks"})
 
         local urls = set.Set() :: set.Set<string>
         for _, item in data do
@@ -141,7 +144,7 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
         ctx.KV:set(url.url, {
             user_id = assertString("user_id", url.user_id),
             reason = assertString("reason", url.reason),
-        }, {"builtins.urlblocks"})
+        }, {scopePrefix .. ".urlblocks"})
 
         if not nocache then
             blockCache.blocked.add(url.url)
@@ -149,7 +152,7 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
     end
 
     local function delete(url: string): ()
-        ctx.KV:delete(url, {"builtins.urlblocks"})
+        ctx.KV:delete(url, {scopePrefix .. ".urlblocks"})
         if not nocache then
             blockCache.blocked.remove(url)
         end

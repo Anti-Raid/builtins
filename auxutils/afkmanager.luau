@@ -2,6 +2,9 @@ local Primitives = require "@antiraid-core/primitives"
 local assertString = require "@antiraid-ext/settings".assertString
 local kv = require "@antiraid-core/plugins/kv"
 local datetime = require "@antiraid/datetime"
+local isDevMode = require"../devs".isInDevMode
+
+local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
 
 local cacheExpiryTime = 60 -- Cache expiry time
 
@@ -58,7 +61,7 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
     end
 
     local function list(): {AFK}
-        local data = ctx.KV:find("%%", {"builtins.afks"})
+        local data = ctx.KV:find("%%", {scopePrefix .. ".afks"})
 
         local afks = {}
         for _, item in data do
@@ -74,7 +77,7 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
     end
 
     local function get(userid: string): AFK | nil
-        local item = ctx.KV:getrecord(userid, {"builtins.afks"})
+        local item = ctx.KV:getrecord(userid, {scopePrefix .. ".afks"})
         if not item or not item.exists then
             return nil
         end
@@ -90,7 +93,7 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
     local function set(afk: CreateAFK): ()
         ctx.KV:set(afk.user_id, {
             reason = assertString("reason", afk.reason),
-        }, {"builtins.afks"}, datetime.UTC:now() + afk.duration)
+        }, {scopePrefix .. ".afks"}, datetime.UTC:now() + afk.duration)
 
         local cacheAfk = {
             user_id = afk.user_id,
@@ -106,7 +109,7 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
     end
 
     local function delete(userid: string)
-        ctx.KV:delete(userid, {"builtins.afks"})
+        ctx.KV:delete(userid, {scopePrefix .. ".afks"})
         afkCache[userid] = nil -- Remove from cache
     end
 
