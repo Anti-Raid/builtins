@@ -6,6 +6,7 @@
 local commands = require "./commands/commands"
 local commandList = {}
 for _, command in commands.commands do
+    assert(command.register, "Command does not have a register function: " .. command.command.name)
     local cmd = command.register()
     table.insert(commandList, cmd)
 end

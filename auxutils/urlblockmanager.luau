@@ -49,13 +49,12 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
 
     type CachedUrls = {
         blocked: set.Set<string>,
-        isenabled: boolean,
+        isenabled: boolean?,
         made: number
     }
 
     local blockCache: CachedUrls = {
         blocked = set.Set() :: set.Set<string>,
-        isenabled = false,
         made = -math.huge
     }
 
@@ -76,15 +75,19 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
 
     local function enabled(): boolean
         local isEnabled = ctx.KV:get("status", {scopePrefix .. ".urlblock.status"}) or false
-        return assertBoolean("enabled", isEnabled)
+        isEnabled = assertBoolean("enabled", isEnabled)
+        if not nocache then
+            blockCache.isenabled = isEnabled
+        end
+        return isEnabled
     end
 
     local function enabledcached(): boolean
-        if os.clock() - blockCache.made > cacheExpiryTime then
-            return enabled()
+        if os.clock() - blockCache.made < cacheExpiryTime then
+            return if blockCache.isenabled ~= nil then blockCache.isenabled else enabled()
         end
 
-        return blockCache.isenabled
+        return enabled()
     end
 
     local function setenabled(enabled: boolean): ()
