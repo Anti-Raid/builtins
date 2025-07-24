@@ -65,7 +65,7 @@ local function run(data)
     local afkChannel = if guild.afk_channel_id then string.format("<#%s>", guild.afk_channel_id) else "None"
     local nsfwLevel = guild.nsfw_level or "Unknown"
 
-    local totalMemberCount = tostring(data.ctx.Discord:antiraid_guild_member_count() or "Unknown")
+    local totalMemberCount = tostring(guild.approximate_member_count or "Unknown")
 
     local embed: apitypes.EmbedObject = {
         title = guild.name or "Server Info",
