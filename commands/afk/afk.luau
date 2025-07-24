@@ -68,7 +68,7 @@ local function run(data: data.RunData): nil
     local cmdname = data.command.nameList[2]
 
     if cmdname == "start" then
-        local user = data.interaction.user
+        local user = if data.interaction.member then data.interaction.member.user else data.interaction.user
         local reason: string? = nil
         local stime: number? = nil
         local isResponseEphemeral = false
@@ -132,7 +132,7 @@ local function run(data: data.RunData): nil
             isResponseEphemeral
         )
     elseif cmdname == "stop" then
-        local user = data.interaction.user
+        local user = if data.interaction.member then data.interaction.member.user else data.interaction.user
         if not user then
             return interactionutils.replySimple(
                 data.ctx,

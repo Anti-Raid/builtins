@@ -149,7 +149,8 @@ local function run(data: data.RunData): nil
             end
         end  
 
-        if not data.interaction.user then 
+        local user = if data.interaction.member then data.interaction.member.user else data.interaction.user
+        if not user then 
             return interactionutils.replySimple(
                 data.ctx,
                 data.interaction,
@@ -333,7 +334,8 @@ local function run(data: data.RunData): nil
             end
         end  
 
-        if not data.interaction.user then 
+        local user = if data.interaction.member then data.interaction.member.user else data.interaction.user
+        if not user then 
             return interactionutils.replySimple(
                 data.ctx,
                 data.interaction,

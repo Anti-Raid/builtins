@@ -66,7 +66,7 @@ end
 
 -- TODO: Spruce this up with more information (e.g. what permissions they have etc)
 local function run(data: data.RunData) 
-    local user = data.interaction.user
+    local user = if data.interaction.member then data.interaction.member.user else data.interaction.user
     local isResponseEphemeral = false
 
     -- Parse options
@@ -74,6 +74,9 @@ local function run(data: data.RunData)
         if opt.name == "user" then 
             if opt.value.kind == "User" then
                 user = opt.value.user
+            elseif opt.value.kind == "Unresolved" then
+                local userid = opt.value.id
+                user = data.ctx.Discord:get_guild_member(userid).data.user
             end
         elseif opt.name == "ephemeral" then
             if opt.value.kind == "Boolean" then
@@ -83,13 +86,16 @@ local function run(data: data.RunData)
     end
 
     if not user then 
+        error("HERE")
         return interactionutils.replySimple(
             data.ctx,
             data.interaction,
             nil,
             {
-                title = "Error looking up user",
-                description = "Something went wrong while trying to find the user. Please try again?",
+                {
+                    title = "Error looking up user",
+                    description = "Something went wrong while trying to find the user. Please try again?",
+                }
             },
             true
         )

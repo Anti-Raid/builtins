@@ -47,7 +47,7 @@ local function register()
 end
 
 local function run(data: data.RunData): nil
-    local user = data.interaction.user
+    local user = if data.interaction.member then data.interaction.member.user else data.interaction.user
     local message: string? = nil
     local stime: number? = nil
     local isResponseEphemeral = false
