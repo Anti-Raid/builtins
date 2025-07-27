@@ -43,8 +43,7 @@ export type URLBlockManager = {
 }
 
 --- A data fetcher for URL blocks.
-local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boolean?): URLBlockManager
-    local nocache = nocache_val or false
+local function URLBlockManager(ctx: Primitives.TemplateContext): URLBlockManager
     local self = {}
 
     type CachedUrls = {
@@ -76,9 +75,7 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
     local function enabled(): boolean
         local isEnabled = ctx.KV:get("status", {scopePrefix .. ".urlblock.status"}) or false
         isEnabled = assertBoolean("enabled", isEnabled)
-        if not nocache then
-            blockCache.isenabled = isEnabled
-        end
+        blockCache.isenabled = isEnabled
         return isEnabled
     end
 
@@ -92,9 +89,7 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
 
     local function setenabled(enabled: boolean): ()
         ctx.KV:set("status", enabled, {scopePrefix .. ".urlblock.status"})
-        if not nocache then
-            blockCache.isenabled = enabled
-        end
+        blockCache.isenabled = enabled
     end
 
     local function list(): {URLBlock}
@@ -103,20 +98,18 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
         local urls = {}
         local urllinks = set.Set() :: set.Set<string>
         for _, item in data do
-            local afk = _parseBlock(item)
-            table.insert(urls, afk)
-            urllinks.add(afk.url)
+            local url = _parseBlock(item)
+            table.insert(urls, url)
+            urllinks.add(url.url)
         end
 
-        if not nocache then
-            local isEnabled = enabled()
+        local isEnabled = enabled()
 
-            blockCache = {
-                blocked = urllinks,
-                isenabled = isEnabled,
-                made = os.clock(),
-            }
-        end
+        blockCache = {
+            blocked = urllinks,
+            isenabled = isEnabled,
+            made = os.clock(),
+        }
 
         return urls
     end
@@ -130,15 +123,13 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
             urls.add(afk.url) 
         end
 
-        if not nocache then
-            local isEnabled = enabled()
+        local isEnabled = enabled()
 
-            blockCache = {
-                blocked = urls,
-                isenabled = isEnabled,
-                made = os.clock(),
-            }
-        end
+        blockCache = {
+            blocked = urls,
+            isenabled = isEnabled,
+            made = os.clock(),
+        }
 
         return urls
     end
@@ -149,16 +140,12 @@ local function URLBlockManager(ctx: Primitives.TemplateContext, nocache_val: boo
             reason = assertString("reason", url.reason),
         }, {scopePrefix .. ".urlblocks"})
 
-        if not nocache then
-            blockCache.blocked.add(url.url)
-        end
+        blockCache.blocked.add(url.url)
     end
 
     local function delete(url: string): ()
         ctx.KV:delete(url, {scopePrefix .. ".urlblocks"})
-        if not nocache then
-            blockCache.blocked.remove(url)
-        end
+        blockCache.blocked.remove(url)
     end
 
     local function listurlscached(): set.Set<string>

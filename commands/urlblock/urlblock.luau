@@ -82,6 +82,15 @@ local function register()
             :build()      
         end
     )
+    :option(
+        function(opt) 
+            return opt
+            :setType("SubCommand")
+            :setName("listcached")
+            :setDescription("List all cached URLs")  
+            :build()      
+        end
+    )
     :build()
 end
 
@@ -150,8 +159,6 @@ local function run(data: data.RunData): nil
                 -- If the URL contains a protocol, we can use it directly
                 table.insert(urlstoblock, urlp)
             else
-                -- Otherwise, we assume it's a domain and add both http and https
-                table.insert(urlstoblock, "http://" .. urlp)
                 table.insert(urlstoblock, "https://" .. urlp)
             end
         end
@@ -360,6 +367,54 @@ local function run(data: data.RunData): nil
             numPages = #urls
         })
         return nil   
+    elseif cmdname == "listcached" then
+        canModeratorDo(
+            data.userinfomanager.get(userid, data.interaction),
+            "urlblock.list"
+        )
+
+        local urls = urlblockmanager.listurlscached()
+
+        if #urls == 0 then
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "No URLs Blocked",
+                        description = "There are no URLs currently blocked in this server.",
+                        color = 0x00ff00, -- Green color
+                    },
+                },
+                true
+            )
+        end
+
+        local urlsList = {}
+
+        for url in urls do
+            table.insert(urlsList, url)
+        end
+
+        local function getUrlEmbed(idx: number): apitypes.EmbedObject
+            if idx < 1 or idx > #urls then
+                error("Index out of bounds: " .. idx .. " for URLs list of size " .. #urls)
+            end
+            local url = urlsList[idx]
+            return {
+                title = "Blocked URL #" .. idx,
+                description = "URL: `" .. url .. "`",
+                color = 0xFF0000, -- Red color
+            }
+        end
+
+        paginate.paginate(data, {
+            id = "urlblockcached",
+            embed = getUrlEmbed,
+            numPages = #urls
+        })
+        return nil
     else 
         error("Unknown subcommand: " .. cmdname)
     end
