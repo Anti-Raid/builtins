@@ -192,8 +192,6 @@ local function run(data: data.RunData): nil
                 true
             )
         else 
-            registerEvent(data.ctx, "MESSAGE")
-
             local blockedWithMd = {}
             for _, blockedUrl in blockedUrls do
                 table.insert(blockedWithMd, "- `" .. blockedUrl .. "`")
@@ -283,6 +281,8 @@ local function run(data: data.RunData): nil
             "urlblock.enable"
         )
 
+        registerEvent(data.ctx, "MESSAGE")
+        
         urlblockmanager.setenabled(true)
         return interactionutils.replySimple(
             data.ctx,
