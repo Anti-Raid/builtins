@@ -404,7 +404,7 @@ local function run(data: data.RunData): nil
             local url = urlsList[idx]
             return {
                 title = "Blocked URL #" .. idx,
-                description = "URL: `" .. url .. "`",
+                description = "URL: `" .. url .. "`\n" .. "Is Enabled: " .. tostring(urlblockmanager.enabledcached()),
                 color = 0xFF0000, -- Red color
             }
         end
