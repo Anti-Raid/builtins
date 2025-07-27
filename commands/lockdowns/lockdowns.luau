@@ -373,7 +373,7 @@ local function run(data: data.RunData): nil
         --setmetatable(lockdownsList, interop.array_metatable)
         for _, lockdown in lockdownSet.lockdowns do 
             table.insert(lockdownsList, {
-                name = lockdown.type.string_form,
+                name = lockdown.type.string_form(),
                 value = "Reason: " .. (if lockdown.reason then lockdown.reason else "No reason specified") .. "\n" .. (if lockdown.created_at then "Created at: <t:" .. lockdown.created_at.timestamp_seconds .. ">" else "Created at: Unknown") .. "\nID: ``" .. lockdown.id .. "``",
                 inline = true,
             })
