@@ -263,6 +263,10 @@ local function createLockdown(
         return nil
     else
         result = result :: mode.Lockdown
+        if lockdownSetBurstCache then
+            lockdownSetBurstCache.createdAt = -math.huge -- Invalidate the cache so we get a fresh lockdown set next time
+        end
+
         interactionutils.editSimple(
             data.ctx,
             data.interaction,
@@ -283,12 +287,6 @@ local function removeLockdown(
     id: string
 ): nil
     local lockdownSet = lockdownset(data.ctx)
-
-    -- Update the burst cache
-    lockdownSetBurstCache = {
-        data = lockdownSet,
-        createdAt = os.clock()
-    }
 
     -- A lockdown may take a long time to remove, so we need to make sure the user knows that something is happening
     interactionutils.replySimple(
@@ -328,6 +326,10 @@ local function removeLockdown(
         )
         return nil
     else
+        if lockdownSetBurstCache then
+            lockdownSetBurstCache.createdAt = -math.huge -- Invalidate the cache so we get a fresh lockdown set next time
+        end
+
         interactionutils.editSimple(
             data.ctx,
             data.interaction,
