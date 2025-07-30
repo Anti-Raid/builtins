@@ -12,7 +12,12 @@ local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
 local permission = require"@discord-types/permission"
 local compare = require"@antiraid-ext/utils/rolecmp"
 local checkpoint = require"./checkpoint"
+local datamgmt = require"@antiraid/datamgmt"
 
+--- Helper function to convert a asset to a base64 data URL
+local function assetToDataURL(mimetype: string, blob: blob.Blob): string
+    return "data:" .. mimetype .. ";base64," .. datamgmt.base64encode(blob)
+end
 
 local function restoreBackup(ctx: Primitives.TemplateContext, filename: string, enckey: string?, opts: types.BackupRestoreOpts, checkpointId: string?, addStatus: (s: string) -> ()) 
     addStatus("Loading backup data...")
@@ -117,5 +122,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, filename: string, 
             system_channel_flags = coreData.guild.system_channel_flags,
             afk_timeout = coreData.guild.afk_timeout,
         }
+
+        -- TODO: Finish
     end
 end 
