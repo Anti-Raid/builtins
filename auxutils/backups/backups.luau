@@ -1,7 +1,7 @@
 --[[
 The file format for backups v2:
 
-Internally a backup is a TAR file. Encrypted backups are simply a AES256 encrypted ZIP with the enczip file extension.
+Internally a backup is a TAR file with the .arb1 file extension. Encrypted backups are simply a AES256 encrypted ARB1 with the .arb1e file extension.
 
 TAR File Contents:
 - `backup.json`: A JSON file containing the cote backup data.
