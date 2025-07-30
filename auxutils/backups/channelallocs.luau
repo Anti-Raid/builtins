@@ -195,6 +195,7 @@ local function FetchAllocatedMessages(
         -- We have some leftover messages to allocate, try to rollover them to other channels
         local remainingMessages = maxMessages - totalHandledMessages
 
+        local rolledOverAllocs = {}
         for channelid, count in channelAllocations.allocations do
             if count > 0 then
                 continue -- Skip channels that already have messages allocated
@@ -212,21 +213,16 @@ local function FetchAllocatedMessages(
                 local dst = {}
                 table.move(messages, 1, messagesToAdd, 1, dst)
                 messagesByChannel[channelid] = dst
+                rolledOverAllocs[channelid] = #dst
                 remainingMessages -= messagesToAdd
             end
         end
-    end
 
-    -- Ensure we did not exceed the max messages limit
-    local count = 0
-    for _, messages in messagesByChannel do
-        count += #messages
+        for channelid, count in rolledOverAllocs do
+            -- If we rolled over messages to this channel, update the allocation count
+            channelAllocations.setAllocation(channelid, count)
+        end
     end
-
-    assert(
-        count <= maxMessages, 
-        `internal error: total messages fetched {count} exceeded max messages limit of {maxMessages}`
-    )
 
     return messagesByChannel
 end

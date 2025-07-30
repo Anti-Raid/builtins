@@ -4,14 +4,14 @@ The file format for backups v2:
 Internally a backup is a TAR file with the .arb1 file extension. Encrypted backups are simply a AES256 encrypted ARB1 with the .arb1e file extension.
 
 TAR File Contents:
-- `backup.json`: A JSON file containing the cote backup data.
+- `core.json`: A JSON file containing the cote backup data.
 - `assets/{asset_name}.jpg`: A directory containing all assets that are backed up, such as guild icons (and maybe emojis in the future?).
 
 ## Core Backup Data Format
 
 The JSON file contains the following fields:
-- `version`: The version of the backup format.
 - `guild`: The guild object from Discord (a `discordTypes.GuildObject`)
+- `channels`: The channels in the guild, as an array of `discordTypes.ChannelObject` (this is a subset of the channels that were backed up).
 - `messages`: An array of messages (`discordTypes.MessageObject`).
 - `options`: The options used to create the backup, as defined in `BackupCreateOpts`.
 - `channel_allocation`: The final channel allocation for the backup, mapping channel IDs to the number of messages backed up in that channel.
@@ -19,9 +19,9 @@ The JSON file contains the following fields:
 local discordTypes = require("@discord-types/apiTypes")
 
 export type CoreBackupData = {
-    version: number, -- The version of the backup format
     guild: discordTypes.GuildObject, -- The guild object from Discord (a `discordTypes.GuildObject`)
-    messages: {discordTypes.MessageObject}, -- An array of messages (`discordTypes.MessageObject`)
+    channels: {discordTypes.ChannelObject}, -- The channels in the guild, as an array of `discordTypes.ChannelObject`
+    messages: {[string]: {discordTypes.MessageObject}}, -- An array of messages (`discordTypes.MessageObject`)
     options: BackupCreateOpts, -- The options used to create the backup
     channel_allocation: {[string]: number}, -- The final channel allocation for the backup, mapping channel IDs to the number of messages backed up in that channel
 }
@@ -37,3 +37,5 @@ export type BackupCreateOpts = {
     rolloverLeftovers: boolean, -- Whether to attempt rollover of leftover message quota to another channels or not
     specialAllocations: {[string]: number}, -- Specific channel allocation overrides
 }
+
+return {}
