@@ -7,6 +7,23 @@ local MIN_PER_CHANNEL = 5 -- Minimum number of messages to backup per channel (5
 -- Flag to indicate if we are currently in a backup operation
 local isCurrentlyInBackup = false
 
+--- Marks the current operation as being in a backup operation.
+---
+--- This is used to prevent multiple backup operations from being started at the same time.
+local function markInBackup()
+    if isCurrentlyInBackup then
+        error("Already in a backup operation")
+    end
+    isCurrentlyInBackup = true
+end
+
+--- Resets the backup operation state.
+---
+--- This should be called after the backup operation is complete to allow for new backup operations.
+local function resetBackupState()
+    isCurrentlyInBackup = false
+end
+
 --- Validates the backup options to ensure they are within the allowed limits.
 --- This function will throw an error if the options are invalid.
 --- @param data The backup options to validate
@@ -24,28 +41,7 @@ local function validate(data: types.BackupCreateOpts)
         error(`perChannel cannot be greater than maxMessages, got perChannel={data.perChannel} and maxMessages={data.maxMessages}`)
     end
 
-    if isCurrentlyInBackup then
-        error("Cannot validate backup options while already in a backup operation")
-    end
-
-    isCurrentlyInBackup = true
-end
-
---- Marks the current operation as being in a backup operation.
----
---- This is used to prevent multiple backup operations from being started at the same time.
-local function markInBackup()
-    if isCurrentlyInBackup then
-        error("Already in a backup operation")
-    end
-    isCurrentlyInBackup = true
-end
-
---- Resets the backup operation state.
----
---- This should be called after the backup operation is complete to allow for new backup operations.
-local function resetBackupState()
-    isCurrentlyInBackup = false
+    markInBackup()
 end
 
 return {

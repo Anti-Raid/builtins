@@ -5,9 +5,12 @@ local types = require"../backups"
 local serde = require"@lune/serde"
 local finalize = require"./finalize"
 local assetfetch = require"./assetfetch"
+local validate = require"./validate"
 
-local function createBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, enckey: string?): finalize.BuiltBackup
-    local coreBackup = coreBackup(ctx, opts)
+local function createBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, enckey: string?, addStatus: (s: string) -> ()): finalize.BuiltBackup
+    validate.validate(opts)
+    addStatus("Collecting core backup data...")
+    local coreBackup = coreBackup(ctx, opts, addStatus)
     local tararchive = datamgmt.TarArchive()
     tararchive:addfile("core.json", serde.encode("json", coreBackup))
 
@@ -17,7 +20,9 @@ local function createBackup(ctx: Primitives.TemplateContext, opts: types.BackupC
         tararchive:addfile(`assets/{asset}.jpg`, assetBlob)
     end
 
-    return finalize.buildBackup(tararchive, if enckey and #enckey > 0 then enckey else nil)
+    local built = finalize.buildBackup(tararchive, if enckey and #enckey > 0 then enckey else nil)
+    validate.resetBackupState()
+    return built
 end
 
 return createBackup
