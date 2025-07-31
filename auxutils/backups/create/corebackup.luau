@@ -5,8 +5,6 @@ local types = require"../backups"
 local channelallocs = require"../channelallocs"
 local set = require"@antiraid-ext/set"
 local typesext = require"@antiraid/typesext"
-local pp = require"@antiraid-ext/prettyprint"
-local interop = require"@antiraid/interop"
 
 local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, updater: types.Updater): types.CoreBackupData 
     local guild = ctx.Discord:get_guild().data
@@ -53,24 +51,6 @@ local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCre
                     channel_id = channelId,
                     limit = count,
                 }).data
-
-                local function _assert(tab, parentKey) 
-                    for k, v in tab :: any do
-                        if type(k) == "number" then
-                            assert(k >= 1, `Message key must be a string or >0 number, got {k} with tab {pp(tab)} and parent of {parentKey}`)
-                            if getmetatable(tab) == nil then
-                                setmetatable(tab, interop.array_metatable)
-                            end
-                        else
-                            assert(type(k) == "string", `Message key must be a string, got {type(k)}`)
-                        end
-                        if type(v) == "table" then
-                            _assert(v, parentKey .. "->".. k) -- Recursively assert nested tables
-                        end
-                    end
-                end
-
-                _assert(messagesDiscord, "")
 
                 updater.addStatus(`Fetched {#messagesDiscord} messages so far from channel {channelId}`)
 

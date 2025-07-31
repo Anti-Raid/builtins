@@ -137,7 +137,7 @@ local lockdownSetBurstCache: {data: lockdownset.LockdownSet, createdAt: number}?
 local maxBurstCacheTime = 120 -- 2 minutes
 
 local function quickGetLockdownSet(data: data.RunData | data.AutocompleteRunData): lockdownset.LockdownSet
-    if not lockdownSetBurstCache or lockdownSetBurstCache.createdAt - os.clock() > maxBurstCacheTime then 
+    if not lockdownSetBurstCache or os.clock() - lockdownSetBurstCache.createdAt > maxBurstCacheTime then 
         lockdownSetBurstCache = {
             data = lockdownset(data.ctx),
             createdAt = os.clock()
@@ -263,9 +263,7 @@ local function createLockdown(
         return nil
     else
         result = result :: mode.Lockdown
-        if lockdownSetBurstCache then
-            lockdownSetBurstCache.createdAt = -math.huge -- Invalidate the cache so we get a fresh lockdown set next time
-        end
+        lockdownSetBurstCache = nil
 
         interactionutils.editSimple(
             data.ctx,
@@ -326,9 +324,7 @@ local function removeLockdown(
         )
         return nil
     else
-        if lockdownSetBurstCache then
-            lockdownSetBurstCache.createdAt = -math.huge -- Invalidate the cache so we get a fresh lockdown set next time
-        end
+        lockdownSetBurstCache = nil
 
         interactionutils.editSimple(
             data.ctx,
