@@ -17,7 +17,9 @@ local function createBackup(ctx: Primitives.TemplateContext, opts: types.BackupC
     -- Add assets
     for _, asset in opts.backupGuildAssets do
         local assetBlob = assetfetch.fetchAsset(ctx, coreBackup.guild, asset)
-        tararchive:addfile(`assets/{asset}.jpg`, assetBlob)
+        if assetBlob then
+            tararchive:addfile(`assets/{asset}.jpg`, assetBlob)
+        end
     end
 
     local built = finalize.buildBackup(tararchive, if enckey and #enckey > 0 then enckey else nil)
