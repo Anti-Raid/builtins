@@ -503,13 +503,8 @@ local function restoreBackup(ctx: Primitives.TemplateContext, filename: string, 
         assert(coreData.options.backupMessages, "Internal Error: coreData.options.backupMessages should be true at this point")            
     
         if checkpointer.data.step == "CreateWebhook" then 
-            -- TODO
-            local bulkExecutor = ctx.Discord:antiraid_bulk_op()
-            local webhookChannel = nil
-            for chan in coreData.messages do 
-                local channel = checkpointer.data.restoredChannels[chan]
-                if not channel then continue end
-            end
+            -- TODO: Support restoring messages later via a webhook but its not very critical
+            addStatus("Skipping webhook restoration as it is not implemented yet")
         end
 
         return nil
