@@ -20,6 +20,7 @@ local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCre
     local messages = {}
     local channelAllocationsFinal = {}
     if opts.backupMessages then 
+        updater.addStatus("Backing up messages with perChannel of " .. opts.perChannel .. " and maxMessages of " .. opts.maxMessages)
         local botMember = ctx.Discord:get_guild_member(ctx.current_user.id).data
         local channelAllocations = channelallocs.CreateChannelAllocations(
             guild, 

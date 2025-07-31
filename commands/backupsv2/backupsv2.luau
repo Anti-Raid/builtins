@@ -49,16 +49,6 @@ local function register()
             :option(
                 function(opt) 
                     return opt
-                    :setType("Boolean")
-                    :setName("attachments")
-                    :setDescription("Whether to include attachments in the backup. Requires 'messages' to be enabled")
-                    :setRequired(false)  
-                    :build()
-                end
-            )
-            :option(
-                function(opt) 
-                    return opt
                     :setType("String")
                     :setName("backup_guild_assets")
                     :setDescription("What assets to back up in comma-seperated form (icon,splash,banner)")

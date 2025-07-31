@@ -94,7 +94,7 @@ local function CreateChannelAllocations(
             continue -- Skip channels that are not of an allowed type
         end
 
-        if #channelList and not table.find(channelList, c.id) then
+        if #channelList > 0 and not table.find(channelList, c.id) then
             continue -- Skip channels that are not in the channel list
         end
 
