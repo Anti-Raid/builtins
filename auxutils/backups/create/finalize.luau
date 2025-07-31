@@ -10,7 +10,8 @@ local types = require"../backups"
 --- @return A `BuiltBackup` object containing the backup data and the filename
 local function buildBackup(
     tar: datamgmt.TarArchive,
-    enckey: string?
+    enckey: string?,
+    updater: types.Updater
 ): types.BuiltBackup
     local filename = `antiraidbackup-{datetime.UTC:now()}`
     local fileext = ".arb1"
@@ -19,6 +20,8 @@ local function buildBackup(
         data = datamgmt.aes256encrypt(data, enckey)
         fileext = ".arb1e"
     end
+
+    updater.addStatus("Finalized archive")
 
     return {
         backup = data,

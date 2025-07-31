@@ -69,16 +69,6 @@ local function register()
             :option(
                 function(opt) 
                     return opt
-                    :setType("Boolean")
-                    :setName("rollover_leftovers")
-                    :setDescription("Roll over leftover message quotas to other channels. May make backups slower. Defaults to true")
-                    :setRequired(false)  
-                    :build()
-                end
-            )
-            :option(
-                function(opt) 
-                    return opt
                     :setType("Integer")
                     :setName("max_messages")
                     :setDescription("The maximum number of messages to backup. Defaults to 500")
@@ -276,7 +266,7 @@ local function run(data: data.RunData): nil
         local opts: backupTypes.BackupCreateOpts = {
             channels = {},
             perChannel = 100,
-            maxMessages = 500,
+            maxMessages = 100,
             backupMessages = false,
             backupGuildAssets = {"icon","splash","banner"},
             rolloverLeftovers = true,
@@ -304,10 +294,6 @@ local function run(data: data.RunData): nil
             elseif opt.name == "backup_guild_assets" then
                 if opt.value.kind == "String" then
                     opts.backupGuildAssets = string.split(opt.value.value, ",") :: any
-                end
-            elseif opt.name == "rollover_leftovers" then
-                if opt.value.kind == "Boolean" then
-                    opts.rolloverLeftovers = opt.value.value
                 end
             elseif opt.name == "special_allocations" then
                 if opt.value.kind == "String" then 
@@ -358,11 +344,13 @@ local function run(data: data.RunData): nil
         embed.updateTillComplete({
             interval = POLL_INTERVAL_CREATE,
             spawner = function(updater: backupTypes.Updater, initial: embed.EmbedData) 
-                task.spawn(function() 
-                    createBackup(data.ctx, opts, enckey, updater)
-                end)
+                local built = createBackup(data.ctx, opts, enckey, updater)
+
+                data.ctx.ObjectStorage:upload_file(built.filename, built.backup)
+                initial.finalFilePath = built.filename
             end,
             callback = function(embedData: embed.EmbedData) 
+                if embedData.state == "failed" then return end
                 local embed, components = embed.backupJobToEmbed(
                     data.ctx,
                     embedData,

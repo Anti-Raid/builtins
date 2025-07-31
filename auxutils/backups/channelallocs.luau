@@ -78,6 +78,7 @@ local function CreateChannelAllocations(
     g: apitypes.GuildObject,
     bot: apitypes.GuildMemberObject,
     channels: {apitypes.ChannelObject},
+    channelList: {string}, -- List of channel IDs to allocate messages to
     neededPerms: set.Set<typesext.U64Convertibles>,
     allowedChannelTypes: {apitypes.ChannelType},
     specialAllocations: {[string]: number},
@@ -92,6 +93,11 @@ local function CreateChannelAllocations(
         if not table.find(allowedChannelTypes, c.type) then
             continue -- Skip channels that are not of an allowed type
         end
+
+        if #channelList and not table.find(channelList, c.id) then
+            continue -- Skip channels that are not in the channel list
+        end
+
         channelMap[c.id] = {
             channel = c,
             perms = discordpermcalc.ComputeMemberChannelOverwrites(basePerms, g, bot, c),
@@ -146,35 +152,26 @@ local function CreateChannelAllocations(
         channelAllocations.setAllocation(channelData.channel.id, allocCount)
     end
 
-    -- Add all the non-allocated channels with 0 messages allocated to them (needed for rollover to work)
-    for _, channelData in channelMap do
-        if not channelAllocations.allocations[channelData.channel.id] then
-            channelAllocations.setAllocation(channelData.channel.id, 0)
-        end
-    end
-
     return channelAllocations
 end
 
 --- Given an initial *valid* channel allocation map/plan (e.g. created using `CreateChannelAllocations`) and a callback to fetch as many messages as possible,
---- this function will attempt to allocate messages to channels based on the plan while allowing rollover
---- of N messages to other channels if the current channel is exhausted.
+--- this function will attempt to allocate messages to channels based on the plan.
 ---
 --- @param channelAllocations The initial channel allocation map
 --- @param fetchMessagesCallback A callback function that takes a channel ID and returns a list of
 --- @param maxMessages The maximum number of messages to fetch in total
---- @param rolloverCount The number of messages to allow rolling over to other channels
 --- @return {[string]: {apitypes.MessageObject}} A map of channel IDs to lists of messages fetched from those channels
 local function FetchAllocatedMessages(
     channelAllocations: ChannelAllocationMap,
     fetchMessagesCallback: (channelId: string, count: number) -> {apitypes.MessageObject},
-    maxMessages: number,
-    rolloverCount: number
+    maxMessages: number
 ): {[string]: {apitypes.MessageObject}}
     local totalHandledMessages = 0
     local messagesByChannel = {}
 
     for channelid, count in channelAllocations.allocations do
+        assert(type(channelid) == "string", `Channel ID must be a string, got {type(channelid)}`)
         if count <= 0 then
             continue -- Skip channels with no messages allocated
         end
@@ -189,39 +186,6 @@ local function FetchAllocatedMessages(
             totalHandledMessages <= maxMessages, 
             `internal error: total handled messages {totalHandledMessages} exceeded max messages limit of {maxMessages}`
         )
-    end
-
-    if rolloverCount > 0 and totalHandledMessages < maxMessages then
-        -- We have some leftover messages to allocate, try to rollover them to other channels
-        local remainingMessages = maxMessages - totalHandledMessages
-
-        local rolledOverAllocs = {}
-        for channelid, count in channelAllocations.allocations do
-            if count > 0 then
-                continue -- Skip channels that already have messages allocated
-            end
-
-            -- Fetch messages from this channel, allowing rollover
-            local messages = fetchMessagesCallback(channelid, rolloverCount)
-            assert(messages, `internal error: fetchMessagesCallback for channel {channelid} returned nil`)
-            
-            totalHandledMessages += #messages
-
-            -- Move as many messages as possible to the rollover allocations without exceeding the remaining messages
-            local messagesToAdd = math.min(#messages, remainingMessages)
-            if messagesToAdd > 0 then
-                local dst = {}
-                table.move(messages, 1, messagesToAdd, 1, dst)
-                messagesByChannel[channelid] = dst
-                rolledOverAllocs[channelid] = #dst
-                remainingMessages -= messagesToAdd
-            end
-        end
-
-        for channelid, count in rolledOverAllocs do
-            -- If we rolled over messages to this channel, update the allocation count
-            channelAllocations.setAllocation(channelid, count)
-        end
     end
 
     return messagesByChannel

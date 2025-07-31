@@ -34,7 +34,6 @@ export type BackupCreateOpts = {
     maxMessages: number, -- The maximum number of messages to backup/restore
     backupMessages: boolean, -- Whether to backup messages or not
     backupGuildAssets: {"icon" | "banner" | "splash"}, -- Whether to backup guild assets (icon, banner, splash, emojis) or not
-    rolloverLeftovers: boolean, -- Whether to attempt rollover of leftover message quota to another channels or not
     specialAllocations: {[string]: number}, -- Specific channel allocation overrides
 }
 

@@ -52,7 +52,8 @@ export type EmbedData = {
     state: "running" | "completed" | "failed",
     createdat: number,
     finalFilePath: string?,
-    id: string
+    id: string,
+    numUpdates: number,
 }
 
 local function backupJobToEmbed(
@@ -127,7 +128,7 @@ local function backupJobToEmbed(
         description = description,
         color = if job.state == "completed" then 0x00FF00 else 0xFF0000, -- Green for completed, Red for failed
         footer = {
-            text = "Job ID: " .. job.id,
+            text = "Job ID: " .. job.id .. ", num updates = " .. job.numUpdates,
         },
     }
 
@@ -145,26 +146,28 @@ local function updateTillComplete(opts: EmbedUpdateOptions)
         id = "",
         createdat = os.time(),
         state = "running",
-        statuses = {}
+        statuses = {},
+        numUpdates = 0,
     }
 
     -- Code to trigger a opts.callback but only if `opts.interval` seconds have passed
     local lastTriggered = os.clock()
-    local triggered = false
     local function _triggerCallback() 
-        if triggered then return end -- Another trigger has already called us, return early
-        triggered = true -- Mark us as triggered
         local hasBeen = os.clock() - lastTriggered -- Figure out how long its been since we've last called callback
         if hasBeen < opts.interval then -- If hasBeen is less than opts.interval, start a delayed task that sets triggered to false, updates last triggered and calls the callback
-            task.delay(hasBeen - opts.interval, function() 
-                triggered = false
+            task.delay(opts.interval - hasBeen + 0.5, function() 
+                local hasBeen = os.clock() - lastTriggered -- Figure out how long its been since we've last called callback
+                if hasBeen < opts.interval then return end
                 lastTriggered = os.clock()
+                initialEmbedData.numUpdates += 1
                 opts.callback(initialEmbedData)
             end)
         else -- If hasBeen is less than opts.interval, start a immediate task that sets triggered to false, updates last triggered and calls the callback
             task.spawn(function() 
-                triggered = false
+                local hasBeen = os.clock() - lastTriggered -- Figure out how long its been since we've last called callback
+                if hasBeen < opts.interval then return end
                 lastTriggered = os.clock()
+                initialEmbedData.numUpdates += 1
                 opts.callback(initialEmbedData)
             end)
         end
@@ -181,6 +184,13 @@ local function updateTillComplete(opts: EmbedUpdateOptions)
     end
 
     opts.spawner(updater, initialEmbedData)
+    local ok, res = xpcall(opts.callback, debug.traceback :: any, initialEmbedData)
+    if not ok then 
+        updater.addStatus(tostring(res))
+        updater.setState("failed")
+    else 
+        updater.setState("completed")
+    end
 end
 
 return {

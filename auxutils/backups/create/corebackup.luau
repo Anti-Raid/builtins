@@ -5,6 +5,8 @@ local types = require"../backups"
 local channelallocs = require"../channelallocs"
 local set = require"@antiraid-ext/set"
 local typesext = require"@antiraid/typesext"
+local pp = require"@antiraid-ext/prettyprint"
+local interop = require"@antiraid/interop"
 
 local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, updater: types.Updater): types.CoreBackupData 
     local guild = ctx.Discord:get_guild().data
@@ -25,6 +27,7 @@ local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCre
             guild, 
             botMember,
             channels,
+            opts.channels,
             set.Set("0") :: set.Set<typesext.U64Convertibles>,
             {
                 channel.ChannelTypesMap.GuildText,
@@ -41,44 +44,40 @@ local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCre
 
         channelAllocationsFinal = channelAllocations.allocations
 
-        local rolloverCount = 0
-        if opts.rolloverLeftovers then
-            rolloverCount = opts.perChannel
-        end
-
         messages = channelallocs.FetchAllocatedMessages(
             channelAllocations,
             function(channelId: string, count: number): {apitypes.MessageObject}
-                local finalMsgs = {}
-                local currentId = ""
-                while true do 
-                    updater.addStatus(`Fetching messages for channel '{channelId}' and count '{count}' with current ID {currentId}...`)
-                    if count <= #finalMsgs then 
-                        break
-                    end
+                updater.addStatus(`Fetching '{count}' messages from channel '{channelId}'...`)
 
-                    local limit = math.min(100, count - #finalMsgs)
-                    local messagesDiscord = ctx.Discord:get_channel_messages({
-                        channel_id = channelId,
-                        limit = limit,
-                        before = currentId,
-                    }).data
+                local messagesDiscord = ctx.Discord:get_channel_messages({
+                    channel_id = channelId,
+                    limit = count,
+                }).data
 
-                    for i, msg in messagesDiscord do 
-                        -- Prepend as we are going from new to old
-                        table.insert(finalMsgs, 1, msg)
-
-                        if i == #messagesDiscord then
-                            currentId = msg.id
+                local function _assert(tab, parentKey) 
+                    for k, v in tab :: any do
+                        if type(k) == "number" then
+                            assert(k >= 1, `Message key must be a string or >0 number, got {k} with tab {pp(tab)} and parent of {parentKey}`)
+                            if getmetatable(tab) == nil then
+                                setmetatable(tab, interop.array_metatable)
+                            end
+                        else
+                            assert(type(k) == "string", `Message key must be a string, got {type(k)}`)
+                        end
+                        if type(v) == "table" then
+                            _assert(v, parentKey .. "->".. k) -- Recursively assert nested tables
                         end
                     end
                 end
 
-                return finalMsgs
+                _assert(messagesDiscord, "")
+
+                updater.addStatus(`Fetched {#messagesDiscord} messages so far from channel {channelId}`)
+
+                return messagesDiscord
             end,
-            opts.maxMessages,
-            rolloverCount
-        )
+            opts.maxMessages
+        ) :: any
     end
 
     return {
