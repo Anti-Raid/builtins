@@ -4,21 +4,25 @@ local conditions = require"../conditions"
 -- Flag to indicate if we are currently in a backup operation
 local isCurrentlyInBackup = false
 
---- Marks the current operation as being in a backup operation.
+--- Starts a backup operation in a scope
 ---
---- This is used to prevent multiple backup operations from being started at the same time.
-local function markInBackup()
+--- Rethrows any errors from the callback function
+local function scope<R>(updater: types.Updater, callback: () -> R): R 
     if isCurrentlyInBackup then
+        updater.setState("failed")
         error("Already in a backup operation")
     end
     isCurrentlyInBackup = true
-end
 
---- Resets the backup operation state.
----
---- This should be called after the backup operation is complete to allow for new backup operations.
-local function resetBackupState()
+    local ok, res = xpcall(callback, debug.traceback :: any)
     isCurrentlyInBackup = false
+    if not ok then 
+        -- Rethrow the error
+        updater.setState("failed")
+        error(res)
+    end
+
+    return res
 end
 
 --- Validates the backup options to ensure they are within the allowed limits.
@@ -37,12 +41,9 @@ local function validate(data: types.BackupCreateOpts)
     if data.perChannel > data.maxMessages then
         error(`perChannel cannot be greater than maxMessages, got perChannel={data.perChannel} and maxMessages={data.maxMessages}`)
     end
-
-    markInBackup()
 end
 
 return {
     validate = validate,
-    markInBackup = markInBackup,
-    resetBackupState = resetBackupState,
+    scope = scope
 }

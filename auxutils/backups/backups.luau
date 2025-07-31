@@ -43,9 +43,19 @@ export type BackupRestoreOpts = {
     protectedRoles: {string}, -- Roles to protect from being deleted
 }
 
+export type BuiltBackup = {
+    backup: blob.Blob,
+    filename: string, -- The name of the backup file including the extension
+}
+
 export type LoadedBackup = {
     core: CoreBackupData,
     assets: {[assets.Asset]: blob.Blob}, -- A map of asset names to their blobs
+}
+
+export type Updater = {
+    addStatus: (msg: string) -> (),
+    setState: (state: "running" | "completed" | "failed") -> (),
 }
 
 return {}

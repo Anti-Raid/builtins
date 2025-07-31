@@ -7,24 +7,24 @@ local finalize = require"./finalize"
 local assetfetch = require"./assetfetch"
 local validate = require"./validate"
 
-local function createBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, enckey: string?, addStatus: (s: string) -> ()): finalize.BuiltBackup
+local function createBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, enckey: string?, updater: types.Updater): types.BuiltBackup
     validate.validate(opts)
-    addStatus("Collecting core backup data...")
-    local coreBackup = coreBackup(ctx, opts, addStatus)
-    local tararchive = datamgmt.TarArchive()
-    tararchive:addfile("core.json", serde.encode("json", coreBackup))
+    return validate.scope(updater, function() 
+        updater.addStatus("Collecting core backup data...")
+        local coreBackup = coreBackup(ctx, opts, updater)
+        local tararchive = datamgmt.TarArchive()
+        tararchive:addfile("core.json", serde.encode("json", coreBackup))
 
-    -- Add assets
-    for _, asset in opts.backupGuildAssets do
-        local assetBlob = assetfetch.fetchAsset(ctx, coreBackup.guild, asset)
-        if assetBlob then
-            tararchive:addfile(`assets/{asset}.jpg`, assetBlob)
+        -- Add assets
+        for _, asset in opts.backupGuildAssets do
+            local assetBlob = assetfetch.fetchAsset(ctx, coreBackup.guild, asset)
+            if assetBlob then
+                tararchive:addfile(`assets/{asset}.jpg`, assetBlob)
+            end
         end
-    end
 
-    local built = finalize.buildBackup(tararchive, if enckey and #enckey > 0 then enckey else nil)
-    validate.resetBackupState()
-    return built
+        return finalize.buildBackup(tararchive, if enckey and #enckey > 0 then enckey else nil)
+    end)
 end
 
 return createBackup

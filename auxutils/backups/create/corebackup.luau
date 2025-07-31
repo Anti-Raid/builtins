@@ -6,7 +6,7 @@ local channelallocs = require"../channelallocs"
 local set = require"@antiraid-ext/set"
 local typesext = require"@antiraid/typesext"
 
-local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, addStatus: (s: string) -> ()): types.CoreBackupData 
+local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, updater: types.Updater): types.CoreBackupData 
     local guild = ctx.Discord:get_guild().data
     local channels = ctx.Discord:get_guild_channels().data
 
@@ -52,7 +52,7 @@ local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCre
                 local finalMsgs = {}
                 local currentId = ""
                 while true do 
-                    addStatus(`Fetching messages for channel '{channelId}' and count '{count}' with current ID {currentId}...`)
+                    updater.addStatus(`Fetching messages for channel '{channelId}' and count '{count}' with current ID {currentId}...`)
                     if count <= #finalMsgs then 
                         break
                     end

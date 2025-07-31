@@ -1,11 +1,6 @@
 local datamgmt = require"@antiraid/datamgmt"
 local datetime = require"@antiraid/datetime"
-local blob = require"@antiraid-core/blob"
-
-export type BuiltBackup = {
-    backup: blob.Blob,
-    filename: string, -- The name of the backup file including the extension
-}
+local types = require"../backups"
 
 --- Builds a backup from a TAR archive and an optional encryption key.
 --- If the encryption key is provided, the backup will be encrypted using AES256.
@@ -16,7 +11,7 @@ export type BuiltBackup = {
 local function buildBackup(
     tar: datamgmt.TarArchive,
     enckey: string?
-): BuiltBackup
+): types.BuiltBackup
     local filename = `antiraidbackup-{datetime.UTC:now()}`
     local fileext = ".arb1"
     local data = tar:toblob()

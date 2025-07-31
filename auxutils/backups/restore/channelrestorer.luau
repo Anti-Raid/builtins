@@ -1,6 +1,7 @@
 local apitypes = require"@discord-types/apiTypes"
 local resttypes = require"@discord-types/restTypes"
 local permissions = require"@discord-types/permission"
+local types = require"../backups"
 
 --- Given a channel to restore and other ext data, create a resttypes.CreateGuildChannelRequest
 local function createChannelData(
@@ -11,7 +12,7 @@ local function createChannelData(
     targetGuildId: string,
     protectedRoles: {string},
     protectedChannels: {string},
-    addStatus: (s: string) -> ()
+    updater: types.Updater
 ): resttypes.CreateGuildChannelRequest
     -- Fix permission overwrites
     local permOverwrites: {apitypes.OverwriteObject} = table.create(#channel.permission_overwrites) :: {apitypes.OverwriteObject}
@@ -49,7 +50,7 @@ local function createChannelData(
         elseif restoredChannels[channel.parent_id] then
             parentId = restoredChannels[channel.parent_id].id
         else 
-            addStatus(`Parent channel could not be found while processing update data for channel \`\`{channel.id}\`\` and name \`\`{channel.name}\`\``)
+            updater.addStatus(`Parent channel could not be found while processing update data for channel \`\`{channel.id}\`\` and name \`\`{channel.name}\`\``)
         end
     end
 
