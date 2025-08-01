@@ -30,7 +30,9 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
 
     -- AFK handling
     Message(evt, function(msg)
-        require("./devmsg")(ctx, msg)
+        if devData.isInDevMode then
+            require("./devmsg")(ctx, msg)
+        end
         afkhandler(msg, ctx)
         urlblockhandler(msg, ctx)
     end)  

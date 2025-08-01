@@ -71,7 +71,8 @@ local cachedHelpMessagePages = {} :: {string}
 
 local function createPagesIfNeeded() 
     -- Needs to be done inside run to avoid circular dependency
-    local commands = require"../commands"
+    local url = if true then "../commands" else ""
+    local commands = require(url) :: { commands: {[string]: data.Command} }
 
     if #cachedHelpMessagePages == 0 then
         local helpMessagePages = {} :: {string}
