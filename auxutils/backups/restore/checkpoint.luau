@@ -7,10 +7,8 @@ local types = require"../backups"
 local CHECKPOINT_EXPIRE_TIME = 60 * 15 -- 15 minutes
 
 export type BaseCheckpointData = {
-    --- The filename of the backup being restored
-    filename: string, 
     --- The URL of the backup being restored
-    url: string, 
+    source: types.RestoreSource,
     --- Backup restore options
     opts: types.BackupRestoreOpts,
     --- The encryption key used to decrypt the backup, if any

@@ -1,15 +1,13 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
-local interactionChoiceBuilder = require "@discord-types/builders/interaction/choice"
 local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
-local jsp = require"@antiraid-ext/utils/jobserverpoll"
-local interop = require"@antiraid/interop"
 local discord = require "@discord-types/apiTypes"
 local paginate = require "@antiraid-ext/framework/paginate"
 local backupTypes = require "../../auxutils/backups/backups"
 local createBackup = require "../../auxutils/backups/create/start"
+local restoreBackup = require "../../auxutils/backups/restore/restore"
 local embed = require "../../auxutils/backups/embed"
 
 local function register() 
@@ -138,16 +136,6 @@ local function register()
             :option(
                 function(opt) 
                     return opt
-                    :setType("Boolean")
-                    :setName("ignore_restore_errors")
-                    :setDescription("Whether to ignore errors while restoring or not. Defaults to true")
-                    :setRequired(false)  
-                    :build()
-                end   
-            )
-            :option(
-                function(opt) 
-                    return opt
                     :setType("String")
                     :setName("protected_channels")
                     :setDescription("Channels to protect from being deleted. Comma separated")
@@ -161,28 +149,6 @@ local function register()
                     :setType("String")
                     :setName("protected_roles")
                     :setDescription("Roles to protect from being deleted. Comma separated")
-                    :setRequired(false)  
-                    :build()
-                end
-            )
-            :option(
-                function(opt)
-                    return opt
-                    :setType("String")
-                    :setName("channel_restore_mode")
-                    :setDescription("Channel backup restore method. Use 'full' if unsure")
-                    :addChoice(
-                        interactionChoiceBuilder.new()
-                        :setName("Full")
-                        :setValue("full")
-                        :build()
-                    )
-                    :addChoice(
-                        interactionChoiceBuilder.new()
-                        :setName("Ignore Existing")
-                        :setValue("ignore_existing")
-                        :build()
-                    )
                     :setRequired(false)  
                     :build()
                 end
@@ -223,21 +189,6 @@ end
 
 local POLL_INTERVAL_CREATE = 3
 local POLL_INTERVAL_RESTORE = 10
-
-export type BackupRestoreOpts = {
-    --- Whether to ignore errors while restoring or not and skip these channels/roles
-    IgnoreRestoreErrors: boolean?,
-    --- Channels to protect from being deleted
-    ProtectedChannels: {string},
-    --- Roles to protect from being deleted
-    ProtectedRoles: {string},
-    --- The source of the backup
-    BackupSource: string,
-    --- The key to decrypt backups with, if any
-    Decrypt: string?,
-    --- Channel backup restore method. Use 'full' if unsure
-    ChannelRestoreMode: "full" | "ignore_existing",
-}
 
 local function run(data: data.RunData): nil
     local cmdname = data.command.nameList[2]
@@ -336,6 +287,16 @@ local function run(data: data.RunData): nil
             spawner = function(updater: backupTypes.Updater, initial: embed.EmbedData) 
                 local built = createBackup(data.ctx, opts, enckey, updater)
 
+                -- Upload and save metadata
+                data.ctx.KV:set(
+                    built.id, 
+                    {
+                        filename = built.filename,
+                        created_by = extractUserIdFromInteraction(data.interaction),
+                        num_updates = initial.numUpdates or 0,
+                    },
+                    {"builtins.backups.metadata"}
+                )
                 data.ctx.ObjectStorage:upload_file(built.filename, built.backup)
                 initial.finalFilePath = built.filename
             end,
@@ -361,11 +322,6 @@ local function run(data: data.RunData): nil
 
         return nil
     elseif cmdname == "restore" then
-        local jss = data.ctx.DataStores.JobServerStore
-        if not jss then
-            error("JobServerStore is not available in the context")
-        end
-
         local lss = data.ctx.DataStores.LinksStore
         if not lss then
             error("LinksStore is not available in the context")
@@ -376,27 +332,42 @@ local function run(data: data.RunData): nil
             "backups.restore"
         )
 
-        local opts: BackupRestoreOpts = {
-            IgnoreRestoreErrors = true,
-            ProtectedChannels = setmetatable({}, interop.array_metatable),
-            ProtectedRoles = setmetatable({}, interop.array_metatable),
-            BackupSource = "",
-            Decrypt = "",
-            ChannelRestoreMode = "full",
+        local opts: backupTypes.BackupRestoreOpts = {
+            protectedChannels = {},
+            protectedRoles = {},
         }
+        local enckey: string? = nil
+        local source: backupTypes.RestoreSource? = nil
 
         if data.interaction.channel_id then 
-            opts.ProtectedChannels = {data.interaction.channel_id}
+            opts.protectedChannels = {data.interaction.channel_id}
         end
 
         for _, opt in data.command.options do 
             if opt.name == "backup_file" then
                 if opt.value.kind == "Attachment" then
-                    opts.BackupSource = opt.value.attachment.url or error("No valid URL found for the backup file")
+                    if source then 
+                        return interactionutils.replySimple(
+                            data.ctx,
+                            data.interaction,
+                            nil,
+                            {
+                                {
+                                    title = "Error processing command",
+                                    description = "You cannot specify both a backup file and a backup ID. Please choose one.",
+                                },
+                            },
+                            false
+                        )
+                    end
+                    source = {
+                        type = "attachment",
+                        url = opt.value.attachment.url or error("No valid URL found for the backup file")
+                    }
                 end
             elseif opt.name == "backup_id" then
                 if opt.value.kind == "String" then
-                    if opts.BackupSource ~= "" then
+                    if source then
                         return interactionutils.replySimple(
                             data.ctx,
                             data.interaction,
@@ -411,9 +382,8 @@ local function run(data: data.RunData): nil
                         )
                     end
 
-                    local job = jss.get(opt.value.value, false)
-
-                    if job.name ~= "guild_create_backup" then
+                    local backupData = data.ctx.KV:getrecord(opt.value.value, {"builtins.backups.metadata"})
+                    if not backupData.exists then
                         return interactionutils.replySimple(
                             data.ctx,
                             data.interaction,
@@ -421,37 +391,23 @@ local function run(data: data.RunData): nil
                             {
                                 {
                                     title = "Error processing command",
-                                    description = "The provided job ID does not correspond to a valid backup creation job. Please check the ID and try again (got job type: " .. job.name .. ").",
+                                    description = "Backup with ID `" .. opt.value.value .. "` does not exist.",
                                 },
                             },
                             false
                         )
                     end
 
-                    if not job.job_file_path then
-                        return interactionutils.replySimple(
-                            data.ctx,
-                            data.interaction,
-                            nil,
-                            {
-                                {
-                                    title = "Error processing command",
-                                    description = "No backup file found for the given backup ID. Please check the ID and try again.",
-                                },
-                            },
-                            false
-                        )
-                    end
+                    assert(type(backupData.value.filename) == "string", "Backup data does not contain a filename")
 
-                    opts.BackupSource = string.format("job:///%s", job.job_file_path)
+                    source = {
+                        type = "objectstorage",
+                        filepath = backupData.value.filename,
+                    }
                 end
             elseif opt.name == "password" then
                 if opt.value.kind == "String" then
-                    opts.Decrypt = opt.value.value
-                end
-            elseif opt.name == "ignore_restore_errors" then
-                if opt.value.kind == "Boolean" then
-                    opts.IgnoreRestoreErrors = opt.value.value
+                    enckey = opt.value.value
                 end
             elseif opt.name == "protected_channels" then
                 if opt.value.kind == "String" then 
@@ -460,7 +416,7 @@ local function run(data: data.RunData): nil
                         -- remove any whitespace
                         channelId = channelId:gsub("%s+", "")
                         if channelId ~= "" then
-                            table.insert(opts.ProtectedChannels, channelId)
+                            table.insert(opts.protectedChannels, channelId)
                         end
                     end
                 end
@@ -471,19 +427,15 @@ local function run(data: data.RunData): nil
                         -- remove any whitespace
                         roleId = roleId:gsub("%s+", "")
                         if roleId ~= "" then
-                            table.insert(opts.ProtectedRoles, roleId)
+                            table.insert(opts.protectedRoles, roleId)
                         end
                     end
-                end
-            elseif opt.name == "channel_restore_mode" then 
-                if opt.value.kind == "String" and (opt.value.value == "full" or opt.value.value == "ignore_existing") then 
-                    opts.ChannelRestoreMode = opt.value.value
                 end
             end
         end
 
         -- Check if we have a backup source
-        if (opts.BackupSource :: string) == "" then
+        if not source then
             return interactionutils.replySimple(
                 data.ctx,
                 data.interaction,
@@ -514,50 +466,34 @@ local function run(data: data.RunData): nil
 
         data.sethasEdited(true)
 
-        -- Now spawn the job to restore the backup
-        local jobId = jss.spawn({
-            name = "guild_restore_backup",
-            data = {
-                Options = opts
-            },
-            create = true,
-            execute = true,
+        embed.updateTillComplete({
+            interval = POLL_INTERVAL_RESTORE,
+            spawner = function(updater: backupTypes.Updater, initial: embed.EmbedData) 
+                restoreBackup(data.ctx, source :: backupTypes.RestoreSource, enckey, opts, nil, updater)
+
+                -- TODO: Consider storing metadata in KV about the restore job
+            end,
+            callback = function(embedData: embed.EmbedData) 
+                if embedData.state == "failed" then return end
+                local embed, components = embed.backupJobToEmbed(
+                    data.ctx,
+                    embedData,
+                    true,
+                    true
+                )
+
+                -- Edit original interaction response with the job status
+                interactionutils.editSimple(
+                    data.ctx,
+                    data.interaction,
+                    nil,
+                    {embed},
+                    components
+                )
+            end,
         })
-
-        jsp.pollJobserverTillComplete(
-            data.ctx, 
-            {
-                jobId = jobId,
-                poll_interval = POLL_INTERVAL_RESTORE,
-                callback = function(job) 
-                    local embed, components = jsp.jobToEmbed(
-                        data.ctx,
-                        job,
-                        true,
-                        true
-                    )
-
-                    -- Edit original interaction response with the job status
-                    interactionutils.editSimple(
-                        data.ctx,
-                        data.interaction,
-                        nil,
-                        {embed},
-                        components
-                    )
-
-                    return nil
-                end
-            }
-        )
-
         return nil
     elseif cmdname == "list" then
-        local jss = data.ctx.DataStores.JobServerStore
-        if not jss then
-            error("JobServerStore is not available in the context")
-        end
-
         local lss = data.ctx.DataStores.LinksStore
         if not lss then
             error("LinksStore is not available in the context")
@@ -568,7 +504,8 @@ local function run(data: data.RunData): nil
             "backups.list"
         )
 
-        local backups = jss.list_named("guild_create_backup", false)
+        local backups = data.ctx.KV:find("%%", {"builtins.backups.metadata"})
+
         if #backups == 0 then
             return interactionutils.replySimple(
                 data.ctx,
@@ -588,10 +525,19 @@ local function run(data: data.RunData): nil
             id = "backups",
             numPages = #backups,
             embed = function(currentIdx: number): discord.EmbedObject 
-                local embed, _ = jsp.jobToEmbed(
+                local backupData = backups[currentIdx]
+                assert(backupData and backupData.exists, "Backup data not found for index " .. currentIdx)
+                assert(backupData.value.filename, "Backup data does not contain a filename")
+                local embed, _ = embed.backupJobToEmbed(
                     data.ctx,
-                    backups[currentIdx],
-                    false,
+                    {
+                        id = backupData.key,
+                        createdat = backupData.created_at.timestamp_seconds,
+                        statuses = {},
+                        state = "completed", -- Backups v2 doesnt store failed backups
+                        numUpdates = backupData.value.num_updates or 0,
+                        finalFilePath = backupData.value.filename,
+                    },
                     true
                 )
                 return embed
@@ -599,14 +545,11 @@ local function run(data: data.RunData): nil
         })
         return nil    
     elseif cmdname == "delete" then
-        local jss = data.ctx.DataStores.JobServerStore
-        if not jss then
-            error("JobServerStore is not available in the context")
-        end
         canModeratorDo(
             data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
             "backups.delete"
         )
+
         local backupId = nil
         for _, opt in data.command.options do
             if opt.name == "backup_id" and opt.value.kind == "String" then
@@ -627,8 +570,32 @@ local function run(data: data.RunData): nil
                 false
             )
         end
+
         -- Directly call delete, rely on global xpcall for error handling
-        jss.delete(backupId)
+        local backupData = data.ctx.KV:getrecord(backupId, {"builtins.backups.metadata"})
+
+        if not backupData.exists then
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Error processing command",
+                        description = "Backup with ID `" .. backupId .. "` does not exist.",
+                    },
+                },
+                false
+            )
+        end
+
+        assert(type(backupData.value.filename) == "string", "Backup data does not contain a filename")
+
+        -- Delete the backup from ObjectStorage first
+        
+        data.ctx.ObjectStorage:delete_file(backupData.value.filename)
+        data.ctx.KV:delete(backupId, {"builtins.backups.metadata"})
+
         interactionutils.replySimple(
             data.ctx,
             data.interaction,

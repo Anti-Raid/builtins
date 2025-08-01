@@ -58,7 +58,6 @@ local function createChannelData(
         name = channel.name,
         type = channel.type,
         topic = channel.topic,
-        bitrate = channel.bitrate,
         user_limit = channel.user_limit,
         rate_limit_per_user = channel.rate_limit_per_user,
         position = channel.position,
@@ -66,9 +65,6 @@ local function createChannelData(
         parent_id = parentId,
         nsfw = channel.nsfw,
         default_thread_rate_limit_per_user = channel.default_thread_rate_limit_per_user,
-        default_auto_archive_duration = channel.default_auto_archive_duration,
-        default_sort_order = channel.default_sort_order,
-        default_forum_layout = channel.default_forum_layout,
     }
 end
 

@@ -69,7 +69,9 @@ local function stripExcessMessages(coreData: types.CoreBackupData)
     end
 end
 
-local function loadBackupBlob(filename: string, blob: blob.Blob, enckey: string?): types.LoadedBackup 
+local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey: string?): types.LoadedBackup 
+    local filename = if src.type == "attachment" then src.url else src.filepath
+    
     if not isBackupFile(filename) then
         error("Invalid backup file: " .. filename)
     end

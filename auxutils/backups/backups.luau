@@ -42,7 +42,16 @@ export type BackupRestoreOpts = {
     protectedRoles: {string}, -- Roles to protect from being deleted
 }
 
+export type RestoreSource = {
+    type: "attachment",
+    url: string, -- The URL of the attachment
+} | {
+    type: "objectstorage",
+    filepath: string, -- The file path in the object storage
+}
+
 export type BuiltBackup = {
+    id: string,
     backup: blob.Blob,
     filename: string, -- The name of the backup file including the extension
 }
@@ -54,6 +63,7 @@ export type LoadedBackup = {
 
 export type Updater = {
     addStatus: (msg: string) -> (),
+    setId: (id: string) -> (),
     setState: (state: "running" | "completed" | "failed") -> (),
 }
 

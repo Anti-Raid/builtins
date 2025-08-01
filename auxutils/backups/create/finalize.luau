@@ -9,11 +9,12 @@ local types = require"../backups"
 --- @param enckey The optional encryption key to encrypt the backup with
 --- @return A `BuiltBackup` object containing the backup data and the filename
 local function buildBackup(
+    id: string,
     tar: datamgmt.TarArchive,
     enckey: string?,
     updater: types.Updater
 ): types.BuiltBackup
-    local filename = `antiraidbackup-{datetime.UTC:now()}`
+    local filename = `antiraidbackup-{datetime.UTC:now()}_{id}`
     local fileext = ".arb1"
     local data = tar:toblob()
     if enckey then 
@@ -24,6 +25,7 @@ local function buildBackup(
     updater.addStatus("Finalized archive")
 
     return {
+        id = id,
         backup = data,
         filename = filename .. fileext,
     }

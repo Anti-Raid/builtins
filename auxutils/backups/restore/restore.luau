@@ -26,14 +26,21 @@ type GuildFlags = {
     invite_splash: boolean
 }
 
-local function restoreBackup(ctx: Primitives.TemplateContext, filename: string, url: string, enckey: string?, opts: types.BackupRestoreOpts, checkpointId: string?, updater: types.Updater) 
+local function restoreBackup(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, opts: types.BackupRestoreOpts, checkpointId: string?, updater: types.Updater) 
     validate.scope(updater, function() 
         if checkpointId then updater.addStatus("Resuming backup restore from saved checkpoint: " .. checkpointId) end
 
         updater.addStatus("Loading backup data...")
-        local blob = ctx.ObjectStorage:download_file(url)
-        updater.addStatus("Downloaded backup file of size " .. checkpointId.. #blob .. " bytes" :: any)
-        local loadedBackup = load.loadBackupBlob(filename, blob, enckey)
+        local blob = nil
+        if src.type == "attachment" then 
+            blob = ctx.HTTPClient.new_request("GET", src.url):send():blob()
+        else 
+            blob = ctx.ObjectStorage:download_file(src.filepath)
+        end
+        assert(blob, "Failed to download backup file from source: " .. src.type)
+        blob = blob :: blob.Blob
+        updater.addStatus("Downloaded backup file of size " .. #blob .. " bytes" :: any)
+        local loadedBackup = load.loadBackupBlob(src, blob, enckey)
         updater.addStatus("Parsed backup data successfully")
         
         local coreData = loadedBackup.core
@@ -136,8 +143,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, filename: string, 
             checkpointer = checkpoint.Checkpoint(ctx, { 
                 type = "new", 
                 base = {
-                    filename = filename,
-                    url = url,
+                    source = src,
                     opts = opts,
                     enckey = enckey,
                 } 
@@ -195,6 +201,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, filename: string, 
                     if role.managed -- Managed role
                     or role.id == currentGuild.id -- @everyone
                     or table.find(opts.protectedRoles, role.id) -- Protected role
+                    or role.position <= 0 -- Invalid role
                     or compare.IsRoleAGreaterThanOrEqualToRoleB(role, highestRole) -- Role higher on hierarchy
                     then 
                         updater.addStatus("Ignoring role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. role.position :: any)
@@ -235,6 +242,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, filename: string, 
                     if role.managed -- Managed role
                     or role.id == currentGuild.id -- @everyone
                     or table.find(opts.protectedRoles, role.id) -- Protected role
+                    or role.position <= 0 -- Invalid role
                     or restoredRoles[role.id] -- Already restored role
                     then 
                         continue -- Ignore and continue
@@ -278,14 +286,16 @@ local function restoreBackup(ctx: Primitives.TemplateContext, filename: string, 
                     table.insert(currentGuild.roles, role)
                 end
 
+                -- TODO: Fix the below to actually work properly
                 -- Now reassert the positions of the roles
-                compare.SortRolesByHierarchyAsc(currentGuild.roles)
+                --[[compare.SortRolesByHierarchyAsc(currentGuild.roles)
                 updater.addStatus("Reasserting role positions...")
                 local reassertData: {resttypes.ModifyGuildRolePositionsRequest} = {}
                 for _, role in currentGuild.roles do
                     if role.managed -- Managed role
                     or role.id == currentGuild.id -- @everyone
                     or table.find(opts.protectedRoles, role.id) -- Protected role
+                    or role.position <= 0 -- Invalid role
                     then 
                         continue -- Ignore and continue
                     end
@@ -298,7 +308,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, filename: string, 
                 ctx.Discord:modify_guild_role_positions({
                     reason = "Backup restore: Reassert role positions",
                     data = reassertData,
-                })
+                })]]
 
                 compare.SortRolesByHierarchyDesc(currentGuild.roles)
 

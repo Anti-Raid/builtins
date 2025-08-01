@@ -128,7 +128,7 @@ local function backupJobToEmbed(
         description = description,
         color = if job.state == "completed" then 0x00FF00 else 0xFF0000, -- Green for completed, Red for failed
         footer = {
-            text = "Job ID: " .. job.id .. ", num updates = " .. job.numUpdates,
+            text = "Job ID: " .. (job.id or "Unset") .. ", Num Updates = " .. job.numUpdates,
         },
     }
 
@@ -180,6 +180,10 @@ local function updateTillComplete(opts: EmbedUpdateOptions)
     end
     updater.setState = function(state: "running" | "completed" | "failed") 
         initialEmbedData.state = state
+        _triggerCallback()
+    end
+    updater.setId = function(id: string) 
+        initialEmbedData.id = id
         _triggerCallback()
     end
 
