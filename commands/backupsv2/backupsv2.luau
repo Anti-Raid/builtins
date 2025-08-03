@@ -362,7 +362,8 @@ local function run(data: data.RunData): nil
                     end
                     source = {
                         type = "attachment",
-                        url = opt.value.attachment.url or error("No valid URL found for the backup file")
+                        url = opt.value.attachment.url or error("No valid URL found for the backup file"),
+                        filename = opt.value.attachment.filename or error("No valid filename found for the backup file"),
                     }
                 end
             elseif opt.name == "backup_id" then

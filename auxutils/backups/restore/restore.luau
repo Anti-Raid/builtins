@@ -469,24 +469,6 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
 
                         updater.addStatus("Updated rules and public updates channels")
 
-                        -- Delete old rules and public updates channels
-                        local discordDeleteOldChannelsExecutor = ctx.Discord:antiraid_bulk_op("delete_channel")
-                        if currentGuild.rules_channel_id then 
-                            discordDeleteOldChannelsExecutor:delete_channel({
-                                reason = "Backup restore: Delete old rules channel",
-                                channel_id = currentGuild.rules_channel_id,
-                            })
-                            discordDeleteOldChannelsExecutor:antiraid_bulk_op_wait()
-                        end
-
-                        if currentGuild.public_updates_channel_id then 
-                            discordDeleteOldChannelsExecutor:delete_channel({
-                                reason = "Backup restore: Delete old public updates channel",
-                                channel_id = currentGuild.public_updates_channel_id,
-                            })
-                            discordDeleteOldChannelsExecutor:antiraid_bulk_op_wait()
-                        end
-
                         if newRulesChannelId then
                             currentGuild.rules_channel_id = newRulesChannelId.id
                         end

@@ -45,6 +45,7 @@ export type BackupRestoreOpts = {
 export type RestoreSource = {
     type: "attachment",
     url: string, -- The URL of the attachment
+    filename: string, -- The name of the file including the extension
 } | {
     type: "objectstorage",
     filepath: string, -- The file path in the object storage
