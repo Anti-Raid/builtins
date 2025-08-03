@@ -33,7 +33,13 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
         updater.addStatus("Loading backup data...")
         local blob = nil
         if src.type == "attachment" then 
-            blob = ctx.HTTPClient.new_request("GET", src.url):send():blob()
+            local resp = ctx.HTTPClient.new_request("GET", src.url):send()
+            
+            if resp.status ~= 200 then 
+                error("Failed to download backup file from source: " .. src.type .. " with status code: " .. resp.status)
+            end
+
+            blob = resp:blob()
         else 
             blob = ctx.ObjectStorage:download_file(src.filepath)
         end
