@@ -15,6 +15,10 @@ The JSON file contains the following fields:
 - `messages`: An array of messages (`discordTypes.MessageObject`).
 - `options`: The options used to create the backup, as defined in `BackupCreateOpts`.
 - `channel_allocation`: The final channel allocation for the backup, mapping channel IDs to the number of messages backed up in that channel.
+
+Format Changelog:
+
+arb2/arb2e format: core.json is now gzipped to save space (and is hence renamed to core.json.gz).
 ]]
 local discordTypes = require("@discord-types/apiTypes")
 local blob = require"@antiraid-core/blob"

@@ -7,11 +7,19 @@ local conditions = require"../conditions"
 local array = require"@antiraid-ext/array"
 
 local function isEncryptedBackup(filename: string): boolean
-    return filename:sub(-6) == ".arb1e"
+    return filename:sub(-1) == "e"
 end
 
-local function isBackupFile(filename: string): boolean
-    return filename:sub(-5) == ".arb1" or filename:sub(-6) == ".arb1e"
+type BackupFile = "arb1" | "arb2" | nil
+
+local function isBackupFile(filename: string): BackupFile
+    if filename:sub(-5) == ".arb1" or filename:sub(-6) == ".arb1e" then
+        return "arb1"
+    elseif filename:sub(-5) == ".arb2" or filename:sub(-6) == ".arb2e" then
+        return "arb2"  
+    else 
+        return nil
+    end
 end
 
 local function stripExcessMessages(coreData: types.CoreBackupData) 
@@ -72,7 +80,8 @@ end
 local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey: string?): types.LoadedBackup 
     local filename = if src.type == "attachment" then src.filename else src.filepath
     
-    if not isBackupFile(filename) then
+    local format = isBackupFile(filename)
+    if not format then
         error("Invalid backup file: " .. filename)
     end
 
@@ -86,9 +95,19 @@ local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey:
 
     local tarArchive = datamgmt.TarArchive(data)
 
-    local coreDataBlob = tarArchive:takefile("core.json")
-    assert(coreDataBlob, "Core backup data not found in backup archive")
-    local coreData: types.CoreBackupData = serde.decode("json", coreDataBlob:tobuffer())
+    local coreData: types.CoreBackupData
+    if format == "arb1" then 
+        local coreDataBlob = tarArchive:takefile("core.json")
+        assert(coreDataBlob, "Core backup data not found in backup archive")
+        coreData = serde.decode("json", coreDataBlob:tobuffer())
+    elseif format == "arb2" then
+        local coreDataBlob = tarArchive:takefile("core.json.gz")
+        assert(coreDataBlob, "Core backup data not found in backup archive")
+        local decompressed = serde.decompress("gzip", coreDataBlob:tobuffer())
+        coreData = serde.decode("json", decompressed)
+    else
+        error("Unsupported backup format: " .. format)
+    end
 
     -- Validate create options and try to fix them if they are not within the allowed limits
     if coreData.options.maxMessages < 1 or coreData.options.maxMessages > conditions.MAX_MESSAGES then
