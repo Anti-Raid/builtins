@@ -15,11 +15,11 @@ local function buildBackup(
     updater: types.Updater
 ): types.BuiltBackup
     local filename = `antiraidbackup-{datetime.UTC:now()}_{id}`
-    local fileext = ".arb1"
+    local fileext = ".arb2"
     local data = tar:toblob()
     if enckey then 
         data = datamgmt.aes256encrypt(data, enckey)
-        fileext = ".arb1e"
+        fileext = ".arb2e"
     end
 
     updater.addStatus("Finalized archive")

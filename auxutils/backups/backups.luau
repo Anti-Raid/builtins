@@ -1,10 +1,10 @@
 --[[
 The file format for backups v2:
 
-Internally a backup is a TAR file with the .arb1 file extension. Encrypted backups are simply a AES256 encrypted ARB1 with the .arb1e file extension.
+Internally a backup is a TAR file with the .arb2 file extension. Encrypted backups are simply a AES256 encrypted ARB2 with the .arb2e file extension.
 
 TAR File Contents:
-- `core.json`: A JSON file containing the cote backup data.
+- `core.json.gz`: A JSON file containing the cote backup data.
 - `assets/{asset_name}.jpg`: A directory containing all assets that are backed up, such as guild icons (and maybe emojis in the future?).
 
 ## Core Backup Data Format

@@ -19,7 +19,8 @@ local function createBackup(ctx: Primitives.TemplateContext, opts: types.BackupC
         updater.addStatus("Generating backup archive")
         local tararchive = datamgmt.TarArchive()
         local encoded = serde.encode("json", coreBackup)
-        tararchive:addfile("core.json", encoded)
+        local gzipped = serde.compress("gzip", encoded)
+        tararchive:addfile("core.json.gz", gzipped)
 
         -- Add assets
         for _, asset in opts.backupGuildAssets do
