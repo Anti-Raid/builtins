@@ -2,6 +2,7 @@ local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
+local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
 
 local function register() 
     return commandBuilder.new({
@@ -187,6 +188,13 @@ local function run(data: data.RunData): nil
             )
         end
 
+        canModeratorAffectTarget(
+            data.ctx, 
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
+            userid, 
+            "moderation.ban"
+        )
+
         data.punishmentmanager.createUserPunishment({
             userId = userid,
             punishment = "ban",
@@ -260,6 +268,13 @@ local function run(data: data.RunData): nil
             )
         end
 
+        canModeratorAffectTarget(
+            data.ctx, 
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
+            userid, 
+            "moderation.unban"
+        )
+
         data.punishmentmanager.reversePunishmentClass(
             userid,
             extractUserIdFromInteraction(data.interaction),
@@ -331,6 +346,13 @@ local function run(data: data.RunData): nil
                 false
             )
         end
+
+        canModeratorAffectTarget(
+            data.ctx, 
+            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
+            userid, 
+            "moderation.kick"
+        )
 
         data.punishmentmanager.createUserPunishment({
             userId = userid,
