@@ -12,6 +12,7 @@ if devData.isInDevMode then
         urlblock = require"./urlblock/urlblock",
         subcmdtest = require"./subcmdtest/subcmdtest",
         lockdowns = require"./lockdowns/lockdowns",
+        perms = require"./perms/perms",
         stings = require"./stings/stings",
         stats = require"./stats/stats",
         help = require"./help/help",

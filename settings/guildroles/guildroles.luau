@@ -99,11 +99,16 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         return result
     elseif event.op == "Create" then
-        local userinfo = data.userinfomanager.get(event.author :: string, nil)
-
         local index = settingsExt.assertInteger("index", event.fields.index)
         local roleid = settingsExt.assertString("role_id", event.fields.role_id)
         local perms = settingsExt.assertStringArray("perms", event.fields.perms)
+
+        local rolePerms = data.userinfomanager.getGuildPermissionForRole(roleid)
+        if rolePerms then
+            error("This role already has permissions set. Use the update operation to modify it.")
+        end
+
+        local userinfo = data.userinfomanager.get(event.author :: string, nil)
 
         verifyRolePerms({op = "Create" :: "Create", perms = perms, index = index, roleid = roleid, userinfo = userinfo, author = event.author})
 
@@ -116,12 +121,17 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
         data.userinfomanager.setGuildPermission(new)
 
         return {}
-    elseif event.op == "Update" then
-        local userinfo = data.userinfomanager.get(event.author :: string, nil)
-        
+    elseif event.op == "Update" then        
         local index = settingsExt.assertInteger("index", event.fields.index)
         local roleid = settingsExt.assertString("role_id", event.fields.role_id)
         local perms = settingsExt.assertStringArray("perms", event.fields.perms)
+
+        local rolePerms = data.userinfomanager.getGuildPermissionForRole(roleid)
+        if not rolePerms then
+            error("This role does not have permissions set. Use the create operation to set it.")
+        end
+
+        local userinfo = data.userinfomanager.get(event.author :: string, nil)
 
         verifyRolePerms({op = "Update" :: "Update", perms = perms, index = index, roleid = roleid, userinfo = userinfo, author = event.author})
 

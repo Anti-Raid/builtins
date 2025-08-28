@@ -250,7 +250,7 @@ local function run(data: data.RunData): nil
         {
             {
                 title = "Currently Disabled",
-                description = "Backups is currently temporarily disabled as it is being rewritten and migrated to a faster, more reliable and more maintainable system. Please try again later.\n\nThank you for your patience.",
+                description = "Backups is currently temporarily disabled while the faster backups v2 rewrite is being stress tested and data if migrated to a faster, more reliable and more maintainable system. Please try again later.\n\nThank you for your patience.",
             },
         },
         false
