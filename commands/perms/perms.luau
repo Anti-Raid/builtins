@@ -66,6 +66,25 @@ local function register()
         end
     )
     :option(
+        function(opts) 
+            return opts
+            :setType("SubCommand")
+            :setName("removerole")
+            :setDescription("Removes a role's permissions from the system")  
+            :option(
+                function(opt) 
+                    return opt
+                    :setType("Role")
+                    :setName("role")
+                    :setDescription("The role to remove permissions for")
+                    :setRequired(true)  
+                    :build()
+                end
+            )
+            :build()
+        end
+    )
+    :option(
         function(opt) 
             return opt
             :setType("SubCommand")
@@ -292,6 +311,74 @@ local function run(data: data.RunData): nil
                 nil
             )
         end
+    elseif cmdname == "removerole" then
+        local role: apitypes.GuildRoleObject? = nil
+        for _, opt in data.command.options do 
+            if opt.name == "role" then
+                if opt.value.kind == "Role" then
+                    role = opt.value.role
+                end
+            end
+        end
+
+        if not role then 
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Invalid Role",
+                        description = "You must provide a valid role to remove permissions for.",
+                        color = 0xe74c3c,
+                    },
+                },
+                nil
+            )
+        end
+
+        local rolePerms = data.userinfomanager.getGuildPermissionForRole(role.id)
+
+        if not rolePerms then 
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "Role Not Found",
+                        description = "The role <@&" .. role.id .. "> does not have any permissions set.",
+                        color = 0xe74c3c,
+                    },
+                },
+                nil
+            )
+        end
+
+        local userid = extractUserIdFromInteraction(data.interaction)
+        local userinfo = data.userinfomanager.get(userid, nil)
+        verifyRolePerms({
+            op = "Delete" :: "Delete", 
+            roleid = role.id, 
+            userinfo = userinfo, 
+            author = userid
+        })
+
+        data.userinfomanager.deleteGuildPermission(role.id)
+
+        return interactionutils.replySimple(
+            data.ctx,
+            data.interaction,
+            nil,
+            {
+                {
+                    title = "Role Permissions Removed",
+                    description = "The permissions for the role <@&" .. role.id .. "> have been removed.",
+                    color = 0x2ecc71,
+                },
+            },
+            nil
+        )
     elseif cmdname == "listmembers" then
         -- TODO: Once chunking (and related infra) is added to template-worker,
         -- show permissions of all members
