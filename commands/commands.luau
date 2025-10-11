@@ -18,7 +18,6 @@ if devData.isInDevMode then
         help = require"./help/help",
         moderation = require"./moderation/moderation",
         backups = require"./backups/backups",
-        backupsv2 = require"./backupsv2/backupsv2",
         vmeval = require"./vmeval/vmeval",
         serverinfo = require"./serverinfo/serverinfo",
     }
