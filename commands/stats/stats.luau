@@ -43,7 +43,7 @@ local function run(data: data.RunData): nil
                 description = "Here are the some cool bot stats",
                 fields = {
                     { name = "Bot Name", value = tostring(data.ctx.current_user.username), inline = true },
-                    { name = "Total Users", value = tostring(stats.total_users), inline = true },
+                    { name = "Total Users", value = tostring(stats.total_members), inline = true },
                     { name = "Total Servers", value = tostring(stats.total_guilds), inline = true },
                     { name = "Total Cached Servers", value = tostring(stats.total_cached_guilds), inline = true },
                     { name = "Bot Last Started", value = "<t:" .. stats.last_started_at.timestamp_seconds .. ">", inline = true },
