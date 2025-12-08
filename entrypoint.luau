@@ -4,6 +4,7 @@ local commands = require "./commands/commands"
 local settings = require "./settings/settings"
 local afkhandler = require"./auxutils/afkhandler"
 local urlblockhandler = require"./auxutils/urlblockhandler".urlblockHandler
+local honeypothandler = require"./auxutils/honeypothandler"
 local onceLocal = require"@antiraid-ext/once".onceLocal
 local devData = require"./devs"
 local isInDevMode = devData.isInDevMode
@@ -23,7 +24,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
     onceLocal("builtins.init", function(): nil
         local storeTab = ctx.store :: any
         if storeTab.onBuiltinsLoad and type(storeTab.onBuiltinsLoad) == "function" then 
-            storeTab.onBuiltinsLoad()
+            (storeTab.onBuiltinsLoad :: (...any) -> any)()
         end
         return nil
     end)
@@ -35,6 +36,7 @@ local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
         end
         afkhandler(msg, ctx)
         urlblockhandler(msg, ctx)
+        honeypothandler(msg, ctx)
     end)  
 
     return Framework.dispatch(evt, ctx)

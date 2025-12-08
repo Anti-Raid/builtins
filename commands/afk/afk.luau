@@ -186,38 +186,7 @@ local function run(data: data.RunData): nil
     end
 end
 
---[[
-local function keyexpiries(data: data.KeyExpiryData) 
-    local kvr = data.ctx.KV:getrecord(data.data.key, {"builtins.remindme"})
-    if not kvr or not kvr.exists then
-        error("Key not found or expired: " .. data.data.key)
-        return
-    end
-
-    local userid = kvr.value.user_id
-    local channelid = kvr.value.channel_id
-    local message = kvr.value.message
-
-    if not userid or not channelid or not message then
-        return
-    end
-
-    data.ctx.Discord:create_message({
-        channel_id = channelid,
-        data = {
-            embeds = {
-                {
-                    title = "Reminder",
-                    description = string.format("<@%s> %s", userid :: any, message :: any),
-                }
-            } :: {apitypes.EmbedObject},
-        }
-    })
-end
-]]
-
 return {
     register = register,
     run = run,
-    --keyexpiries = {["builtins.afks"] = keyexpiries},
 }

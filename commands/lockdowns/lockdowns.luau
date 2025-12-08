@@ -171,7 +171,7 @@ local function createLockdown(
 
     data.sethasEdited(true)
 
-    local ok, result = xpcall(lockdownSet.apply, debug.traceback, lockdownType, reason)
+    local ok, result = xpcall(lockdownSet.apply, debug.traceback :: any, lockdownType, reason)
     if not ok then 
         local autofixCustomId = `lockdowns:autofix:${typesext.randstring(16)}`
         data.attachButtonCallback(autofixCustomId, function(data: data.ButtonCallbackData): nil 
@@ -302,7 +302,7 @@ local function removeLockdown(
 
     data.sethasEdited(true)
 
-    local ok, err = xpcall(lockdownSet.remove, debug.traceback, id)
+    local ok, err = xpcall(lockdownSet.remove, debug.traceback :: any, id)
     if not ok then 
         err = tostring(err) :: string
         if #err > 2000 then 
@@ -554,7 +554,7 @@ local function autocompleter(data: data.AutocompleteRunData): {apitypes.Applicat
             table.insert(autocompleteResults, {
                 name = lockdown.type.string_form() .. " [" .. lockdown.id .. "]",
                 value = lockdown.id,
-            })
+            } :: apitypes.ApplicationCommandOptionChoiceObject)
         end
 
         return autocompleteResults

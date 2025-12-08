@@ -5,6 +5,9 @@ local interactionutils = require "@antiraid-ext/utils/interaction"
 local datetime = require "@antiraid/datetime"
 local parseunit = require "@antiraid-ext/unit"
 local randstring = require"@antiraid/typesext".randstring
+local isDevMode = require"../../devs".isInDevMode
+
+local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
 
 local function register() 
     return commandBuilder.new({
@@ -95,7 +98,7 @@ local function run(data: data.RunData): nil
         channel_id = data.interaction.channel_id or error("Channel ID is nil"),
         message = message,
         ephemeral = isResponseEphemeral,
-    }, {"builtins.remindme"}, dt)
+    }, {scopePrefix .. ".remindme"}, dt)
 
     return interactionutils.replySimple(
         data.ctx,
@@ -112,7 +115,8 @@ local function run(data: data.RunData): nil
 end
 
 local function keyexpiries(data: data.KeyExpiryData) 
-    local kvr = data.ctx.KV:getrecord(data.data.key, {"builtins.remindme"})
+    -- Allow immediate expiry in dev mode for testing
+    local kvr = data.ctx.KV:getrecord(data.data.key, {scopePrefix .. ".remindme"})
     if not kvr or not kvr.exists then
         error("Key not found or expired: " .. data.data.key)
         return
@@ -142,5 +146,5 @@ end
 return {
     register = register,
     run = run,
-    keyexpiries = {["builtins.remindme"] = keyexpiries},
+    keyexpiries = {[scopePrefix .. ".remindme"] = keyexpiries},
 }
