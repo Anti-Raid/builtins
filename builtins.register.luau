@@ -6,6 +6,9 @@
 local commands = require "./commands/commands"
 local commandList = {}
 for _, command in commands.commands do
+    if not command or not command.register then
+        continue -- ignore invalid commands
+    end
     local cmd = command.register()
     table.insert(commandList, cmd)
 end

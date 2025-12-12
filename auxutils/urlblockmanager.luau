@@ -58,7 +58,7 @@ local function URLBlockManager(ctx: Primitives.TemplateContext): URLBlockManager
     }
 
     local function _parseBlock(item: kv.KvRecord): URLBlock
-        assert(item.exists, "Internal error: AFK item does not exist")
+        assert(item.exists, "Internal error: url block item does not exist")
         local url = item.key
         local userId = assertString("user_id", item.value.user_id)
         local reason = assertString("reason", item.value.reason)
