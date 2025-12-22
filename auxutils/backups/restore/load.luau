@@ -134,7 +134,7 @@ local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey:
         local asplit = assetPath:split(".")
         local assetName = asplit[1]
 
-        if not table.find(assetfetch.ASSETS, assetName) then
+        if not table.find(assetfetch.ASSETS :: {string}, assetName) then
             continue -- Skip if the asset is not recognized
         end
 

@@ -10,7 +10,7 @@ local permission = require"@discord-types/permission"
 local compare = require"@antiraid-ext/utils/rolecmp"
 local checkpoint = require"./checkpoint"
 local datamgmt = require"@antiraid/datamgmt"
-local createChannelData = require"./channelrestorer"
+local utils = require"./utils"
 local validate = require"../create/validate"
 
 --- Helper function to convert a asset to a base64 data URL
@@ -25,6 +25,80 @@ type GuildFlags = {
     animated_banner: boolean,
     invite_splash: boolean
 }
+
+type BaseRestoreFn = {
+    ctx: Primitives.TemplateContext,
+    loadedBackup: types.LoadedBackup,
+    coreData: types.CoreBackupData,
+    updater: types.Updater,
+    highestRole: apitypes.GuildRoleObject,
+    currentGuild: apitypes.GuildObject,
+    opts: types.BackupRestoreOpts,
+}
+
+local function updateBaseGuild(args: BaseRestoreFn) 
+    args.updater.addStatus("Restoring guild data...")
+
+    -- Note: verification_level and explicit_content_filter are not restored for now
+    -- and owner, region can't be restored
+    local updateData: resttypes.ModifyGuildRequest = {
+        name = args.coreData.guild.name,
+        description = args.coreData.guild.description,
+        default_message_notifications = args.coreData.guild.default_message_notifications,
+        system_channel_flags = args.coreData.guild.system_channel_flags,
+        afk_timeout = args.coreData.guild.afk_timeout,
+    }
+
+    local icon = args.loadedBackup.assets["icon"] :: blob.Blob?
+    if icon then
+        updateData.icon = assetToDataURL("image/jpeg", icon)
+    end
+
+    local banner = args.loadedBackup.assets["banner"] :: blob.Blob?
+    if banner then
+        updateData.banner = assetToDataURL("image/jpeg", banner)
+    end
+
+    local splash = args.loadedBackup.assets["splash"] :: blob.Blob?
+    if splash then
+        updateData.splash = assetToDataURL("image/jpeg", splash)
+    end
+
+    args.ctx.Discord:modify_guild({
+        reason = "Backup restore",
+        data = updateData
+    })
+
+    args.updater.addStatus("Done modifying basic server settings")
+end
+
+local function deleteOldRoles(args: BaseRestoreFn) 
+    local discordDeleteOldRolesExecutor = args.ctx.Discord:antiraid_bulk_op("delete_guild_role")
+    for _, role in (args.currentGuild.roles or {}) do
+        if role.managed -- Managed role
+        or role.id == args.currentGuild.id -- @everyone
+        or table.find(args.opts.protectedRoles, role.id) -- Protected role
+        or role.position <= 0 -- Invalid role
+        or compare.IsRoleAGreaterThanOrEqualToRoleB(role, args.highestRole) -- Role higher on hierarchy
+        then 
+            args.updater.addStatus("Ignoring role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. role.position :: any)
+            continue -- Ignore and continue
+        end
+
+        role = role :: apitypes.GuildRoleObject
+
+        args.updater.addStatus("Deleting role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. role.position :: any)
+
+        discordDeleteOldRolesExecutor:delete_guild_role({
+            reason = "Backup restore: Delete old roles step",
+            role_id = role.id
+        })
+
+        discordDeleteOldRolesExecutor:antiraid_bulk_op_wait()
+    end
+
+    args.updater.addStatus("Finished deleting old roles")
+end
 
 local function restoreBackup(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, opts: types.BackupRestoreOpts, checkpointId: string?, updater: types.Updater) 
     validate.scope(updater, function() 
@@ -160,40 +234,18 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
         checkpointer.scope(function() 
             assert(checkpointer, "Internal Error: Checkpoint should not be nil here")
 
+            local args: BaseRestoreFn = {
+                ctx = ctx,
+                loadedBackup = loadedBackup,
+                coreData = coreData,
+                updater = updater,
+                highestRole = highestRole or error("Internal Error: highestRole should not be nil here"),
+                currentGuild = currentGuild,
+                opts = opts,
+            }
+
             if checkpointer.data.step == "EditBaseGuild" then 
-                updater.addStatus("Restoring guild data...")
-
-                -- Note: verification_level and explicit_content_filter are not restored for now
-                -- and owner, region can't be restored
-                local updateData: resttypes.ModifyGuildRequest = {
-                    name = coreData.guild.name,
-                    description = coreData.guild.description,
-                    default_message_notifications = coreData.guild.default_message_notifications,
-                    system_channel_flags = coreData.guild.system_channel_flags,
-                    afk_timeout = coreData.guild.afk_timeout,
-                }
-
-                local icon = loadedBackup.assets["icon"] :: blob.Blob?
-                if icon then
-                    updateData.icon = assetToDataURL("image/jpeg", icon)
-                end
-
-                local banner = loadedBackup.assets["banner"] :: blob.Blob?
-                if banner then
-                    updateData.banner = assetToDataURL("image/jpeg", banner)
-                end
-
-                local splash = loadedBackup.assets["splash"] :: blob.Blob?
-                if splash then
-                    updateData.splash = assetToDataURL("image/jpeg", splash)
-                end
-
-                ctx.Discord:modify_guild({
-                    reason = "Backup restore",
-                    data = updateData
-                })
-
-                updater.addStatus("Done modifying basic server settings")
+                updateBaseGuild(args)
 
                 checkpointer.saveCheckpoint({
                     step = "DeleteOldRoles" :: "DeleteOldRoles"
@@ -201,32 +253,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
             end
 
             if checkpointer.data.step == "DeleteOldRoles" then 
-                assert(highestRole, "Internal Error: highestRole should not be nil here")
-                local discordDeleteOldRolesExecutor = ctx.Discord:antiraid_bulk_op("delete_guild_role")
-                for _, role in currentGuild.roles do
-                    if role.managed -- Managed role
-                    or role.id == currentGuild.id -- @everyone
-                    or table.find(opts.protectedRoles, role.id) -- Protected role
-                    or role.position <= 0 -- Invalid role
-                    or compare.IsRoleAGreaterThanOrEqualToRoleB(role, highestRole) -- Role higher on hierarchy
-                    then 
-                        updater.addStatus("Ignoring role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. role.position :: any)
-                        continue -- Ignore and continue
-                    end
-
-                    role = role :: apitypes.GuildRoleObject
-
-                    updater.addStatus("Deleting role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. role.position :: any)
-
-                    discordDeleteOldRolesExecutor:delete_guild_role({
-                        reason = "Backup restore: Delete old roles step",
-                        role_id = role.id
-                    })
-
-                    discordDeleteOldRolesExecutor:antiraid_bulk_op_wait()
-                end
-
-                updater.addStatus("Finished deleting old roles")
+                deleteOldRoles(args)
 
                 checkpointer.saveCheckpoint({
                     step = "CreateRoles" :: "CreateRoles",
@@ -390,7 +417,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
                             continue -- Skip non-category channels if we are restoring categories only
                         end
 
-                        local ud = createChannelData(
+                        local ud = utils.createChannelData(
                             c,
                             checkpointer.data.restoredRoles,
                             checkpointer.data.restoredChannels,

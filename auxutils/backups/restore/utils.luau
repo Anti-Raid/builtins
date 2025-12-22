@@ -68,4 +68,6 @@ local function createChannelData(
     }
 end
 
-return createChannelData
+return {
+    createChannelData = createChannelData
+}
