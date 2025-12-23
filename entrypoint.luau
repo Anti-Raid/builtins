@@ -20,7 +20,8 @@ end
 
 Framework.setFramework(fw)
 
-local function exec(evt: Primitives.Event, ctx: Primitives.TemplateContext): any
+local function exec(ctx: Primitives.TemplateContext): any
+    local evt = ctx:event()
     onceLocal("builtins.init", function(): nil
         local storeTab = ctx.store :: any
         if storeTab.onBuiltinsLoad and type(storeTab.onBuiltinsLoad) == "function" then 
