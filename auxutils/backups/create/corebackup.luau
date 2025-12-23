@@ -30,7 +30,7 @@ local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCre
             set.Set("0") :: set.Set<typesext.U64Convertibles>,
             {
                 channel.ChannelTypesMap.GuildText,
-                channel.ChannelTypesMap.GuildNews,
+                channel.ChannelTypesMap.GuildAnnouncement,
                 channel.ChannelTypesMap.AnnouncementThread,
                 channel.ChannelTypesMap.PublicThread,
                 channel.ChannelTypesMap.PrivateThread,

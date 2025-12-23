@@ -9,16 +9,74 @@ local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
 local permission = require"@discord-types/permission"
 local compare = require"@antiraid-ext/utils/rolecmp"
 local checkpoint = require"./checkpoint"
-local datamgmt = require"@antiraid/datamgmt"
-local utils = require"./utils"
 local validate = require"../create/validate"
 
---- Helper function to convert a asset to a base64 data URL
-local function assetToDataURL(mimetype: string, blob: blob.Blob): string
-    return "data:" .. mimetype .. ";base64," .. datamgmt.base64encode(blob)
+--- Given a channel to restore and other ext data, create a resttypes.CreateGuildChannelRequest
+local function createChannelData(
+    channel: apitypes.ChannelObject, 
+    restoredRoles: {[string]: apitypes.GuildRoleObject}, -- map of the old role ID to the new role object
+    restoredChannels: {[string]: apitypes.ChannelObject}, -- map of the old channel ID to the new channel object
+    srcGuildId: string, 
+    targetGuildId: string,
+    protectedRoles: {string},
+    protectedChannels: {string},
+    updater: types.Updater
+): resttypes.CreateGuildChannelRequest
+    -- Fix permission overwrites
+    local permOverwrites: {apitypes.OverwriteObject} = table.create(#channel.permission_overwrites) :: {apitypes.OverwriteObject}
+
+    for _, overwrite in channel.permission_overwrites do 
+        if overwrite.type == permission.OverwriteObjectTypeRole then 
+            if overwrite.id == srcGuildId then
+                -- Special case: @everyone role of source guild
+                table.insert(permOverwrites, {
+                    type = overwrite.type,
+                    allow = overwrite.allow,
+                    deny = overwrite.deny,
+                    id = targetGuildId
+                })
+            elseif restoredRoles[overwrite.id] then 
+                -- Case: Role in source guild restored to target
+                table.insert(permOverwrites, {
+                    type = overwrite.type,
+                    allow = overwrite.allow,
+                    deny = overwrite.deny,
+                    id = restoredRoles[overwrite.id].id
+                })
+            elseif table.find(protectedRoles, overwrite.id) then
+                table.insert(permOverwrites, overwrite) -- Protected role
+            end
+        else
+            table.insert(permOverwrites, overwrite)
+        end
+    end
+
+    local parentId = nil
+    if channel.parent_id then 
+        if table.find(protectedChannels, channel.parent_id) then
+            parentId = channel.parent_id
+        elseif restoredChannels[channel.parent_id] then
+            parentId = restoredChannels[channel.parent_id].id
+        else 
+            updater.addStatus(`Parent channel could not be found while processing update data for channel \`\`{channel.id}\`\` and name \`\`{channel.name}\`\``)
+        end
+    end
+
+    return {
+        name = channel.name,
+        type = channel.type,
+        topic = channel.topic,
+        user_limit = channel.user_limit,
+        rate_limit_per_user = channel.rate_limit_per_user,
+        position = channel.position,
+        permission_overwrites = permOverwrites,
+        parent_id = parentId,
+        nsfw = channel.nsfw,
+        default_thread_rate_limit_per_user = channel.default_thread_rate_limit_per_user,
+    }
 end
 
-type GuildFlags = {
+export type GuildFlags = {
     community: boolean,
     animated_icon: boolean,
     banner: boolean,
@@ -26,109 +84,52 @@ type GuildFlags = {
     invite_splash: boolean
 }
 
-type BaseRestoreFn = {
-    ctx: Primitives.TemplateContext,
-    loadedBackup: types.LoadedBackup,
-    coreData: types.CoreBackupData,
-    updater: types.Updater,
-    highestRole: apitypes.GuildRoleObject,
-    currentGuild: apitypes.GuildObject,
-    opts: types.BackupRestoreOpts,
+export type WebhookData = {
+    webhookid: string,
+    webhooktoken: string,
 }
 
-local function updateBaseGuild(args: BaseRestoreFn) 
-    args.updater.addStatus("Restoring guild data...")
+export type PermData = {
+    currentBotMember: apitypes.GuildMemberObject,
+    currentGuild: apitypes.GuildObject,
+}
 
-    -- Note: verification_level and explicit_content_filter are not restored for now
-    -- and owner, region can't be restored
-    local updateData: resttypes.ModifyGuildRequest = {
-        name = args.coreData.guild.name,
-        description = args.coreData.guild.description,
-        default_message_notifications = args.coreData.guild.default_message_notifications,
-        system_channel_flags = args.coreData.guild.system_channel_flags,
-        afk_timeout = args.coreData.guild.afk_timeout,
-    }
-
-    local icon = args.loadedBackup.assets["icon"] :: blob.Blob?
-    if icon then
-        updateData.icon = assetToDataURL("image/jpeg", icon)
+--- Restores the messages of a channel from the backup
+local function restoreChannelMessages(
+    ctx: Primitives.TemplateContext,
+    tgtChannel: apitypes.ChannelObject,
+    messages: {apitypes.MessageObject},
+    webhook: WebhookData,
+    permData: PermData,
+    updater: types.Updater
+) 
+    -- Check if we can restore messages to this channel
+    local perms = discordpermcalc.MemberChannelPerms(permData.currentGuild, permData.currentBotMember, tgtChannel)
+    local canManageWebhooks = discordpermcalc.HasPermission(perms, permission.PermissionSet.ManageWebhooks)
+    if not canManageWebhooks then 
+        updater.addStatus("Bot does not have 'Manage Webhooks' permissions in channel ``" .. tgtChannel.name .. "`` with ID: ``" .. tgtChannel.id .. "`` , ignoring message restore...")
+        return
+    else 
+        updater.addStatus("Restoring " .. #messages .. " messages to channel ``" .. tgtChannel.name .. "`` with ID: ``" .. tgtChannel.id .. "``")
     end
 
-    local banner = args.loadedBackup.assets["banner"] :: blob.Blob?
-    if banner then
-        updateData.banner = assetToDataURL("image/jpeg", banner)
-    end
-
-    local splash = args.loadedBackup.assets["splash"] :: blob.Blob?
-    if splash then
-        updateData.splash = assetToDataURL("image/jpeg", splash)
-    end
-
-    args.ctx.Discord:modify_guild({
-        reason = "Backup restore",
-        data = updateData
-    })
-
-    args.updater.addStatus("Done modifying basic server settings")
-end
-
-local function deleteOldRoles(args: BaseRestoreFn) 
-    local discordDeleteOldRolesExecutor = args.ctx.Discord:antiraid_bulk_op("delete_guild_role")
-    for _, role in (args.currentGuild.roles or {}) do
-        if role.managed -- Managed role
-        or role.id == args.currentGuild.id -- @everyone
-        or table.find(args.opts.protectedRoles, role.id) -- Protected role
-        or role.position <= 0 -- Invalid role
-        or compare.IsRoleAGreaterThanOrEqualToRoleB(role, args.highestRole) -- Role higher on hierarchy
-        then 
-            args.updater.addStatus("Ignoring role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. role.position :: any)
-            continue -- Ignore and continue
-        end
-
-        role = role :: apitypes.GuildRoleObject
-
-        args.updater.addStatus("Deleting role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. role.position :: any)
-
-        discordDeleteOldRolesExecutor:delete_guild_role({
-            reason = "Backup restore: Delete old roles step",
-            role_id = role.id
-        })
-
-        discordDeleteOldRolesExecutor:antiraid_bulk_op_wait()
-    end
-
-    args.updater.addStatus("Finished deleting old roles")
+    --- TODO: This is currently waiting on Webhook support in Khronos
+    error("Not yet implemented")
 end
 
 local function restoreBackup(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, opts: types.BackupRestoreOpts, checkpointId: string?, updater: types.Updater) 
     validate.scope(updater, function() 
         if checkpointId then updater.addStatus("Resuming backup restore from saved checkpoint: " .. checkpointId) end
 
-        updater.addStatus("Loading backup data...")
-        local blob = nil
-        if src.type == "attachment" then 
-            local resp = ctx.HTTPClient.new_request("GET", src.url):send()
-            
-            if resp.status ~= 200 then 
-                error("Failed to download backup file from source: " .. src.type .. " with status code: " .. resp.status)
-            end
-
-            blob = resp:blob()
-        else 
-            blob = ctx.ObjectStorage:download_file(src.filepath)
-        end
-        assert(blob, "Failed to download backup file from source: " .. src.type)
-        blob = blob :: blob.Blob
-        updater.addStatus("Downloaded backup file of size " .. #blob .. " bytes" :: any)
-        local loadedBackup = load.loadBackupBlob(src, blob, enckey)
-        updater.addStatus("Parsed backup data successfully")
+        -- Load the backup into memory
+        local loadedBackup = load.loadBackupFile(ctx, src, enckey, updater)
         
         local coreData = loadedBackup.core
 
         -- Test if coreData is valid    
         assert(coreData.guild.id and #coreData.guild.id > 0, "internal error: guild ID must be set in core data")
 
-        local guildWasCommunity = coreData.guild.features and table.find(coreData.guild.features, "COMMUNITY") ~= nil
+        local guildWasCommunity = coreData.guild.features and table.find(coreData.guild.features, "COMMUNITY" :: "COMMUNITY") ~= nil
 
         local currentGuild = ctx.Discord:get_guild().data
 
@@ -234,18 +235,40 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
         checkpointer.scope(function() 
             assert(checkpointer, "Internal Error: Checkpoint should not be nil here")
 
-            local args: BaseRestoreFn = {
-                ctx = ctx,
-                loadedBackup = loadedBackup,
-                coreData = coreData,
-                updater = updater,
-                highestRole = highestRole or error("Internal Error: highestRole should not be nil here"),
-                currentGuild = currentGuild,
-                opts = opts,
-            }
-
             if checkpointer.data.step == "EditBaseGuild" then 
-                updateBaseGuild(args)
+                updater.addStatus("Restoring guild data...")
+
+                -- Note: verification_level and explicit_content_filter are not restored for now
+                -- and owner, region can't be restored
+                local updateData: resttypes.ModifyGuildRequest = {
+                    name = coreData.guild.name,
+                    description = coreData.guild.description,
+                    default_message_notifications = coreData.guild.default_message_notifications,
+                    system_channel_flags = coreData.guild.system_channel_flags,
+                    afk_timeout = coreData.guild.afk_timeout,
+                }
+
+                local icon = loadedBackup.assets["icon"] :: blob.Blob?
+                if icon then
+                    updateData.icon = load.assetToDataURL("image/jpeg", icon)
+                end
+
+                local banner = loadedBackup.assets["banner"] :: blob.Blob?
+                if banner then
+                    updateData.banner = load.assetToDataURL("image/jpeg", banner)
+                end
+
+                local splash = loadedBackup.assets["splash"] :: blob.Blob?
+                if splash then
+                    updateData.splash = load.assetToDataURL("image/jpeg", splash)
+                end
+
+                ctx.Discord:modify_guild({
+                    reason = "Backup restore",
+                    data = updateData
+                })
+
+                updater.addStatus("Done modifying basic server settings")
 
                 checkpointer.saveCheckpoint({
                     step = "DeleteOldRoles" :: "DeleteOldRoles"
@@ -253,7 +276,32 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
             end
 
             if checkpointer.data.step == "DeleteOldRoles" then 
-                deleteOldRoles(args)
+                assert(highestRole, "Internal Error: highestRole should not be nil here")
+                local discordDeleteOldRolesExecutor = ctx.Discord:antiraid_bulk_op("delete_guild_role")
+                for _, role in currentGuild.roles do
+                    if role.managed -- Managed role
+                    or role.id == currentGuild.id -- @everyone
+                    or table.find(opts.protectedRoles, role.id) -- Protected role
+                    or role.position <= 0 -- Invalid role
+                    or compare.IsRoleAGreaterThanOrEqualToRoleB(role, highestRole) -- Role higher on hierarchy
+                    then 
+                        updater.addStatus("Ignoring role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. role.position :: any)
+                        continue -- Ignore and continue
+                    end
+
+                    role = role :: apitypes.GuildRoleObject
+
+                    updater.addStatus("Deleting role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. role.position :: any)
+
+                    discordDeleteOldRolesExecutor:delete_guild_role({
+                        reason = "Backup restore: Delete old roles step",
+                        role_id = role.id
+                    })
+
+                    discordDeleteOldRolesExecutor:antiraid_bulk_op_wait()
+                end
+
+                updater.addStatus("Finished deleting old roles")
 
                 checkpointer.saveCheckpoint({
                     step = "CreateRoles" :: "CreateRoles",
@@ -319,7 +367,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
                     table.insert(currentGuild.roles, role)
                 end
 
-                -- TODO: Fix the below to actually work properly
+                -- TODO: Fix the below to actually work properly (its not very critical though)
                 -- Now reassert the positions of the roles
                 --[[compare.SortRolesByHierarchyAsc(currentGuild.roles)
                 updater.addStatus("Reasserting role positions...")
@@ -417,7 +465,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
                             continue -- Skip non-category channels if we are restoring categories only
                         end
 
-                        local ud = utils.createChannelData(
+                        local ud = createChannelData(
                             c,
                             checkpointer.data.restoredRoles,
                             checkpointer.data.restoredChannels,
@@ -523,6 +571,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
                     step = "CreateWebhook" :: "CreateWebhook",
                     restoredRoles = checkpointer.data.restoredRoles,
                     restoredChannels = checkpointer.data.restoredChannels,
+                    webhookDoneChannels = {}
                 })
             end
 
@@ -543,4 +592,7 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
     updater.setState("completed")
 end 
 
-return restoreBackup
+return {
+    restoreBackup = restoreBackup,
+    createChannelData = createChannelData,
+}

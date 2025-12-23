@@ -1,3 +1,4 @@
+local Primitives = require"@antiraid-core/primitives"
 local datamgmt = require"@antiraid/datamgmt"
 local blob = require"@antiraid-core/blob"
 local types = require"../backups"
@@ -147,8 +148,39 @@ local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey:
     }
 end
 
+--- Loads a backup file from a given source
+local function loadBackupFile(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, updater: types.Updater): types.LoadedBackup
+    updater.addStatus("Loading backup data...")
+    local blob = nil
+    if src.type == "attachment" then 
+        local resp = ctx.HTTPClient.new_request("GET", src.url):send()
+        
+        if resp.status ~= 200 then 
+            error("Failed to download backup file from source: " .. src.type .. " with status code: " .. resp.status)
+        end
+
+        blob = resp:blob()
+    else 
+        blob = ctx.ObjectStorage:download_file(src.filepath)
+    end
+    assert(blob, "Failed to download backup file from source: " .. src.type)
+    blob = blob :: blob.Blob
+    updater.addStatus("Downloaded backup file of size " .. #blob .. " bytes")
+    local loadedBackup = loadBackupBlob(src, blob, enckey)
+    updater.addStatus("Parsed backup data successfully")
+
+    return loadedBackup
+end
+
+--- Helper function to convert a asset to a base64 data URL
+local function assetToDataURL(mimetype: string, blob: blob.Blob): string
+    return "data:" .. mimetype .. ";base64," .. datamgmt.base64encode(blob)
+end
+
 return {
     isEncryptedBackup = isEncryptedBackup,
     isBackupFile = isBackupFile,
     loadBackupBlob = loadBackupBlob,
+    loadBackupFile = loadBackupFile,
+    assetToDataURL = assetToDataURL
 }

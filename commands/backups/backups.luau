@@ -7,7 +7,7 @@ local discord = require "@discord-types/apiTypes"
 local paginate = require "@antiraid-ext/framework/paginate"
 local backupTypes = require "../../auxutils/backups/backups"
 local createBackup = require "../../auxutils/backups/create/start"
-local restoreBackup = require "../../auxutils/backups/restore/restore"
+local restore = require "../../auxutils/backups/restore/restore"
 local embed = require "../../auxutils/backups/embed"
 
 local function register() 
@@ -470,7 +470,7 @@ local function run(data: data.RunData): nil
         embed.updateTillComplete({
             interval = POLL_INTERVAL_RESTORE,
             spawner = function(updater: backupTypes.Updater, initial: embed.EmbedData) 
-                restoreBackup(data.ctx, source :: backupTypes.RestoreSource, enckey, opts, nil, updater)
+                restore.restoreBackup(data.ctx, source :: backupTypes.RestoreSource, enckey, opts, nil, updater)
 
                 -- TODO: Consider storing metadata in KV about the restore job
             end,

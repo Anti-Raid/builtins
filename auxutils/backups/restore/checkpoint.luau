@@ -37,6 +37,7 @@ export type CheckpointData = {
     step: "CreateWebhook",
     restoredRoles: {[string]: apitypes.GuildRoleObject},
     restoredChannels: {[string]: apitypes.ChannelObject},
+    webhookDoneChannels: {[string]: boolean}, -- Map of channel IDs that have had webhooks restored
 }
 
 export type Checkpoint = {
