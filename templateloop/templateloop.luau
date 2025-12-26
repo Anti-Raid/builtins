@@ -56,21 +56,35 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): Templat
         return self.dispatchEvent(baseCtx, {name = "OnStartup", data = { reason = "updateTemplateCache" }}, id)
     end
 
+    --- Internal helper to get or create an isolate for a template
+    local function _getIsolateForTemplate(template: runtime.Template): isolate.Isolate
+        local isol: isolate.Isolate? = nil
+        if isolates[template.id] then 
+            isol = isolates[template.id] 
+        else 
+            isol = isolate.new(template.id, template.allowed_caps, template.vfs, {})
+            isolates[template.id] = isol -- Cache isolate
+        end
+        return isol
+    end
+
     local function dispatchEvent(ctx: Primitives.TemplateContext, event: Primitives.Event?, targetId: string?): {isolate.IsolateResult}
+        -- Fast path: if there are no templates besides builtins, we can avoid creating a new thread
+        if #templateCache <= 1 and templateCache[1] and templateCache[1].source.type == "builtins" then
+            -- Get or create isolate for template
+            local isol = _getIsolateForTemplate(templateCache[1])
+            return {isol.runEventResult(ctx, event)}
+        end
+        
         local chans: {channel.OneshotChannel<isolate.IsolateResult>} = {}
+
         for _, template in templateCache do
             if targetId and template.id ~= targetId then
                 continue -- Ignore non-targetted template
             end
 
             -- Get or create isolate for template
-            local isol: isolate.Isolate? = nil
-            if isolates[template.id] then 
-                isol = isolates[template.id] 
-            else 
-                isol = isolate.new(template.id, template.allowed_caps, template.vfs, {})
-                isolates[template.id] = isol -- Cache isolate
-            end
+            local isol = _getIsolateForTemplate(template)
 
             -- Dispatch event to isolate
             local chan = isol.dispatchEvent(ctx, event)

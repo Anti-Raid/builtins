@@ -28,12 +28,20 @@ export type Isolate = {
     --- Spawns a task to dispatch an event to this isolate. If `event` is passed, the sub-context
     --- created for the template will have the event set to it.
     read dispatchEvent: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> channel.OneshotChannel<IsolateResult>,
+
+    --- Fires an event 'in-thread' and returns the result directly.
+    read runEvent: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> any,
+
+    --- Same as runEvent, but returns a IsolateResult
+    read runEventResult: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> IsolateResult,
 }
 
 --- Creates a new isolate with its own global table and require function
 ---
 --- The `expose` parameter can be used to expose additional values to the isolate's global table
 local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]: any}): Isolate
+    local isolate = {}
+    
     local globaltable: {[any]: any} = typesext.createglobalproxy()
 
     -- The require function will automatically cache modules per-isolate and ensure functions are loaded with the proxyglobal global table
@@ -48,50 +56,62 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
 
     local entrypoint = nil
 
-    local isolate = table.freeze({
-        id = id,
-        global_table = globaltable,
-        requirefunc = requirefunc,
-        entrypoint = function() 
-            return entrypoint
-        end,
-        dispatchEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): any 
-            --- Create sub-context for template
-            local subctx = rootctx:with({
-                event = event,
-                capabilities = caps,
-            })
-            local useEvent = if event then event else rootctx:event()
+    isolate.id = id
+    isolate.global_table = globaltable
+    isolate.requirefunc = requirefunc
+    isolate.entrypoint = function() 
+        return entrypoint
+    end
+    isolate.dispatchEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): channel.OneshotChannel<IsolateResult>
+        local chan = channel.OneshotChannel() :: channel.OneshotChannel<IsolateResult>
 
-            local chan = channel.OneshotChannel()
+        task.spawn(function() 
+            local ok, res = pcall(isolate.runEvent, rootctx, event)
 
-            task.spawn(function() 
-                local ok, res = pcall(function() 
-                    if entrypoint then
-                        entrypoint = requirefunc("init.luau")
-                    end
+            if ok then
+                chan:send({type = "ok", id = id, value = res})
+            else
+                chan:send({type = "err", id = id, error = res})
+            end
+        end)
 
-                    if type(entrypoint) ~= "table" then
-                        error(`init.luau entrypoint for template \`{id}\` did not return a table`)
-                    end
-                    local func: unknown = entrypoint[useEvent.name]
-                    if func and type(func) == "function" then 
-                        return (func :: (Primitives.TemplateContext) -> any)(subctx)
-                    else 
-                        return nil
-                    end
-                end)
+        return chan
+    end
+    isolate.runEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): any 
+        --- Create sub-context for template
+        local subctx = rootctx:with({
+            event = event,
+            capabilities = caps,
+        })
+        local useEvent = if event then event else rootctx:event()
 
-                if ok then
-                    chan:send({type = "ok", id = id, value = res})
-                else
-                    chan:send({type = "err", id = id, error = res})
-                end
-            end)
+        if entrypoint then
+            entrypoint = requirefunc("init.luau")
+        end
 
-            return chan
-        end,
-    })
+        if type(entrypoint) ~= "table" then
+            error(`init.luau entrypoint for template \`{id}\` did not return a table`)
+        end
+        local func: unknown = entrypoint[useEvent.name]
+        if func and type(func) == "function" then 
+            return (func :: (Primitives.TemplateContext) -> any)(subctx)
+        else 
+            return nil
+        end
+    end
+
+    isolate.runEventResult = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): IsolateResult
+        local ok, res = pcall(isolate.runEvent, rootctx, event)
+
+        if ok then
+            return {type = "ok", id = id, value = res}
+        else
+            return {type = "err", id = id, error = res}
+        end
+    end
+
+    table.freeze(isolate)
+
     return isolate
 end
 
