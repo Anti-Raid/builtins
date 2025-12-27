@@ -4,37 +4,23 @@ local runtime = require"@antiraid-core/plugins/runtime"
 local isolate = require"./isolate"
 local channel = require"@antiraid/channel"
 local datetime = require"@antiraid/datetime"
+local templateloopImpl = require"@antiraid-core/templateloop"
 
 local FLAG_FETCH_TEMPLATES_FROM_DB = bit32.lshift(1, 1)
 local TEMPLATE_DISPATCH_TIMEOUT = datetime.timedelta_seconds(5000) -- 5 seconds
-local TEMPLATE_LOOP_KEY = "__antiraid-builtins-templateloop"
 
 --- Helper to check if a bitset has a flag
 local function bitsetHasFlag(bitset: number, flag: number): boolean
     return bit32.band(bitset, flag) == flag
 end
 
---- A manager that handles template loops for a tenant
-export type TemplateLoopManager = {
-    --- Update the template cache due to a modification of a template with the provided `id`.
-    ---
-    --- Returns the result from the templates startup code.
-    updateTemplateCache: (id: string) -> {isolate.IsolateResult},
-    --- Dispatch an event to all cached templates, returning the result as desired
-    ---
-    --- If `event` is passed, the sub-context created for each template will have the event set to it.
-    ---
-    --- If `targetId` is passed, the event will only be sent to the targetted id
-    dispatchEvent: (ctx: Primitives.TemplateContext, event: Primitives.Event?, targetId: string?) -> {isolate.IsolateResult}
-}
-
-local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): TemplateLoopManager
+local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
     local self = {}
     local tenantState: runtime.TenantState = baseCtx.Runtime:gettenantstate()
     local templateCache: {runtime.Template} = if bitsetHasFlag(tenantState.flags, FLAG_FETCH_TEMPLATES_FROM_DB) then baseCtx.Runtime:listtemplates() else {}
     local isolates: {[string]: isolate.Isolate} = {}
 
-    local function updateTemplateCache(id: string): {isolate.IsolateResult} 
+    local function updateTemplateCache(id: string): {templateloopImpl.DispatchResult} 
         templateCache = baseCtx.Runtime:listtemplates() -- Always refetch new template cache just to ensure we are up to date with any updates we missed
         isolates[id] = nil -- Drop the isolate and let Luau GC it as it pleases
         
@@ -56,6 +42,14 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): Templat
         return self.dispatchEvent(baseCtx, {name = "OnStartup", data = { reason = "updateTemplateCache" }}, id)
     end
 
+    local function getTenantState() 
+        return tenantState
+    end
+
+    local function setTenantState(ts: runtime.TenantState) 
+        tenantState = ts
+    end
+
     --- Internal helper to get or create an isolate for a template
     local function _getIsolateForTemplate(template: runtime.Template): isolate.Isolate
         local isol: isolate.Isolate? = nil
@@ -68,7 +62,7 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): Templat
         return isol
     end
 
-    local function dispatchEvent(ctx: Primitives.TemplateContext, event: Primitives.Event?, targetId: string?): {isolate.IsolateResult}
+    local function dispatchEvent(ctx: Primitives.TemplateContext, event: Primitives.Event?, targetId: string?): {templateloopImpl.DispatchResult}
         -- Fast path: if there are no templates besides builtins, we can avoid creating a new thread
         if #templateCache <= 1 and templateCache[1] and templateCache[1].source.type == "builtins" then
             -- Get or create isolate for template
@@ -76,7 +70,7 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): Templat
             return {isol.runEventResult(ctx, event)}
         end
         
-        local chans: {channel.OneshotChannel<isolate.IsolateResult>} = {}
+        local chans: {channel.OneshotChannel<templateloopImpl.DispatchResult>} = {}
 
         for _, template in templateCache do
             if targetId and template.id ~= targetId then
@@ -102,17 +96,19 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): Templat
     task.spawn(dispatchEvent, baseCtx, {name = "OnStartup", data = { reason = "initialization" }}, nil)
 
     self.updateTemplateCache = updateTemplateCache
+    self.getTenantState = getTenantState
+    self.setTenantState = setTenantState
     self.dispatchEvent = dispatchEvent
 
     return self
 end
 
 --- Creates a new TemplateLoopManager instance if it doesn't already exist, otherwise creates one
-local function getOrInit(ctx: Primitives.TemplateContext): TemplateLoopManager
-    local tlm = ctx.store[TEMPLATE_LOOP_KEY] :: TemplateLoopManager?
+local function getOrInit(ctx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
+    local tlm = ctx.store[templateloopImpl.TEMPLATE_LOOP_KEY] :: templateloopImpl.TemplateLoopManager?
     if not tlm then 
         tlm = TemplateLoopManager(ctx)
-        ctx.store[TEMPLATE_LOOP_KEY] = tlm
+        ctx.store[templateloopImpl.TEMPLATE_LOOP_KEY] = tlm
         return tlm
     end
     return tlm

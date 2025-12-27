@@ -1,16 +1,7 @@
 local Primitives = require"@antiraid-core/primitives"
 local typesext = require"@antiraid/typesext"
 local channel = require"@antiraid/channel"
-
-export type IsolateResult = {
-    type: "ok",
-    id: string,
-    value: any,
-} | {
-    type: "err",
-    id: string,
-    error: any,
-}
+local templateloopImpl = require"@antiraid-core/templateloop"
 
 export type Isolate = {
     --- The ID of the isolate.
@@ -27,13 +18,13 @@ export type Isolate = {
 
     --- Spawns a task to dispatch an event to this isolate. If `event` is passed, the sub-context
     --- created for the template will have the event set to it.
-    read dispatchEvent: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> channel.OneshotChannel<IsolateResult>,
+    read dispatchEvent: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> channel.OneshotChannel<templateloopImpl.DispatchResult>,
 
     --- Fires an event 'in-thread' and returns the result directly.
     read runEvent: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> any,
 
     --- Same as runEvent, but returns a IsolateResult
-    read runEventResult: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> IsolateResult,
+    read runEventResult: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> templateloopImpl.DispatchResult,
 }
 
 --- Creates a new isolate with its own global table and require function
@@ -62,8 +53,8 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
     isolate.entrypoint = function() 
         return entrypoint
     end
-    isolate.dispatchEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): channel.OneshotChannel<IsolateResult>
-        local chan = channel.OneshotChannel() :: channel.OneshotChannel<IsolateResult>
+    isolate.dispatchEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): channel.OneshotChannel<templateloopImpl.DispatchResult>
+        local chan = channel.OneshotChannel() :: channel.OneshotChannel<templateloopImpl.DispatchResult>
 
         task.spawn(function() 
             local ok, res = pcall(isolate.runEvent, rootctx, event)
@@ -100,7 +91,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         end
     end
 
-    isolate.runEventResult = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): IsolateResult
+    isolate.runEventResult = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): templateloopImpl.DispatchResult
         local ok, res = pcall(isolate.runEvent, rootctx, event)
 
         if ok then
