@@ -33,7 +33,11 @@ local function urlblockHandler(msg: apitypes.MessageObject, ctx: Primitives.Temp
         if not #url then continue end -- Ignore empty URLs
         for burl in blockedUrls do 
             if urlMatch(url, burl) then 
-                ctx.Discord:delete_message(msg.channel_id or error("msg.channel_id is nil"), msg.id or error("msg.id is nil"), "Blocked URL")
+                ctx.Discord:delete_message({
+                    channel_id = msg.channel_id or error("msg.channel_id is nil"), 
+                    message_id = msg.id or error("msg.id is nil"), 
+                    reason = "Blocked URL"
+                })
                 return -- Stop processing further URLs
             end
         end
