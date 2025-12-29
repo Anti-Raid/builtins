@@ -1,11 +1,9 @@
-local Primitives = require "@antiraid-core/primitives"
 local Message = require "@antiraid-ext/events/discord/Message"
 local commands = require "./commands/commands"
 local settings = require "./settings/settings"
 local afkhandler = require"./auxutils/afkhandler"
 local urlblockhandler = require"./auxutils/urlblockhandler".urlblockHandler
 local honeypothandler = require"./auxutils/honeypothandler"
-local onceLocal = require"@antiraid-ext/once".onceLocal
 local devData = require"./devs"
 local isInDevMode = devData.isInDevMode
 local cmdLabel = devData.cmdLabel
@@ -19,19 +17,8 @@ for name, setting in settings.settings do
 end
 
 Framework.setFramework(fw)
-
-local function exec(ctx: Primitives.TemplateContext): any
-    local evt = ctx:event()
-    onceLocal("builtins.init", function(): nil
-        local storeTab = ctx.store :: any
-        if storeTab.onBuiltinsLoad and type(storeTab.onBuiltinsLoad) == "function" then 
-            (storeTab.onBuiltinsLoad :: (...any) -> any)()
-        end
-        return nil
-    end)
-
-    -- AFK handling
-    Message(evt, function(msg)
+return Framework.setup(
+    Message(function(ctx, msg)
         if devData.isInDevMode then
             require("./devmsg")(ctx, msg)
         end
@@ -39,10 +26,4 @@ local function exec(ctx: Primitives.TemplateContext): any
         urlblockhandler(msg, ctx)
         honeypothandler(msg, ctx)
     end)  
-
-    return Framework.dispatch(evt, ctx)
-end
-
-return {
-    exec = exec
-}
+)

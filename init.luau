@@ -1,3 +1,1 @@
-local exec = require"@self/entrypoint".exec
-local ctx = ...
-return exec(ctx)
+return require"@self/entrypoint"

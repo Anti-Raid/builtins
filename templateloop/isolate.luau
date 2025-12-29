@@ -97,7 +97,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         if ok then
             return {type = "ok", id = id, value = res}
         else
-            return {type = "err", id = id, error = res}
+            return {type = "err", id = id, value = res}
         end
     end
 

@@ -194,11 +194,6 @@ local function run(data: data.RunData): nil
     local cmdname = data.command.nameList[2]
 
     if cmdname == "create" then
-        local lss = data.ctx.DataStores.LinksStore
-        if not lss then
-            error("LinksStore is not available in the context")
-        end
-
         canModeratorDo(
             data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
             "backups.create"
@@ -322,11 +317,6 @@ local function run(data: data.RunData): nil
 
         return nil
     elseif cmdname == "restore" then
-        local lss = data.ctx.DataStores.LinksStore
-        if not lss then
-            error("LinksStore is not available in the context")
-        end
-
         canModeratorDo(
             data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
             "backups.restore"
@@ -495,11 +485,6 @@ local function run(data: data.RunData): nil
         })
         return nil
     elseif cmdname == "list" then
-        local lss = data.ctx.DataStores.LinksStore
-        if not lss then
-            error("LinksStore is not available in the context")
-        end
-
         canModeratorDo(
             data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
             "backups.list"
