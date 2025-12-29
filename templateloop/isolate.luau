@@ -57,7 +57,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         local chan = channel.OneshotChannel() :: channel.OneshotChannel<templateloopImpl.DispatchResult>
 
         task.spawn(function() 
-            local ok, res = pcall(isolate.runEvent, rootctx, event)
+            local ok, res = xpcall(isolate.runEvent, debug.traceback :: any, rootctx, event)
 
             if ok then
                 chan:send({type = "ok", id = id, value = res})
@@ -92,7 +92,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
     end
 
     isolate.runEventResult = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): templateloopImpl.DispatchResult
-        local ok, res = pcall(isolate.runEvent, rootctx, event)
+        local ok, res = xpcall(isolate.runEvent, debug.traceback :: any, rootctx, event)
 
         if ok then
             return {type = "ok", id = id, value = res}
