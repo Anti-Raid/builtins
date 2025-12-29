@@ -1,5 +1,6 @@
 local Primitives = require"@antiraid-core/primitives"
 local typesext = require"@antiraid/typesext"
+local luau = require"@antiraid/luau"
 local channel = require"@antiraid/channel"
 local templateloopImpl = require"@antiraid-core/templateloop"
 
@@ -12,6 +13,10 @@ export type Isolate = {
 
     --- The require function of the isolate.
     read requirefunc: (moduleName: string) -> any,
+
+    --- The 'proxy require' function that always roots the require
+    --- at chunk name of '/init.luau'
+    read proxyrequirefunc: (moduleName: string) -> any,
 
     --- The entrypoint of the isolate
     read entrypoint: () -> any?,
@@ -38,6 +43,14 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
     -- The require function will automatically cache modules per-isolate and ensure functions are loaded with the proxyglobal global table
     -- as the chunk's environment
     local requirefunc = vfs:createrequirefunction(id, globaltable) 
+    
+    -- Create a proxy require method with /init.luau as the chunk name
+    --
+    -- Required for require to start requiring from /
+    local proxyrequirefuncchunk = luau.load("local requirer = ...; return function(...) return requirer(...) end")
+    proxyrequirefuncchunk.chunk_name = "/init.luau"
+    local proxyrequirefunc = proxyrequirefuncchunk:call(requirefunc)
+    
     globaltable.require = requirefunc -- Expose our custom require function
 
     -- Expose any additional values to the isolate's global table
@@ -49,6 +62,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
 
     isolate.id = id
     isolate.global_table = globaltable
+    isolate.proxyrequirefunc = proxyrequirefunc
     isolate.requirefunc = requirefunc
     isolate.entrypoint = function() 
         return entrypoint
@@ -76,12 +90,12 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         })
         local useEvent = if event then event else rootctx:event()
 
-        if entrypoint then
-            entrypoint = requirefunc("./init.luau")
+        if not entrypoint then
+            entrypoint = proxyrequirefunc("./init")
         end
 
         if type(entrypoint) ~= "table" then
-            error(`init.luau entrypoint for template \`{id}\` did not return a table, got \`{type(entrypoint)}\``)
+            error(`entrypoint.luau for template \`{id}\` did not return a table, got \`{type(entrypoint)}\``)
         end
         local func: unknown = entrypoint[useEvent.name]
         if func and type(func) == "function" then 

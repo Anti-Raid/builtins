@@ -17,7 +17,7 @@ for name, setting in settings.settings do
 end
 
 Framework.setFramework(fw)
-return Framework.setup(
+local ret = Framework.setup(
     Message(function(ctx, msg)
         if devData.isInDevMode then
             require("./devmsg")(ctx, msg)
@@ -27,3 +27,5 @@ return Framework.setup(
         honeypothandler(msg, ctx)
     end)  
 )
+assert(type(ret) == "table", "Framework setup did not return a table")
+return ret

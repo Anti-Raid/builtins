@@ -5,14 +5,10 @@ local kc = require"@antiraid-core/kittycat"
 local data = require"@antiraid-ext/framework/coretypes"
 local primitives = require"@antiraid-core/primitives"
 local array_metatable = require"@antiraid/interop".array_metatable
+local tloop = require"@antiraid-core/templateloop"
 
 local EMPTY_ARRAY = setmetatable({}, array_metatable)
-local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(ctx: primitives.TemplateContext) 
-    local lss = ctx.DataStores.LinksStore
-    if not lss then
-        error("LinksStore is not available in this context")
-    end
-    
+local scripts: (ctx: primitives.TemplateContext) -> settings.Setting = function(ctx: primitives.TemplateContext)     
     return {
         id = "scripts",
         name = "Server Scripts",
@@ -66,26 +62,6 @@ return data.fields
                 readonly = EMPTY_ARRAY
             },
             {
-                id = "events",
-                name = "Events", 
-                description = "The events that this script can be executed on.",
-                column_type = settingsExt.stringColumnType("Array", nil, nil, {}, "normal", lss.event_list()),
-                primary_key = false,
-                nullable = true,
-                secret = false,
-                readonly = EMPTY_ARRAY
-            },
-            {
-                id = "allowed_caps",
-                name = "Capabilities", 
-                description = "The capabilities the script will have.",
-                column_type = settingsExt.stringColumnType("Array", nil, nil, {}, "normal"),
-                primary_key = false,
-                nullable = true,
-                secret = false,
-                readonly = EMPTY_ARRAY
-            },
-            {
                 id = "error_channel",
                 name = "Error Channel", 
                 description = "The channel to report any errors to",
@@ -102,25 +78,22 @@ return data.fields
 end
 
 local function execute(event: events.SettingExecuteEvent, data: data.SettingsData): any 
-    local userinfo = data.userinfomanager.get(event.author, nil)
-    assert(data.ctx.DataStores.TemplateStore, "TemplateStore is not available in this context")
-    
+    local userinfo = data.userinfomanager.get(event.author, nil)    
     if event.op == "View" then 
         if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.view")) then
             return {perm_error = "You need the `scripts.view` permission to view scripts"}
         end
-        local entries = data.ctx.DataStores.TemplateStore.list()
+        local entries = data.ctx.Runtime:listtemplates()
 
         local templates = {}
         for _, entry in entries do 
+            if entry.source.type ~= "custom" then continue end
             local template = {
-                name = entry.name,
-                language = entry.language,
-                content = entry.content,
+                name = entry.source.name,
+                language = entry.source.language,
+                content = entry.source.content,
                 paused = entry.paused,
-                events = if #entry.events > 0 then entry.events else EMPTY_ARRAY,
                 allowed_caps = if #entry.allowed_caps > 0 then entry.allowed_caps else EMPTY_ARRAY,
-                error_channel = entry.error_channel,
                 created_at = tostring(entry.created_at),
             }
 
@@ -133,38 +106,36 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
             return {perm_error = "You need the `scripts.create` permission to create scripts"}
         end
 
-        return data.ctx.DataStores.TemplateStore.create(event.fields)
+        local id = data.ctx.Runtime:createtemplate({
+            source = {
+                type = "custom",
+                name = settingsExt.assertString("name", event.fields.name),
+                language = "luau",
+                content = event.fields.content,
+            },
+            allowed_caps = settingsExt.assertStringArray("allowed_caps", event.fields.allowed_caps, "string"),
+            paused = settingsExt.assertBoolean("paused", event.fields.paused, false),
+        })
+        return tloop.getRunningLoop(data.ctx).updateTemplateCache(id)
     elseif event.op == "Update" then
         if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.update")) then
             return {perm_error = "You need the `scripts.update` permission to update scripts"}
         end
 
-        return data.ctx.DataStores.TemplateStore.update(event.fields)
-    elseif event.op == "CreateOrUpdate" then
-        -- Custom operation to create or update a script depending on whether it exists
-        if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.create")) then
-            return {perm_error = "You need the `scripts.create` permission to create scripts"}
-        end
-
-        local ok, err = pcall(function()
-            return data.ctx.DataStores.TemplateStore.create(event.fields)
-        end)
-
-        if not ok then
-            if err and err:find("already exists") then
-                -- If it already exists, update it instead
-                if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.update")) then
-                    return {perm_error = "You need the `scripts.update` permission to update scripts [the script already exists]"}
-                end
-                data.ctx.DataStores.TemplateStore.update(event.fields)
-
-                return {remark = "Used CreateOrUpdate fastpath", type = "Update"} -- Return the result of the create operation
-            else
-                error(err) -- Re-throw the error if it's not about existence
-            end
-        end
-
-        return {remark = "Used CreateOrUpdate fastpath", type = "Create"} -- Return the result of the create operation
+        data.ctx.Runtime:updatetemplate(
+            settingsExt.assertString("id", event.fields.id),
+            {
+                source = {
+                    type = "custom",
+                    name = settingsExt.assertString("name", event.fields.name),
+                    language = "luau",
+                    content = event.fields.content,
+                },
+                allowed_caps = settingsExt.assertStringArray("allowed_caps", event.fields.allowed_caps, "string"),
+                paused = settingsExt.assertBoolean("paused", event.fields.paused, false),
+            }
+        )
+        return tloop.getRunningLoop(data.ctx).updateTemplateCache(event.fields.id)
     elseif event.op == "Delete" then
         if not kc.has_perm(userinfo.kittycat_resolved_permissions, kc.Permission.from_string("scripts.delete")) then
             error("You need the `scripts.delete` permission to delete scripts")
@@ -172,7 +143,7 @@ local function execute(event: events.SettingExecuteEvent, data: data.SettingsDat
 
         local name = settingsExt.assertString("name", event.fields.name)
 
-        data.ctx.DataStores.TemplateStore.delete(name)
+        data.ctx.Runtime:deletetemplate(name)
 
         return {}
     else
