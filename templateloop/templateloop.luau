@@ -7,7 +7,7 @@ local datetime = require"@antiraid/datetime"
 local templateloopImpl = require"@antiraid-core/templateloop"
 
 local FLAG_FETCH_TEMPLATES_FROM_DB = bit32.lshift(1, 1)
-local TEMPLATE_DISPATCH_TIMEOUT = datetime.timedelta_seconds(5000) -- 5 seconds
+local TEMPLATE_DISPATCH_TIMEOUT = datetime.timedelta_seconds(5) -- 5 seconds
 
 --- Helper to check if a bitset has a flag
 local function bitsetHasFlag(bitset: number, flag: number): boolean
@@ -17,7 +17,7 @@ end
 local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
     local self = {}
     local tenantState: runtime.TenantState = baseCtx.Runtime:gettenantstate()
-    local templateCache: {runtime.Template} = if bitsetHasFlag(tenantState.flags, FLAG_FETCH_TEMPLATES_FROM_DB) then baseCtx.Runtime:listtemplates() else {}
+    local templateCache: {runtime.Template} = if bitsetHasFlag(tenantState.flags, FLAG_FETCH_TEMPLATES_FROM_DB) then baseCtx.Runtime:listtemplates() else {baseCtx.Runtime:builtintemplate()}
     local isolates: {[string]: isolate.Isolate} = {}
 
     local function updateTemplateCache(id: string): {templateloopImpl.DispatchResult} 
@@ -67,7 +67,9 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
         if #templateCache <= 1 and templateCache[1] and templateCache[1].source.type == "builtins" then
             -- Get or create isolate for template
             local isol = _getIsolateForTemplate(templateCache[1])
-            return {isol.runEventResult(ctx, event)}
+            local ret = isol.runEventResult(ctx, event)
+            if ret.type == "err" then error(ret.value) end
+            return {ret}
         end
         
         local chans: {channel.OneshotChannel<templateloopImpl.DispatchResult>} = {}

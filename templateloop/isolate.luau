@@ -77,11 +77,11 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         local useEvent = if event then event else rootctx:event()
 
         if entrypoint then
-            entrypoint = requirefunc("init.luau")
+            entrypoint = requirefunc("./init.luau")
         end
 
         if type(entrypoint) ~= "table" then
-            error(`init.luau entrypoint for template \`{id}\` did not return a table`)
+            error(`init.luau entrypoint for template \`{id}\` did not return a table, got \`{type(entrypoint)}\``)
         end
         local func: unknown = entrypoint[useEvent.name]
         if func and type(func) == "function" then 
