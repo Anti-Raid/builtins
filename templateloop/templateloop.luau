@@ -5,6 +5,8 @@ local isolate = require"./isolate"
 local channel = require"@antiraid/channel"
 local datetime = require"@antiraid/datetime"
 local templateloopImpl = require"@antiraid-core/templateloop"
+local templatemanagerImpl = require"@antiraid-core/templatemanager"
+local TemplateManager = require"./templatemanager"
 
 local FLAG_FETCH_TEMPLATES_FROM_DB = bit32.lshift(1, 1)
 local TEMPLATE_DISPATCH_TIMEOUT = datetime.timedelta_seconds(5) -- 5 seconds
@@ -16,12 +18,15 @@ end
 
 local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
     local self = {}
+
+    local templatemanager = TemplateManager(baseCtx)
+
     local tenantState: runtime.TenantState = baseCtx.Runtime:gettenantstate()
-    local templateCache: {runtime.Template} = if bitsetHasFlag(tenantState.flags, FLAG_FETCH_TEMPLATES_FROM_DB) then baseCtx.Runtime:listtemplates() else {baseCtx.Runtime:builtintemplate()}
+    local templateCache: {templatemanagerImpl.Template} = if bitsetHasFlag(tenantState.flags, FLAG_FETCH_TEMPLATES_FROM_DB) then templatemanager.list() else {templatemanager.builtins()}
     local isolates: {[string]: isolate.Isolate} = {}
 
     local function updateTemplateCache(id: string): {templateloopImpl.DispatchResult} 
-        templateCache = baseCtx.Runtime:listtemplates() -- Always refetch new template cache just to ensure we are up to date with any updates we missed
+        templateCache = templatemanager.list() -- Always refetch new template cache just to ensure we are up to date with any updates we missed
         isolates[id] = nil -- Drop the isolate and let Luau GC it as it pleases
         
         -- Now update flags to toggle/clear FLAG_FETCH_TEMPLATES_FROM_DB accordingly
@@ -51,12 +56,12 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
     end
 
     --- Internal helper to get or create an isolate for a template
-    local function _getIsolateForTemplate(template: runtime.Template): isolate.Isolate
+    local function _getIsolateForTemplate(template: templatemanagerImpl.Template): isolate.Isolate
         local isol: isolate.Isolate? = nil
         if isolates[template.id] then 
             isol = isolates[template.id] 
         else 
-            isol = isolate.new(template.id, template.allowed_caps, template.vfs, {})
+            isol = isolate.new(template.id, template.allowed_caps, templatemanager.computevfs(template), {})
             isolates[template.id] = isol -- Cache isolate
         end
         return isol
