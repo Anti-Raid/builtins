@@ -17,6 +17,7 @@
 local Primitives = require"@antiraid-core/primitives"
 local runtime = require"@antiraid-core/plugins/runtime"
 local isolate = require"./isolate"
+local typesext = require"@antiraid/typesext"
 local channel = require"@antiraid/channel"
 local datetime = require"@antiraid/datetime"
 local templateloopImpl = require"@antiraid-core/templateloop"
@@ -46,6 +47,100 @@ local function _setTenantStateProp(tenantState: runtime.TenantState, prop: Prop,
     end
 end
 
+type KeyExpiryItem = {
+    id: string,
+    eventName: string,
+    expiresat: datetime.DateTime,
+    data: any
+}
+
+local function _parseKeyExpiryItem(data: kv.KvRecord): KeyExpiryItem
+    assert(data.exists, "Internal error: Key expiry item does not exist")
+    local eventName = settingsext.assertString("eventname", data.value.eventname)
+    local expi = data.value.expiresat
+    assert(type(expi) == "userdata" and expi.seconds, "Internal error: Key expiry expiresat is not userdata") -- todo: improve this
+    local eventData = data.value.data
+
+    return {
+        id = data.id,
+        eventName = eventName,
+        data = eventData,
+        expiresat = expi :: datetime.DateTime,
+    }
+end
+
+--- A key expiry manager. This is internal to templateloop
+local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templateloopImpl.TemplateLoopManager, tenantState: runtime.TenantState)
+    local self = {}
+
+    local handles: {[string]: channel.KeyHandle<KeyExpiryItem>} = {}
+    local delayqueue = channel.DelayChannel() :: channel.DelayChannel<KeyExpiryItem> -- Delayqueue stores a queue of all the kvs we need to dispatch
+    local th: thread? = nil
+
+    local function _loop() 
+        while true do 
+            local item = delayqueue:next()
+
+            -- Dispatch event to templates, ignoring errors
+            pcall(loop.dispatchEvent, baseCtx, {name = item.eventName, data = item.data, author = nil}, nil)
+
+            -- Remove from KV store
+            baseCtx.KV:deletebyid(item.id)
+        end
+    end
+
+    local function _loopwhile() 
+        while true do pcall(_loop) end
+    end
+
+    local function add(
+        eventName: string,
+        expiresat: datetime.DateTime,
+        data: any
+    ): string 
+        if expiresat <= (datetime.UTC:now() + datetime.timedelta_millis(500)) then 
+            error("expiresat must not be within 500ms of the current date-time")
+        end
+        local rec = baseCtx.KV:set(typesext.randstring(16), { expiresat = expiresat, eventname = eventName, data = data }, {"__kex"})
+        handles[rec.id] = delayqueue:addwithhandle({ id = rec.id, eventName = eventName, expiresat = expiresat, data = data }, expiresat:duration_since(datetime.UTC:now()))
+        assert(not rec.exists, "Internal error: key conflict on add in KeyExpiryManager")
+        if not th then th = task.spawn(_loopwhile) end
+        loop.subscribeEvent("OnStartup", "__kex", true)
+        _setTenantStateProp(tenantState, "builtins_loadkex", true)
+        baseCtx.Runtime:settenantstate(tenantState)
+        return rec.id
+    end
+
+    local function remove(id: string) 
+        local handle = handles[id]
+        if handle then 
+            handle:cancel()
+            handles[id] = nil
+        end
+        baseCtx.KV:deletebyid(id)
+    end
+
+    -- Sync if needed
+    if _getTenantStateProp(tenantState, "builtins_loadkex") then
+        task.spawn(function() 
+            -- Setup delayqueue
+            local recs = baseCtx.KV:find("%%", {"__kex"})
+            for _, rec in recs do
+                local ok, item = pcall(_parseKeyExpiryItem, rec)
+                if ok then
+                    handles[item.id] = delayqueue:addwithhandle(item, item.expiresat:duration_since(datetime.UTC:now()))
+                end
+            end
+
+            if not th then th = task.spawn(_loopwhile) end
+        end)
+    end
+
+    self.add = add
+    self.remove = remove
+    return self
+end
+
 local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
     local self = {}
 
@@ -55,7 +150,7 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
     local templateCache: {templatemanagerImpl.Template} = if _getTenantStateProp(tenantState, "builtins_havetemplates") then templatemanager.list() else {templatemanager.builtins()}
     local isolates: {[string]: isolate.Isolate} = {}
     local eventRefs: {[string]: {[string]: boolean}} = _getTenantStateProp(tenantState, "builtins_eventrefs") or {}
-    
+
     local function updateTemplateCache(id: string): {templateloopImpl.DispatchResult} 
         templateCache = templatemanager.list() -- Always refetch new template cache just to ensure we are up to date with any updates we missed
         isolates[id] = nil -- Drop the isolate and let Luau GC it as it pleases
@@ -76,14 +171,6 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
 
         -- Send a Startup event to the template to re-initialize it
         return self.dispatchEvent(baseCtx, {name = "OnStartup", data = { reason = "updateTemplateCache" }}, id)
-    end
-
-    local function getTenantState() 
-        return tenantState
-    end
-
-    local function setTenantState(ts: runtime.TenantState) 
-        tenantState = ts
     end
 
     --- Internal helper to get or create an isolate for a template
@@ -130,7 +217,7 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
         return results
     end
 
-    local function subscribeEvent(event: string, system: string) 
+    local function subscribeEvent(event: string, system: string, nosave: boolean?) 
         -- Ensure event is in tenant state events
         if not table.find(tenantState.events, event) then 
             table.insert(tenantState.events, event)
@@ -142,10 +229,10 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
             eventRefs[event] = { [system] = true }
         end
         _setTenantStateProp(tenantState, "builtins_eventrefs", eventRefs)
-        baseCtx.Runtime:settenantstate(tenantState)
+        if not nosave then baseCtx.Runtime:settenantstate(tenantState) end
     end
 
-    local function unsubscribeEvent(event: string, system: string) 
+    local function unsubscribeEvent(event: string, system: string, nosave: boolean?) 
         if eventRefs[event] and eventRefs[event][system] then 
             eventRefs[event][system] = nil
             -- Check if we have any more refs for this event
@@ -158,7 +245,7 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
                 end
             end
             _setTenantStateProp(tenantState, "builtins_eventrefs", eventRefs)
-            baseCtx.Runtime:settenantstate(tenantState)
+            if not nosave then baseCtx.Runtime:settenantstate(tenantState) end
         end
     end
 
@@ -166,70 +253,12 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
     --task.spawn(dispatchEvent, baseCtx, {name = "OnStartup", data = { reason = "initialization" }}, nil)
 
     self.updateTemplateCache = updateTemplateCache
-    self.getTenantState = getTenantState
-    self.setTenantState = setTenantState
     self.dispatchEvent = dispatchEvent
     self.subscribeEvent = subscribeEvent
     self.unsubscribeEvent = unsubscribeEvent
 
-    return self
-end
-
-type KeyExpiryItem = {
-    id: string,
-    eventName: string,
-    expiresat: datetime.DateTime,
-    data: any
-}
-
---- A key expiry manager. This is internal to templateloop
-local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templateloopImpl.TemplateLoopManager, tenantState: runtime.TenantState)
-    local self = {}
-
-    local function _parseKeyExpiryItem(data: kv.KvRecord): KeyExpiryItem
-        assert(data.exists, "Internal error: Key expiry item does not exist")
-        local eventName = settingsext.assertString("eventname", data.value.eventname)
-        local expi = data.value.expiresat
-        assert(type(expi) == "userdata" and expi.seconds, "Internal error: Key expiry expiresat is not userdata") -- todo: improve this
-        local eventData = data.value.data
-
-        return {
-            id = data.id,
-            eventName = eventName,
-            data = eventData,
-            expiresat = expi :: datetime.DateTime,
-        }
-    end
-
-    local function _loop(delayqueue: channel.DelayChannel<KeyExpiryItem>) 
-        while true do 
-            local item = delayqueue:next()
-
-            -- Dispatch event to templates
-            loop.dispatchEvent(baseCtx, {name = item.eventName, data = item.data}, nil)
-
-            -- Remove from KV store
-            baseCtx.KV:deletebyid(item.id)
-        end
-    end
-
-    local delayqueue = channel.DelayChannel() :: channel.DelayChannel<KeyExpiryItem>
-    local th: thread? = nil
-
-    if _getTenantStateProp(tenantState, "builtins_loadkex") then
-        local recs = baseCtx.KV:find("%%", {"__kex"})
-        for _, rec in recs do
-            local ok, item = pcall(_parseKeyExpiryItem, rec)
-            if ok then
-                delayqueue:add(item, item.expiresat:duration_since(datetime.UTC:now()))
-            end
-        end
-
-        -- Spawn task to process key expiries
-        th = task.spawn(function() 
-            _loop(delayqueue)
-        end)
-    end
+    -- TODO: Implement this better
+    local kexm = KeyExpiryManager(baseCtx, self, tenantState)
 
     return self
 end
