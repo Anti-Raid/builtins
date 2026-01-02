@@ -1,8 +1,9 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
-local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
-local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
+local ban = require "./ban"
+local unban = require "./unban"
+local kick = require "./kick"
 
 local function register() 
     return commandBuilder.new({
@@ -53,6 +54,15 @@ local function register()
                     :setType("Integer")
                     :setName("delete_message_seconds")
                     :setDescription("Number of seconds to prune messages for. Mutually exclusive with delete_message_days")  
+                    :build()
+                end
+            )
+            :option(
+                function(opt) 
+                    return opt
+                    :setType("String")
+                    :setName("duration")
+                    :setDescription("How long should the user be banned for")
                     :build()
                 end
             )
@@ -123,257 +133,9 @@ end
 local function run(data: data.RunData): nil
     local cmdname = data.command.nameList[2]
 
-    if cmdname == "ban" then
-        local userid = nil
-        local reason = nil
-        local delete_message_seconds = 0
-
-        for _, opt in data.command.options do 
-            if opt.name == "user" then 
-                if opt.value.kind == "User" then
-                    userid = opt.value.user.id
-                elseif opt.value.kind == "Unresolved" then
-                    userid = opt.value.id
-                end
-            end
-
-            if opt.name == "reason" then
-                if opt.value.kind == "String" then
-                    reason = opt.value.value
-                end
-            end
-
-            if opt.name == "delete_message_days" then
-                if opt.value.kind == "Integer" then
-                    delete_message_seconds += opt.value.value * 86400 -- Convert days to seconds
-                end
-            end
-
-            if opt.name == "delete_message_seconds" then
-                if opt.value.kind == "Integer" then
-                    delete_message_seconds += opt.value.value -- Already in seconds
-                end
-            end
-        end
-
-        if not userid then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Cannot ban unknown user!",
-                        description = "No user specified",
-                        color = 0xFF0000,
-                    },
-                },
-                false
-            )
-        end
-
-        if not reason or reason == "" then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Cannot ban user without a reason!",
-                        description = "Please provide a reason for the ban",
-                        color = 0xFF0000,
-                    },
-                },
-                false
-            )
-        end
-
-        canModeratorAffectTarget(
-            data.ctx, 
-            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
-            userid, 
-            "moderation.ban"
-        )
-
-        data.punishmentmanager.createUserPunishment({
-            userId = userid,
-            punishment = "ban",
-            modId = extractUserIdFromInteraction(data.interaction),
-            reason = reason,
-            delete_message_seconds = delete_message_seconds,
-        })
-
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Successfully banned user",
-                    description = "User <@" .. userid .. "> was successfully banned from this server!",
-                    color = 0x00FF00
-                },
-            },
-            false
-        )
-    elseif cmdname == "unban" then
-        local userid = nil
-        local reason = nil
-
-        for _, opt in data.command.options do
-            if opt.name == "user" then
-                if opt.value.kind == "User" then
-                    userid = opt.value.user.id
-                elseif opt.value.kind == "Unresolved" then
-                    userid = opt.value.id
-                end
-            end
-
-            if opt.name == "reason" then
-                if opt.value.kind == "String" then
-                    reason = opt.value.value
-                end
-            end
-        end
-
-        if not userid then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Cannot unban unknown user!",
-                        description = "No user specified",
-                        color = 0xFF0000,
-                    },
-                },
-                false
-            )
-        end
-
-        if not reason or reason == "" then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Cannot unban user without a reason!",
-                        description = "Please provide a reason for the unban",
-                        color = 0xFF0000,
-                    },
-                },
-                false
-            )
-        end
-
-        canModeratorAffectTarget(
-            data.ctx, 
-            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
-            userid, 
-            "moderation.unban"
-        )
-
-        data.punishmentmanager.reversePunishmentClass(
-            userid,
-            extractUserIdFromInteraction(data.interaction),
-            "ban",
-            reason
-        )
-
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Successfully unbanned user",
-                    description = "User <@" .. userid .. "> was successfully unbanned from this server!",
-                    color = 0x00FF00
-                },
-            },
-            false
-        )
-    elseif cmdname == "kick" then
-        local userid = nil
-        local reason = nil
-
-        for _, opt in data.command.options do 
-            if opt.name == "user" then 
-                if opt.value.kind == "User" then
-                    userid = opt.value.user.id
-                elseif opt.value.kind == "Unresolved" then
-                    userid = opt.value.id
-                end
-            end
-
-            if opt.name == "reason" then
-                if opt.value.kind == "String" then
-                    reason = opt.value.value
-                end
-            end
-        end
-
-        if not userid then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Cannot kick unknown user!",
-                        description = "No user specified",
-                        color = 0xFF0000,
-                    },
-                },
-                false
-            )
-        end
-
-        if not reason or reason == "" then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Cannot kick user without a reason!",
-                        description = "Please provide a reason for the kick",
-                        color = 0xFF0000,
-                    },
-                },
-                false
-            )
-        end
-
-        canModeratorAffectTarget(
-            data.ctx, 
-            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
-            userid, 
-            "moderation.kick"
-        )
-
-        data.punishmentmanager.createUserPunishment({
-            userId = userid,
-            punishment = "kick",
-            modId = extractUserIdFromInteraction(data.interaction),
-            reason = reason,
-        })
-
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Successfully kicked user",
-                    description = "User <@" .. userid .. "> was successfully kicked from this server!",
-                    color = 0x00FF00
-                },
-            },
-            false
-        )
+    if cmdname == "ban" then return ban(data) 
+    elseif cmdname == "unban" then return unban(data)
+    elseif cmdname == "kick" then return kick(data)
     else 
         return interactionutils.replySimple(
             data.ctx,

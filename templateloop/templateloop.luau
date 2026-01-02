@@ -18,13 +18,15 @@ local Primitives = require"@antiraid-core/primitives"
 local runtime = require"@antiraid-core/plugins/runtime"
 local isolate = require"./isolate"
 local channel = require"@antiraid/channel"
+local typesext = require"@antiraid/typesext"
 local datetime = require"@antiraid/datetime"
 local templateloopImpl = require"@antiraid-core/templateloop"
 local templatemanagerImpl = require"@antiraid-core/templatemanager"
 local TemplateManager = require"./templatemanager"
 
 local TEMPLATE_DISPATCH_TIMEOUT = datetime.timedelta_seconds(5) -- 5 seconds
-local MAX_KEYEXPIRY_KEY_LENGTH = 36
+local MAX_KEYEXPIRY_KEY_LENGTH = 8 -- This sounds *small* but we have a-z, A-Z and 0-9 making for 62^8 combinations which is plenty
+local KEYEXPIRY_RANDSTRING_LENGTH = 8
 
 type Prop = "builtins_havetemplates" | "builtins_eventrefs" | "builtins_kex"
 local function _getTenantStateProp(tenantState: runtime.TenantState, prop: Prop): any
@@ -64,7 +66,7 @@ local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templ
             if not ok then 
                 -- Dispatch a error event
                 task.spawn(function() 
-                    pcall(loop.dispatchEvent, baseCtx, {name = "Error", data = { context = "keyexpiry", key = item, error = res }, author = nil}, nil)
+                    pcall(loop.dispatchEvent, baseCtx, {name = "Error", data = { ctx = "keyexpiry", key = item, error = res }, author = nil}, nil)
                 end)
             end
 
@@ -88,32 +90,6 @@ local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templ
         if not th or coroutine.status(th) == "dead" then th = task.spawn(_loopwhile) end
     end
 
-    local function add(key: string, expiresin: datetime.TimeDelta)
-        -- Validate inputs 
-        if #key > MAX_KEYEXPIRY_KEY_LENGTH then 
-            error(`KeyExpiry key length exceeds maximum length of {MAX_KEYEXPIRY_KEY_LENGTH}`)
-        end
-        if kexs[key] then 
-            error(`KeyExpiry with id \`{key}\` already exists`)
-        end
-
-        -- Record in tenant state
-        local expiresat = (datetime.UTC:now() + expiresin)
-        kexs[key] = expiresat.timestamp_seconds
-        _setTenantStateProp(tenantState, "builtins_kex", kexs)
-        loop.subscribeEvent("OnStartup", "__kex", true) -- We want nosave here as we have a settenantstate later
-        baseCtx.Runtime:settenantstate(tenantState)
-
-        -- Check if we've already expired either due to initial input or due to tenant state record times
-        if expiresat <= datetime.UTC:now() then 
-            -- Already expired, add with a random delay of 1-6s instead
-            expiresat = datetime.UTC:now() + datetime.timedelta_seconds((math.random() * 5) + 1)
-        end
-
-        handles[key] = delayqueue:addwithhandle(key, expiresat:duration_since(datetime.UTC:now()))
-        _ensureLoopRunning()
-    end
-
     local function remove(id: string) 
         local handle = handles[id]
         if handle then 
@@ -131,7 +107,46 @@ local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templ
     end
 
     local function exists(id: string): boolean 
-        return kexs[id] ~= nil
+        return kexs[id] ~= nil and handles[id] ~= nil
+    end
+
+    local function _createkey(): string 
+        local key = typesext.randstring(KEYEXPIRY_RANDSTRING_LENGTH)
+        while true do 
+            if exists(key) then
+                key = typesext.randstring(KEYEXPIRY_RANDSTRING_LENGTH)
+            else
+                break
+            end
+        end
+        return key
+    end
+
+    local function add(expiresin: datetime.TimeDelta)
+        local key = _createkey()
+        assert(#key <= MAX_KEYEXPIRY_KEY_LENGTH, "Generated key exceeds maximum key length")
+        assert(not exists(key), `Generated KeyExpiry key \`{key}\` already exists, this should be impossible`)
+
+        -- Record in tenant state
+        local expiresat = (datetime.UTC:now() + expiresin)
+        kexs[key] = expiresat.timestamp_seconds
+        _setTenantStateProp(tenantState, "builtins_kex", kexs)
+        loop.subscribeEvent("OnStartup", "__kex", true) -- We want nosave here as we have a settenantstate later
+        baseCtx.Runtime:settenantstate(tenantState)
+
+        -- Check if we've already expired either due to initial input or due to tenant state record times
+        if expiresat <= datetime.UTC:now() then 
+            -- Already expired, add with a random delay of 1-6s instead
+            expiresat = datetime.UTC:now() + datetime.timedelta_seconds((math.random() * 5) + 1)
+        end
+
+        handles[key] = delayqueue:addwithhandle(key, expiresat:duration_since(datetime.UTC:now()))
+        _ensureLoopRunning()
+        return key
+    end
+
+    local function addwithsecs(expiresin: number)
+        return add(datetime.timedelta_seconds(expiresin))
     end
 
     -- Sync if needed
@@ -152,8 +167,9 @@ local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templ
 
     return table.freeze{
         add = add,
+        addwithsecs = addwithsecs,
         remove = remove,
-        exists = exists
+        exists = exists,
     }
 end
 

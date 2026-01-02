@@ -4,7 +4,6 @@ local interactionutils = require "@antiraid-ext/utils/interaction"
 local datetime = require "@antiraid/datetime"
 local parseunit = require "@antiraid-ext/unit"
 local AFKManager = require "../../auxutils/afkmanager"
-local registerEvent = require "@antiraid-ext/utils/eventmgmt".registerEvent
 
 local function register() 
     return commandBuilder.new({
@@ -116,7 +115,7 @@ local function run(data: data.RunData): nil
             duration = datetime.timedelta_seconds(stime or 1),
         })
 
-        registerEvent(data.ctx, "MESSAGE")
+        data.loop.subscribeEvent("MESSAGE", "afk")
 
         return interactionutils.replySimple(
             data.ctx,
@@ -168,7 +167,7 @@ local function run(data: data.RunData): nil
 
         AFKManager(data.ctx).delete(user.id)
         
-        return interactionutils.replySimple(
+        interactionutils.replySimple(
             data.ctx,
             data.interaction,
             nil,
@@ -181,6 +180,14 @@ local function run(data: data.RunData): nil
             },
             true
         )
+
+        -- Unsubscribe if no more afks
+        local afks = AFKManager(data.ctx).list()
+        if #afks == 0 then
+            data.loop.unsubscribeEvent("MESSAGE", "afk")
+        end
+
+        return nil
     else 
         error("Unknown subcommand: " .. tostring(cmdname))
     end
