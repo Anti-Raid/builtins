@@ -106,8 +106,7 @@ local function TemplateManager(ctx: Primitives.TemplateContext): templatemanager
             language = data.language,
         }
         local tkey = if key then key else typesext.randstring(16)
-        local rec = ctx.KV:set(tkey, storeData, {"templates"})
-        if key and not rec.exists then error("Template with ID "..tkey.." did not exist for update") end
+        ctx.KV:set(tkey, storeData, {"templates"})
         return tkey
     end
 

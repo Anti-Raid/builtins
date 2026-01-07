@@ -99,7 +99,7 @@ local function unban(data: data.RunData): nil
                     continue
                 end
                 data.loop.keyExpiryManager.remove(record.key)
-                data.ctx.KV:deletebyid(record.id) 
+                data.ctx.KV:delete(record.key, {"kex", userid}) 
                 table.insert(tempdatas, record)
             end
         end
