@@ -8,6 +8,8 @@ type Rate = {
     Time: number,
     --- Which limiterId to use
     LimiterId: string,
+    --- The key to use for limiting
+    LimiterKey: string
 }
 
 --- Parses a Rate mode
@@ -17,6 +19,7 @@ local function parseRateMode(mode: types.RateMode): Rate?
             Count = mode.count,
             Time = mode.time,
             LimiterId = mode.limiterId,
+            LimiterKey = mode.limiterKey or mode.limiterId
         }
     else
         return nil
@@ -38,7 +41,7 @@ local function Strategy(mode: types.RateMode): boolean
     end
     -- Returns true if action is allowed else false, so we need the inverse here
     -- (true = limited so action not allowed -> false from attemptAction)
-    return not ratelimiter.attemptAction(rate.LimiterId)
+    return not ratelimiter.attemptAction(rate.LimiterKey)
 end    
 
 return Strategy

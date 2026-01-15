@@ -29,6 +29,8 @@ export type RateMode = {
     --- and the first object which creates the limiter will set the rate limit parameters for all
     --- other objects using the same limiterId.
     limiterId: string,
+    --- The key to use for limiting. Defaults to limiterId if not specified.
+    limiterKey: string?,
     --- At what minimum count should the rate limit be applied. May be ignored if the limiterId is 
     --- already created.
     count: number,
