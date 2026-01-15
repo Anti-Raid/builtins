@@ -8,37 +8,31 @@ type Interval = {
     Stop: number,
 }
 
---- Parses a Interval
+--- Given a a interval mode, returns either true or false if the id is limited based on this
+--- specific interval mode (true = limited, false = not limited)
 ---
 --- Modes: Absolute: Absolute limiting from {StartUnixTime} to {StopUnixTime}
---- TimePerDay: Limit every day between Start and Stop times in a given Timezone
-local function parseIntervalMode(mode: types.IntervalMode): Interval?
+--- TimePerDay: Limit every day between Start and Stop times in a given Timezone (if start > stop, it is implied
+--- the interval wraps over midnight e.g., 10 PM to 2 AM)
+local function Strategy(mode: types.IntervalMode): boolean
     if mode.type == "Absolute" then
-        return {
-            Start = mode.start,
-            Stop = mode.stop,
-        }
+        return os.time() >= mode.start and os.time() <= mode.stop 
     elseif mode.type == "TimePerDay" then
         local tz = datetime.new(mode.timezone)
         local utcStartTime = tz:timeTzToUtc(mode.start.hours, mode.start.minutes, mode.start.seconds)
         local utcStopTime = tz:timeTzToUtc(mode.stop.hours, mode.stop.minutes, mode.stop.seconds)
-        return {
-            Start = utcStartTime.timestamp_seconds,
-            Stop = utcStopTime.timestamp_seconds,
-        }
-    else
-        return nil
-    end
-end
+        local now = os.time()
 
---- Given a a interval mode, returns either true or false if the id is limited based on this
---- specific interval mode (true = limited, false = not limited)
-local function Strategy(mode: types.IntervalMode): boolean
-    local interval = parseIntervalMode(mode)
-    if not interval then return false end
-    -- Check if we are in the interval
-    local now = os.time()
-    return now >= interval.Start and now <= interval.Stop 
+        -- If start <= stop, the interval is within a single day (e.g., 9 AM to 5 PM).
+		-- If start > stop, the interval wraps over midnight (e.g., 10 PM to 2 AM).
+		if utcStartTime <= utcStopTime then 
+            return now >= utcStartTime.timestamp_seconds and now <= utcStopTime.timestamp_seconds
+        else
+            return now >= utcStartTime.timestamp_seconds or now <= utcStopTime.timestamp_seconds
+        end
+    else
+        return false
+    end
 end    
    
 return Strategy
