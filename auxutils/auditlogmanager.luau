@@ -1,3 +1,5 @@
+--!strict
+
 local Primitives = require "@antiraid-core/primitives"
 local assertString = require "@antiraid-ext/settings".assertString
 local kv = require "@antiraid-core/plugins/kv"
@@ -23,11 +25,11 @@ export type AuditLogManager = {
     --- Returns a list of all audit logs
     list: () -> {Log},
     --- Returns a string list of all blocked channels (cached)
-    list_cached: () -> set.Set<string>,
+    listcached: () -> {Log},
     --- Returns a channel's log if they have one
-    get: (channel_id: string) -> Log | nil,
+    get: (channel_id: string) -> Log?,
     --- Returns a channel's log if they have one (cached)
-    get_cached: (channel_id: string) -> Log | nil,
+    getcached: (channel_id: string) -> Log?,
     --- Sets an audit log for a channel
     set: (data: CreateLog) -> (),
     --- Deletes an audit log
@@ -74,7 +76,7 @@ local function AuditLogManager(ctx: Primitives.TemplateContext): AuditLogManager
         return logs
     end
 
-    local function get(channel_id: string): Log | nil
+    local function get(channel_id: string): Log?
         local item = ctx.KV:getrecord(channel_id, {scopePrefix .. ".auditlogs"})
         if not item or not item.exists then
             return nil
@@ -110,7 +112,7 @@ local function AuditLogManager(ctx: Primitives.TemplateContext): AuditLogManager
         logCache[channel_id] = nil -- Remove from cache
     end
 
-    local function get_cached(channelid: string): Log | nil
+    local function getcached(channelid: string): Log?
         if logCache[channelid] and os.clock() - logCache[channelid].made < cacheExpiryTime then
             return logCache[channelid].log
         end
@@ -118,7 +120,7 @@ local function AuditLogManager(ctx: Primitives.TemplateContext): AuditLogManager
         return get(channelid)
     end
 
-    local function list_cached(): {Log}
+    local function listcached(): {Log}
         if logCache and os.clock() - logCache.made > cacheExpiryTime then
             return logCache.log
         end
@@ -127,9 +129,9 @@ local function AuditLogManager(ctx: Primitives.TemplateContext): AuditLogManager
     end
 
     self.list = list
-    self.list_cached = list_cached
+    self.listcached = listcached
     self.get = get
-    self.getcached = get_cached
+    self.getcached = getcached
     self.set = set
     self.delete = delete
 
