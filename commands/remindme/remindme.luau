@@ -1,10 +1,9 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local apitypes = require "@discord-types/apiTypes"
+local datetime = require "@antiraid/datetime"
 local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
-local datetime = require "@antiraid/datetime"
 local parseunit = require "@antiraid-ext/unit"
-local randstring = require"@antiraid/typesext".randstring
 local isDevMode = require"../../devs".isInDevMode
 
 local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
@@ -91,14 +90,15 @@ local function run(data: data.RunData): nil
         )
     end
 
+    
+    local key = data.loop.keyExpiryManager.addwithsecs(stime or 1)
     local dt = datetime.UTC:now() + datetime.timedelta_seconds(stime or 1)
-
-    data.ctx.KV:set(randstring(16), {
+    data.ctx.KV:set(key, {
         user_id = user.id,
         channel_id = data.interaction.channel_id or error("Channel ID is nil"),
         message = message,
         ephemeral = isResponseEphemeral,
-    }, {scopePrefix .. ".remindme"}, dt)
+    }, {scopePrefix .. ".remindme"})
 
     return interactionutils.replySimple(
         data.ctx,

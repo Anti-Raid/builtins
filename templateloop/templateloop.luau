@@ -27,6 +27,7 @@ local TemplateManager = require"./templatemanager"
 local TEMPLATE_DISPATCH_TIMEOUT = datetime.timedelta_seconds(5) -- 5 seconds
 local MAX_KEYEXPIRY_KEY_LENGTH = 8 -- This sounds *small* but we have a-z, A-Z and 0-9 making for 62^8 combinations which is plenty
 local KEYEXPIRY_RANDSTRING_LENGTH = 8
+local MAX_STDOUT_SIZE = 1024 * 10 -- 10 KB
 
 type Prop = "builtins_havetemplates" | "builtins_eventrefs" | "builtins_kex"
 local function _getTenantStateProp(tenantState: runtime.TenantState, prop: Prop): any
@@ -50,17 +51,20 @@ end
 --- A key expiry manager. This is internal to templateloop
 local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templateloopImpl.WipTemplateLoopManager, tenantState: runtime.TenantState)
     assert(loop.__wip, "Passing `self` directly to KeyExpiryManager and not a custom table type while in the process of construction")
-    
+    loop.debugmanager.print("[KeyExpiryManager] Initializing KeyExpiryManager")
+
     local kexs = _getTenantStateProp(tenantState, "builtins_kex") or {} :: {[string]: number}
     local handles: {[string]: channel.KeyHandle<string>} = {}
     local delayqueue = channel.DelayChannel() :: channel.DelayChannel<string> -- Delayqueue stores a queue of all the kvs we need to dispatch
     local th: thread? = nil
 
     local function _loop() 
+        loop.debugmanager.print("[KeyExpiryManager] Key expiry loop started")
         while true do 
             local item = delayqueue:next()
 
             -- Dispatch event to templates
+            loop.debugmanager.print("[KeyExpiryManager] Key expired: "..item)
             local ok, res = xpcall(loop.dispatchEvent, debug.traceback :: any, baseCtx, {name = "KeyExpiry", data = { key = item }, author = nil}, nil)
 
             if not ok then 
@@ -75,6 +79,7 @@ local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templ
             kexs[item] = nil
             _setTenantStateProp(tenantState, "builtins_kex", kexs)
             if next(kexs) == nil and #delayqueue then 
+                loop.debugmanager.print("[KeyExpiryManager] No more key expiries, unsubscribing from OnStartup")
                 loop.unsubscribeEvent("OnStartup", "__kex", true) -- No more key expiries, unsubscribe but dont save yet
             end
             baseCtx.Runtime:settenantstate(tenantState)
@@ -87,6 +92,7 @@ local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templ
 
     --- Helper method to ensure the loop is running
     local function _ensureLoopRunning()
+        loop.debugmanager.print("[KeyExpiryManager] Ensuring key expiry loop is running")
         if not th or coroutine.status(th) == "dead" then th = task.spawn(_loopwhile) end
     end
 
@@ -173,9 +179,47 @@ local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templ
     }
 end
 
+-- stdout logging for debugging
+local function DebugManager() 
+    local _stdout: {{
+        now: datetime.DateTime,
+        msg: any,
+    }} = {}
+    local size = 0
+    local function print(msg: any)
+        -- If a global debug function exists, use that instead
+        if _G._debug then 
+            (_G._debug :: any)(msg) 
+            return 
+        end 
+        table.insert(_stdout, { now = datetime.UTC:now(), msg = msg })
+        size += #msg
+        -- Trim if needed
+        while size > MAX_STDOUT_SIZE do
+            local removed = table.remove(_stdout, 1)
+            if not removed then break end
+            size -= #removed.msg
+        end
+    end
+
+    local function stdout(): {string} 
+        local out: {string} = {}
+        for _, entry in _stdout do 
+            table.insert(out, `[{entry.now:format("%Y-%m-%d %H:%M:%S")}] {entry.msg}`)
+        end
+        return out
+    end
+
+    local self = {}
+    self.print = print
+    self.stdout = stdout
+    return self
+end
+
 local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
     local self = {}
 
+    local debugmanager = DebugManager()
     local templatemanager = TemplateManager(baseCtx)
     local tenantState: runtime.TenantState = baseCtx.Runtime:gettenantstate()
 
@@ -298,10 +342,12 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
 
     self.keyExpiryManager = KeyExpiryManager(baseCtx, {
         __wip = true,
+        debugmanager = debugmanager,
         dispatchEvent = dispatchEvent,
         subscribeEvent = subscribeEvent,
         unsubscribeEvent = unsubscribeEvent,
     }, tenantState)
+    self.debugmanager = debugmanager
 
     return self
 end
