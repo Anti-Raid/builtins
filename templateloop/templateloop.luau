@@ -18,15 +18,12 @@ local Primitives = require"@antiraid-core/primitives"
 local runtime = require"@antiraid-core/plugins/runtime"
 local isolate = require"./isolate"
 local channel = require"@antiraid/channel"
-local typesext = require"@antiraid/typesext"
 local datetime = require"@antiraid/datetime"
 local templateloopImpl = require"@antiraid-core/templateloop"
 local templatemanagerImpl = require"@antiraid-core/templatemanager"
 local TemplateManager = require"./templatemanager"
 
 local TEMPLATE_DISPATCH_TIMEOUT = datetime.timedelta_seconds(5) -- 5 seconds
-local MAX_KEYEXPIRY_KEY_LENGTH = 8 -- This sounds *small* but we have a-z, A-Z and 0-9 making for 62^8 combinations which is plenty
-local KEYEXPIRY_RANDSTRING_LENGTH = 8
 local MAX_STDOUT_SIZE = 1024 * 10 -- 10 KB
 
 type Prop = "builtins_havetemplates" | "builtins_eventrefs" | "builtins_kex"
@@ -46,137 +43,6 @@ local function _setTenantStateProp(tenantState: runtime.TenantState, prop: Prop,
     else
         tenantState.data[prop] = value
     end
-end
-
---- A key expiry manager. This is internal to templateloop
-local function KeyExpiryManager(baseCtx: Primitives.TemplateContext, loop: templateloopImpl.WipTemplateLoopManager, tenantState: runtime.TenantState)
-    assert(loop.__wip, "Passing `self` directly to KeyExpiryManager and not a custom table type while in the process of construction")
-    loop.debugmanager.print("[KeyExpiryManager] Initializing KeyExpiryManager")
-
-    local kexs = _getTenantStateProp(tenantState, "builtins_kex") or {} :: {[string]: number}
-    local handles: {[string]: channel.KeyHandle<string>} = {}
-    local delayqueue = channel.DelayChannel() :: channel.DelayChannel<string> -- Delayqueue stores a queue of all the kvs we need to dispatch
-    local th: thread? = nil
-
-    local function _loop() 
-        loop.debugmanager.print("[KeyExpiryManager] Key expiry loop started")
-        while true do 
-            local item = delayqueue:next()
-
-            -- Dispatch event to templates
-            loop.debugmanager.print("[KeyExpiryManager] Key expired: "..item)
-            local ok, res = xpcall(loop.dispatchEvent, debug.traceback :: any, baseCtx, {name = "KeyExpiry", data = { key = item }, author = nil}, nil)
-
-            if not ok then 
-                -- Dispatch a error event
-                task.spawn(function() 
-                    pcall(loop.dispatchEvent, baseCtx, {name = "Error", data = { ctx = "keyexpiry", key = item, error = res }, author = nil}, nil)
-                end)
-            end
-
-            -- Remove the event
-            handles[item] = nil
-            kexs[item] = nil
-            _setTenantStateProp(tenantState, "builtins_kex", kexs)
-            if next(kexs) == nil and #delayqueue then 
-                loop.debugmanager.print("[KeyExpiryManager] No more key expiries, unsubscribing from OnStartup")
-                loop.unsubscribeEvent("OnStartup", "__kex", true) -- No more key expiries, unsubscribe but dont save yet
-            end
-            baseCtx.Runtime:settenantstate(tenantState)
-        end
-    end
-
-    local function _loopwhile() 
-        while true do pcall(_loop) end -- TODO: Support error reporting, somehow
-    end
-
-    --- Helper method to ensure the loop is running
-    local function _ensureLoopRunning()
-        loop.debugmanager.print("[KeyExpiryManager] Ensuring key expiry loop is running")
-        if not th or coroutine.status(th) == "dead" then th = task.spawn(_loopwhile) end
-    end
-
-    local function remove(id: string) 
-        local handle = handles[id]
-        if handle then 
-            handle:cancel() -- Cancel the handle
-            handles[id] = nil
-        end
-        if kexs[id] then -- Remove from tenant state
-            kexs[id] = nil
-            _setTenantStateProp(tenantState, "builtins_kex", kexs)
-            if next(kexs) == nil and #delayqueue then 
-                loop.unsubscribeEvent("OnStartup", "__kex", true) -- No more key expiries, unsubscribe but dont save yet
-            end
-            baseCtx.Runtime:settenantstate(tenantState)
-        end
-    end
-
-    local function exists(id: string): boolean 
-        return kexs[id] ~= nil and handles[id] ~= nil
-    end
-
-    local function _createkey(): string 
-        local key = typesext.randstring(KEYEXPIRY_RANDSTRING_LENGTH)
-        while true do 
-            if exists(key) then
-                key = typesext.randstring(KEYEXPIRY_RANDSTRING_LENGTH)
-            else
-                break
-            end
-        end
-        return key
-    end
-
-    local function add(expiresin: datetime.TimeDelta)
-        local key = _createkey()
-        assert(#key <= MAX_KEYEXPIRY_KEY_LENGTH, "Generated key exceeds maximum key length")
-        assert(not exists(key), `Generated KeyExpiry key \`{key}\` already exists, this should be impossible`)
-
-        -- Record in tenant state
-        local expiresat = (datetime.UTC:now() + expiresin)
-        kexs[key] = expiresat.timestamp_seconds
-        _setTenantStateProp(tenantState, "builtins_kex", kexs)
-        loop.subscribeEvent("OnStartup", "__kex", true) -- We want nosave here as we have a settenantstate later
-        baseCtx.Runtime:settenantstate(tenantState)
-
-        -- Check if we've already expired either due to initial input or due to tenant state record times
-        if expiresat <= datetime.UTC:now() then 
-            -- Already expired, add with a random delay of 1-6s instead
-            expiresat = datetime.UTC:now() + datetime.timedelta_seconds((math.random() * 5) + 1)
-        end
-
-        handles[key] = delayqueue:addwithhandle(key, expiresat:duration_since(datetime.UTC:now()))
-        _ensureLoopRunning()
-        return key
-    end
-
-    local function addwithsecs(expiresin: number)
-        return add(datetime.timedelta_seconds(expiresin))
-    end
-
-    -- Sync if needed
-    if next(kexs) then
-        task.spawn(function() 
-            -- Setup delayqueue
-            _ensureLoopRunning()
-            for key, expiryepoch in kexs do
-                local expiry = datetime.UTC:fromTime(expiryepoch)
-                if expiry <= datetime.UTC:now() then 
-                    -- Already expired, add with a random delay > 20 seconds to avoid thundering herd
-                    expiry = datetime.UTC:now() + datetime.timedelta_seconds(20 + math.random(5, 120))
-                end
-                handles[key] = delayqueue:addwithhandle(key, expiry:duration_since(datetime.UTC:now()))
-            end
-        end)
-    end
-
-    return table.freeze{
-        add = add,
-        addwithsecs = addwithsecs,
-        remove = remove,
-        exists = exists,
-    }
 end
 
 -- stdout logging for debugging
@@ -300,22 +166,29 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
         return results
     end
 
-    local function subscribeEvent(event: string, system: string, nosave: boolean?) 
+    local function subscribeEvent(event: string, system: string) 
         -- Ensure event is in tenant state events
+        local subNeeded = false
         if not table.find(tenantState.events, event) then 
             table.insert(tenantState.events, event)
+            subNeeded = true
         end
 
         -- Update refcount
-        if eventRefs[event] then eventRefs[event][system] = true
+        if eventRefs[event] then 
+            if eventRefs[event][system] and subNeeded then 
+                return -- Already subscribed, nothing to do
+            end
+
+            eventRefs[event][system] = true
         else 
             eventRefs[event] = { [system] = true }
         end
         _setTenantStateProp(tenantState, "builtins_eventrefs", eventRefs)
-        if not nosave then baseCtx.Runtime:settenantstate(tenantState) end
+        baseCtx.Runtime:settenantstate(tenantState)
     end
 
-    local function unsubscribeEvent(event: string, system: string, nosave: boolean?) 
+    local function unsubscribeEvent(event: string, system: string) 
         if eventRefs[event] and eventRefs[event][system] then 
             eventRefs[event][system] = nil
             -- Check if we have any more refs for this event
@@ -328,8 +201,12 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
                 end
             end
             _setTenantStateProp(tenantState, "builtins_eventrefs", eventRefs)
-            if not nosave then baseCtx.Runtime:settenantstate(tenantState) end
+            baseCtx.Runtime:settenantstate(tenantState)
         end
+    end
+
+    local function isSubscribed(event: string, system: string): boolean 
+        return eventRefs[event] ~= nil and eventRefs[event][system] ~= nil
     end
 
     -- Dispatch startup events to all templates initially
@@ -339,14 +216,7 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
     self.dispatchEvent = dispatchEvent
     self.subscribeEvent = subscribeEvent
     self.unsubscribeEvent = unsubscribeEvent
-
-    self.keyExpiryManager = KeyExpiryManager(baseCtx, {
-        __wip = true,
-        debugmanager = debugmanager,
-        dispatchEvent = dispatchEvent,
-        subscribeEvent = subscribeEvent,
-        unsubscribeEvent = unsubscribeEvent,
-    }, tenantState)
+    self.isSubscribed = isSubscribed
     self.debugmanager = debugmanager
 
     return self

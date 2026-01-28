@@ -1,4 +1,5 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
+local kexs = require"../../auxutils/kexs"
 local apitypes = require "@discord-types/apiTypes"
 local datetime = require "@antiraid/datetime"
 local data = require"@antiraid-ext/framework/coretypes"
@@ -90,9 +91,17 @@ local function run(data: data.RunData): nil
         )
     end
 
-    
-    local key = data.loop.keyExpiryManager.addwithsecs(stime or 1)
     local dt = datetime.UTC:now() + datetime.timedelta_seconds(stime or 1)
+    local key = kexs.getmanagers(data.ctx).remindmeexpiry.addat(dt, {
+        userid = user.id,
+        eventname = "BuiltinsReminder",
+        data = {
+            user_id = user.id,
+            channel_id = data.interaction.channel_id or error("Channel ID is nil"),
+            message = message,
+            ephemeral = isResponseEphemeral,
+        }
+    })
     data.ctx.KV:set(key, {
         user_id = user.id,
         channel_id = data.interaction.channel_id or error("Channel ID is nil"),

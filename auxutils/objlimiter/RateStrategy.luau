@@ -14,21 +14,17 @@ type Rate = {
 
 --- Parses a Rate mode
 local function parseRateMode(mode: types.RateMode): Rate?
-    if mode.type == "Rate" then
-        return {
-            Count = mode.count,
-            Time = mode.time,
-            LimiterId = mode.limiterId,
-            LimiterKey = mode.limiterKey or mode.limiterId
-        }
-    else
-        return nil
-    end
+    return {
+        Count = mode.count,
+        Time = mode.time,
+        LimiterId = mode.limiterId,
+        LimiterKey = mode.limiterKey or mode.limiterId
+    }
 end
 
 local gcraLimiters: {[string]: gcra.RateLimiter<string>} = {}
 
---- Given a a rate mode and a object id, returns either true or false if the id is limited based on this
+--- Given a rate mode and a object id, returns either true or false if the id is limited based on this
 --- specific rate mode (true = limited, false = not limited)
 local function Strategy(mode: types.RateMode): boolean
     local rate = parseRateMode(mode)

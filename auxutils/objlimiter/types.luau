@@ -1,4 +1,4 @@
----!strict
+--!strict
 export type Hms = {
     hours: number,
     minutes: number,
@@ -22,7 +22,6 @@ export type IntervalMode = {
 }
 
 export type RateMode = {
-    type: "Rate",
     --- What gcra limiterId to use for rate limiting
     ---
     --- If multiple objects share the same limiterId, they will share the same rate limit

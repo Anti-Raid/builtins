@@ -121,11 +121,20 @@ local function AuditLogManager(ctx: Primitives.TemplateContext): AuditLogManager
     end
 
     local function listcached(): {Log}
-        if logCache and os.clock() - logCache.made > cacheExpiryTime then
-            return logCache.log
+        local logs = {}
+        local needToFetch = false
+        for _, logCache in logCache do
+            if os.clock() - logCache.made >= cacheExpiryTime then
+                needToFetch = true
+                break
+            end
+            table.insert(logs, logCache.log)
         end
 
-        return list()
+        if not needToFetch then
+            return logs
+        end
+        return list() -- Refresh cache by listing all logs
     end
 
     self.list = list

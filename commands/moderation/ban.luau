@@ -1,4 +1,5 @@
 local data = require"@antiraid-ext/framework/coretypes"
+local kexs = require"../../auxutils/kexs"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
@@ -95,14 +96,12 @@ local function ban(data: data.RunData): nil
     -- If we need this to be temporary, schedule an unban linked to a key expiry
     local tempdata = nil
     if duration and duration > 0 then
-        local key = data.loop.keyExpiryManager.addwithsecs(duration)
-        data.ctx.KV:set(key, {
-            ctx = "mod",
-            action = "unban",
-            user_id = userid,
+        local key = kexs.getmanagers(data.ctx).tempbankex.addwithsecs(duration, {
+            userid = userid,
             modid = modid,
             reason = reason
-        }, {"kex", userid})
+
+        })
         tempdata = {
             key = key,
             duration = duration
