@@ -20,7 +20,7 @@ export type CreateHoneypot = {
 export type Honeypot = {
     channelid: string, -- ID of the honeypot channel
     botallowed: boolean, -- Whether bots are allowed to message in the honeypot
-    punishment: string, -- Punishment to apply
+    punishment: "ban" | "kick", -- Punishment to apply
     created_at: datetime.DateTime, -- When the AFK was set
 }
 
@@ -51,7 +51,7 @@ local function HoneypotManager(ctx: Primitives.TemplateContext): HoneypotManager
         local channelid = item.key
         local createdAt = item.created_at
         local botallowed = assertBoolean("botallowed", item.value.botallowed or false)
-        local punishment = assertStringChoices("punishment", item.value.punishment, punishmentChoices)
+        local punishment = assertStringChoices("punishment", item.value.punishment, punishmentChoices) :: "ban" | "kick"
 
         return {
             channelid = channelid,

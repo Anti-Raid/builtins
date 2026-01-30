@@ -23,13 +23,13 @@ export type Isolate = {
 
     --- Spawns a task to dispatch an event to this isolate. If `event` is passed, the sub-context
     --- created for the template will have the event set to it.
-    read dispatchEvent: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> channel.OneshotChannel<templateloopImpl.DispatchResult>,
+    read dispatchEvent: (rootctx: Primitives.TemplateContext, event: Primitives.Event) -> channel.OneshotChannel<templateloopImpl.DispatchResult>,
 
     --- Fires an event 'in-thread' and returns the result directly.
-    read runEvent: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> any,
+    read runEvent: (rootctx: Primitives.TemplateContext, event: Primitives.Event) -> any,
 
     --- Same as runEvent, but returns a IsolateResult
-    read runEventResult: (rootctx: Primitives.TemplateContext, event: Primitives.Event?) -> templateloopImpl.DispatchResult,
+    read runEventResult: (rootctx: Primitives.TemplateContext, event: Primitives.Event) -> templateloopImpl.DispatchResult,
 }
 
 --- Creates a new isolate with its own global table and require function
@@ -67,7 +67,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
     isolate.entrypoint = function() 
         return entrypoint
     end
-    isolate.dispatchEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): channel.OneshotChannel<templateloopImpl.DispatchResult>
+    isolate.dispatchEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event): channel.OneshotChannel<templateloopImpl.DispatchResult>
         local chan = channel.OneshotChannel() :: channel.OneshotChannel<templateloopImpl.DispatchResult>
 
         task.spawn(function() 
@@ -82,13 +82,12 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
 
         return chan
     end
-    isolate.runEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): any 
+    isolate.runEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event): any 
         --- Create sub-context for template
         local subctx = rootctx:with({
             event = event,
             capabilities = caps,
         })
-        local useEvent = if event then event else rootctx:event()
 
         if not entrypoint then
             entrypoint = proxyrequirefunc("./init")
@@ -97,7 +96,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         if type(entrypoint) ~= "table" then
             error(`entrypoint.luau for template \`{id}\` did not return a table, got \`{type(entrypoint)}\``)
         end
-        local func: unknown = entrypoint[useEvent.name]
+        local func: unknown = entrypoint[event.name]
         if func and type(func) == "function" then 
             return (func :: (Primitives.TemplateContext) -> any)(subctx)
         else 
@@ -105,7 +104,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         end
     end
 
-    isolate.runEventResult = function(rootctx: Primitives.TemplateContext, event: Primitives.Event?): templateloopImpl.DispatchResult
+    isolate.runEventResult = function(rootctx: Primitives.TemplateContext, event: Primitives.Event): templateloopImpl.DispatchResult
         local ok, res = xpcall(isolate.runEvent, debug.traceback :: any, rootctx, event)
 
         if ok then

@@ -1,3 +1,5 @@
+--!strict
+
 --- Builtins internal template dispatch code for AntiRaid (heavy work in progress)
 ---
 --- Note that this is INTERNAL and specific to how AntiRaid dispatches out to templates
@@ -8,7 +10,7 @@ local templateloop = require "./templateloop/templateloop"
 
 local function main(ctx) 
     local tlm = templateloop.getOrInit(ctx) -- Get or create the TemplateLoopManager instance 
-    return tlm.dispatchEvent(ctx)
+    return tlm.dispatchEvent(ctx:event())
 end
 
 return main

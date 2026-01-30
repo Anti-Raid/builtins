@@ -1,10 +1,12 @@
 local apitypes = require "@discord-types/apiTypes"
 local Primitives = require "@antiraid-core/primitives"
 local HoneypotManager = require "./honeypotmanager"
-local Framework = require"@antiraid-ext/framework/dispatch"
+local tloop = require "@antiraid-core/templateloop"
 
 local honeypotManager: HoneypotManager.HoneypotManager? = nil
 local function honeypotHandler(msg: apitypes.MessageObject, ctx: Primitives.TemplateContext): ()
+    local loop = tloop.getRunningLoop(ctx)
+
     -- Honeypots
     if not msg.author then return end
     if not msg.content then return end
@@ -24,13 +26,35 @@ local function honeypotHandler(msg: apitypes.MessageObject, ctx: Primitives.Temp
     for _, honeypot in honeypots do
         if msg.channel_id == honeypot.channelid then
             if msg.author.bot and honeypot.botallowed then break end -- Ignore clearly bot messages if bots are allowed in the honeypot
-            local fw = Framework.getFrameworkBaseData(ctx)
-            fw.punishmentmanager.createUserPunishment({
-                userId = msg.author.id,
-                punishment = honeypot.punishment,
-                modId = nil, -- System
-                reason = "Attempt to message in honeypot channel",
-            })
+            if honeypot.punishment == "ban" then 
+                -- First ban them
+                ctx.Discord:create_guild_ban({
+                    reason = "Attempt to message in honeypot channel",
+                    user_id = msg.author.id,
+                })
+                loop.dispatchEvent({
+                    name = "HoneypotBan",
+                    data = {
+                        userid = msg.author.id,
+                        channelid = honeypot.channelid,
+                        msgid = msg.id,
+                    }
+                })
+            elseif honeypot.punishment == "kick" then
+                -- First kick them
+                ctx.Discord:remove_guild_member({
+                    reason = "Attempt to message in honeypot channel",
+                    user_id = msg.author.id,
+                })
+                loop.dispatchEvent({
+                    name = "HoneypotKick",
+                    data = {
+                        userid = msg.author.id,
+                        channelid = honeypot.channelid,
+                        msgid = msg.id,
+                    }
+                })
+            end
             break -- No need to check further honeypots
         end
     end

@@ -109,7 +109,7 @@ local function ban(data: data.RunData): nil
     end
 
     -- Then, dispatch a AntiraidBan event
-    data.loop.dispatchEvent(data.ctx, {
+    data.loop.dispatchEvent({
         name = "AntiraidBan",
         author = modid,
         data = {

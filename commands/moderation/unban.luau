@@ -2,6 +2,7 @@ local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
+local kexs = require"../../auxutils/kexs"
 
 local function unban(data: data.RunData): nil
     local userid = nil
@@ -98,15 +99,14 @@ local function unban(data: data.RunData): nil
                 if record.value.ctx ~= "mod" then
                     continue
                 end
-                data.loop.keyExpiryManager.remove(record.key)
-                data.ctx.KV:delete(record.key, {"kex", userid}) 
+                kexs.getmanagers(data.ctx).tempbankex.remove(record.key)
                 table.insert(tempdatas, record)
             end
         end
     end
 
     -- Then, dispatch a AntiraidUnban event
-    data.loop.dispatchEvent(data.ctx, {
+    data.loop.dispatchEvent({
         name = "AntiraidUnban",
         author = modid,
         data = {

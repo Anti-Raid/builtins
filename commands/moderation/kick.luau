@@ -71,7 +71,7 @@ local function kick(data: data.RunData): nil
     })
 
     -- Then, dispatch a AntiraidKick event
-    data.loop.dispatchEvent(data.ctx, {
+    data.loop.dispatchEvent({
         name = "AntiraidKick",
         author = modid,
         data = {

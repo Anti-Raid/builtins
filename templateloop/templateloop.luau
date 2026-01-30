@@ -119,7 +119,7 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
         end
 
         -- Send a Startup event to the template to re-initialize it
-        return self.dispatchEvent(baseCtx, {name = "OnStartup", data = { reason = "updateTemplateCache" }}, id)
+        return self.dispatchEvent({name = "OnStartup", data = { reason = "updateTemplateCache" }}, id)
     end
 
     --- Internal helper to get or create an isolate for a template
@@ -134,12 +134,12 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
         return isol
     end
 
-    local function dispatchEvent(ctx: Primitives.TemplateContext, event: Primitives.Event?, targetId: string?): {templateloopImpl.DispatchResult}
+    local function dispatchEvent(event: Primitives.Event, targetId: string?): {templateloopImpl.DispatchResult}
         -- Fast path: if there are no templates besides builtins, we can avoid creating a new thread
         if #templateCache <= 1 and templateCache[1] and templateCache[1].source.type == "builtins" then
             -- Get or create isolate for template
             local isol = _getIsolateForTemplate(templateCache[1])
-            local ret = isol.runEventResult(ctx, event)
+            local ret = isol.runEventResult(baseCtx, event)
             if ret.type == "err" then error(ret.value) end
             return {ret}
         end
@@ -155,7 +155,7 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
             local isol = _getIsolateForTemplate(template)
 
             -- Dispatch event to isolate
-            local chan = isol.dispatchEvent(ctx, event)
+            local chan = isol.dispatchEvent(baseCtx, event)
             table.insert(chans, chan)
         end
 
