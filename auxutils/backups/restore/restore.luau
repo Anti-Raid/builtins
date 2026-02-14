@@ -240,9 +240,14 @@ local function restoreBackup(ctx: Primitives.TemplateContext, src: types.Restore
 
                 -- Note: verification_level and explicit_content_filter are not restored for now
                 -- and owner, region can't be restored
+                local desc = coreData.guild.description
+                if desc and #desc > 300 then
+                    desc = desc:sub(1, 300)
+                    updater.addStatus("Guild description is longer than 300 characters, truncating to 300 characters")
+                end
                 local updateData: resttypes.ModifyGuildRequest = {
                     name = coreData.guild.name,
-                    description = coreData.guild.description,
+                    description = desc,
                     default_message_notifications = coreData.guild.default_message_notifications,
                     system_channel_flags = coreData.guild.system_channel_flags,
                     afk_timeout = coreData.guild.afk_timeout,

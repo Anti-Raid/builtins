@@ -351,7 +351,7 @@ local function run(data: data.RunData): nil
                         )
                     end
                     source = {
-                        type = "attachment",
+                        type = "attachment" :: "attachment",
                         url = opt.value.attachment.url or error("No valid URL found for the backup file"),
                         filename = opt.value.attachment.filename or error("No valid filename found for the backup file"),
                     }
@@ -392,7 +392,7 @@ local function run(data: data.RunData): nil
                     assert(type(backupData.value.filename) == "string", "Backup data does not contain a filename")
 
                     source = {
-                        type = "objectstorage",
+                        type = "objectstorage" :: "objectstorage",
                         filepath = backupData.value.filename,
                     }
                 end

@@ -2,7 +2,6 @@ local Primitives = require"@antiraid-core/primitives"
 local types = require"../backups"
 local load = require"./load"
 local apitypes = require"@discord-types/apiTypes"
-local channel = require"@discord-types/channel"
 local resttypes = require"@discord-types/restTypes"
 local blob = require"@antiraid-core/blob"
 local restore = require"./restore"
@@ -141,7 +140,7 @@ local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types
         local createdChannel: apitypes.ChannelObject? = nil
         for _, c in coreData.channels do 
             if c.id ~= channelid then 
-                continue -- Skip non-category channels if we are restoring categories only
+                continue
             end
 
             local ud = createChannelDataForPartialChannelRestore(c, inCategory)

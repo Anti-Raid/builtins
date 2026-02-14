@@ -5,6 +5,7 @@ local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local EmojiBuilder = require"@discord-types/builders/emoji"
 local datetime = require"@antiraid/datetime"
 local types = require"./backups"
+local Ticker = require"@antiraid-ext/ticker"
 
 local map = {
     running = ":hourglass_flowing_sand:",
@@ -150,51 +151,45 @@ local function updateTillComplete(opts: EmbedUpdateOptions)
         numUpdates = 0,
     }
 
-    -- Code to trigger a opts.callback but only if `opts.interval` seconds have passed
-    local lastTriggered = os.clock()
-    local function _triggerCallback() 
-        local hasBeen = os.clock() - lastTriggered -- Figure out how long its been since we've last called callback
-        if hasBeen < opts.interval then -- If hasBeen is less than opts.interval, start a delayed task that sets triggered to false, updates last triggered and calls the callback
-            task.delay(opts.interval - hasBeen + 0.5, function() 
-                local hasBeen = os.clock() - lastTriggered -- Figure out how long its been since we've last called callback
-                if hasBeen < opts.interval then return end
-                lastTriggered = os.clock()
-                initialEmbedData.numUpdates += 1
-                opts.callback(initialEmbedData)
-            end)
-        else -- If hasBeen is less than opts.interval, start a immediate task that sets triggered to false, updates last triggered and calls the callback
-            task.spawn(function() 
-                local hasBeen = os.clock() - lastTriggered -- Figure out how long its been since we've last called callback
-                if hasBeen < opts.interval then return end
-                lastTriggered = os.clock()
-                initialEmbedData.numUpdates += 1
-                opts.callback(initialEmbedData)
-            end)
+    local changesMade = false
+    local ticker: Ticker.Ticker
+    ticker = Ticker(opts.interval, function() 
+        if not ticker then return end
+        if changesMade then 
+            changesMade = false 
+            local ok = pcall(opts.callback, initialEmbedData)
+            if not ok then initialEmbedData.state = "failed" end
         end
-    end
+
+        if initialEmbedData.state == "completed" or initialEmbedData.state == "failed" then 
+             ticker.cancel()
+        end
+    end)
 
     local updater = {}
     updater.addStatus = function(s: string) 
         table.insert(initialEmbedData.statuses, { message = s, ts = os.time() })
-        _triggerCallback()
+        changesMade = true
     end
     updater.setState = function(state: "running" | "completed" | "failed") 
         initialEmbedData.state = state
-        _triggerCallback()
+        changesMade = true
     end
     updater.setId = function(id: string) 
         initialEmbedData.id = id
-        _triggerCallback()
+        changesMade = true
     end
 
-    opts.spawner(updater, initialEmbedData)
-    local ok, res = xpcall(opts.callback, debug.traceback :: any, initialEmbedData)
+    local ok, res = pcall(opts.spawner, updater, initialEmbedData)
+    if ticker then ticker.cancel() end
     if not ok then 
-        updater.addStatus(tostring(res))
-        updater.setState("failed")
-    else 
-        updater.setState("completed")
+        initialEmbedData.state = "failed"
+        table.insert(initialEmbedData.statuses, { message = "Failed to start backup job: " .. tostring(res), ts = os.time() })
+    elseif initialEmbedData.state ~= "failed" then
+        initialEmbedData.state = "completed"
     end
+
+    pcall(opts.callback, initialEmbedData)
 end
 
 return {
