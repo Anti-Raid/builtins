@@ -8,6 +8,7 @@ export type Managers = {
     tempbankex: KeyExpiryManager.KeyExpiryManager,
     remindmeexpiry: KeyExpiryManager.KeyExpiryManager,
     afkexpiry: KeyExpiryManager.KeyExpiryManager,
+    stingexpiry: KeyExpiryManager.KeyExpiryManager,
 }
 
 local managers: Managers? = nil
@@ -19,11 +20,13 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
     local keyExpiryManager = KeyExpiryManager(ctx, scopePrefix..".tempbans", "BuiltinsTempBanExpiry")
     local remindmeExpiryManager = KeyExpiryManager(ctx, scopePrefix..".remindme", "BuiltinsRemindMeExpiry")
     local afkexpiryManager = KeyExpiryManager(ctx, scopePrefix..".afk", "BuiltinsAfkExpiry")
+    local stingExpiryManager = KeyExpiryManager(ctx, scopePrefix..".stings", "BuiltinsStingExpiry")
 
     managers = {
         tempbankex = keyExpiryManager,
         remindmeexpiry = remindmeExpiryManager,
-        afkexpiry = afkexpiryManager
+        afkexpiry = afkexpiryManager,
+        stingexpiry = stingExpiryManager,
     }
 
     return managers or error("Failed to initialize managers")

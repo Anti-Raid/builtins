@@ -3,7 +3,7 @@ local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local datetime = require "@antiraid/datetime"
 local parseunit = require "@antiraid-ext/unit"
-local AFKManager = require "../../auxutils/afkmanager"
+local managers = require "../../auxutils/managers"
 
 local function register() 
     return commandBuilder.new({
@@ -65,6 +65,7 @@ end
 
 local function run(data: data.RunData): nil
     local cmdname = data.command.nameList[2]
+    local afkmanager = managers.getmanagers(data.ctx).afkmanager
 
     if cmdname == "start" then
         local user = if data.interaction.member then data.interaction.member.user else data.interaction.user
@@ -109,7 +110,7 @@ local function run(data: data.RunData): nil
             )
         end
 
-        AFKManager(data.ctx).set({
+        afkmanager.set({
             user_id = user.id,
             reason = reason or "No reason provided",
             duration = datetime.timedelta_seconds(stime or 1),
@@ -148,7 +149,7 @@ local function run(data: data.RunData): nil
             )
         end
 
-        local afk = AFKManager(data.ctx).get(user.id)
+        local afk = afkmanager.get(user.id)
         if not afk then
             return interactionutils.replySimple(
                 data.ctx,
@@ -165,7 +166,7 @@ local function run(data: data.RunData): nil
             )
         end
 
-        AFKManager(data.ctx).delete(user.id)
+        afkmanager.delete(user.id)
         
         interactionutils.replySimple(
             data.ctx,
@@ -182,7 +183,9 @@ local function run(data: data.RunData): nil
         )
 
         -- Unsubscribe if no more afks
-        local afks = AFKManager(data.ctx).list()
+        --
+        -- TODO: Optimize this by adding a count() api to AntiRaid runtime that can be used here instead of fetching all afks and counting them
+        local afks = afkmanager.list()
         if #afks == 0 then
             data.loop.unsubscribeEvent("MESSAGE", "afk")
         end

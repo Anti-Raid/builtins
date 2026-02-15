@@ -40,7 +40,7 @@ export type ChannelAllocationMap = {
 -- Internal structure for channel allocations
 local function ChannelAllocationMap(cap: number): ChannelAllocationMap 
     local self = {}
-    self.allocations = {}
+    self.allocations = {} :: {[string]: number}
     self.totalCount = 0
 
     self.setAllocation = function(channelId: string, count: number)

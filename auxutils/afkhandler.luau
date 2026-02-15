@@ -22,7 +22,7 @@ local function afkHandler(msg: apitypes.MessageObject, ctx: Primitives.TemplateC
     end
     assert(afkManager, "Internal error: AFKManager is nil")
     for _, mention in mentions do 
-        local afk = afkManager.getcached(mention.id)
+        local afk = afkManager.get(mention.id)
         if not afk then continue end -- No AFK for this user
         ctx.Discord:create_message({
             channel_id = msg.channel_id or error("msg.channel_id is nil"),

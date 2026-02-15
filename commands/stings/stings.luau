@@ -6,6 +6,7 @@ local datetime = require "@antiraid/datetime"
 local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
 local parseunit = require "@antiraid-ext/unit"
 local apitypes = require "@discord-types/apiTypes"
+local managers = require "../../auxutils/managers"
 
 local function register() 
     return commandBuilder.new({
@@ -127,6 +128,7 @@ end
 
 local function run(data: data.RunData): nil
     local cmdname = data.command.nameList[2]
+    local stingmanager = managers.getmanagers(data.ctx).stingmanager
 
     if cmdname == "list" then 
         local userid = extractUserIdFromInteraction(data.interaction)
@@ -142,7 +144,7 @@ local function run(data: data.RunData): nil
             end
         end
         
-        local stings = data.stingManager.getStingsOnUser(userid)
+        local stings = stingmanager.getStingsOnUser(userid)
     
         local stingEmbeds = {}
         for _, sting in stings do
@@ -279,17 +281,15 @@ local function run(data: data.RunData): nil
             "moderation.sting"
         )
     
-        local createdSting = data.stingManager.createUserSting({
+        local expiresat = if stingTime then datetime.UTC:now() + datetime.timedelta_seconds(stingTime) else nil
+        local createdSting = stingmanager.createUserSting({
             userId = user.id,
             modId = modid,
             reason = reason,
             stings = numberOfStings,
+            expires_at = expiresat
         })
-    
-        if stingTime then 
-            data.stingManager.setStingExpiration(user.id, createdSting.stingId, reason, datetime.UTC:now() + datetime.timedelta_seconds(stingTime))
-        end
-    
+        
         return interactionutils.replySimple(
             data.ctx,
             data.interaction,
@@ -301,7 +301,7 @@ local function run(data: data.RunData): nil
                     fields = {
                         {
                             name = "Expiry",
-                            value = if stingTime then "<t:" .. (datetime.UTC:now() + datetime.timedelta_seconds(stingTime)).timestamp_seconds .. ">" else "Never",
+                            value = if expiresat then "<t:" .. expiresat.timestamp_seconds .. ">" else "Never",
                             inline = true,
                         }
                     },
@@ -389,7 +389,7 @@ local function run(data: data.RunData): nil
         )
     
         -- Check that the sting exists
-        local sting = data.stingManager.getSting(user.id, stingId)
+        local sting = stingmanager.getSting(user.id, stingId)
         if not sting then
             return interactionutils.replySimple(
                 data.ctx,
@@ -406,7 +406,7 @@ local function run(data: data.RunData): nil
             )
         end
 
-        data.stingManager.deleteSting(user.id, stingId, modId, reason)
+        stingmanager.deleteSting(user.id, stingId, modId, reason)
     
         return interactionutils.replySimple(
             data.ctx,
@@ -439,6 +439,7 @@ end
 
 local function autocompleter(data: data.AutocompleteRunData): {apitypes.ApplicationCommandOptionChoiceObject}
     local cmdname = data.command.nameList[2]
+    local stingmanager = managers.getmanagers(data.ctx).stingmanager
 
     if cmdname == "cure" then 
         local userId = nil
@@ -461,7 +462,7 @@ local function autocompleter(data: data.AutocompleteRunData): {apitypes.Applicat
             return {}
         end
 
-        local userStings = data.stingManager.getCachedUserStings(userId)
+        local userStings = stingmanager.getCachedUserStings(userId)
         local choices: {apitypes.ApplicationCommandOptionChoiceObject} = {}
 
         for _, sting in userStings do
