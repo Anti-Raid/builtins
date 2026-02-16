@@ -3,6 +3,7 @@ local typesext = require"@antiraid/typesext"
 local luau = require"@antiraid/luau"
 local channel = require"@antiraid/channel"
 local templateloopImpl = require"@antiraid-core/templateloop"
+local LazyLoad = require"@antiraid-ext/lazyload"
 
 export type Isolate = {
     --- The ID of the isolate.
@@ -10,16 +11,6 @@ export type Isolate = {
 
     --- The global table of the isolate.
     read global_table: {[any]: any},
-
-    --- The require function of the isolate.
-    read requirefunc: (moduleName: string) -> any,
-
-    --- The 'proxy require' function that always roots the require
-    --- at chunk name of '/init.luau'
-    read proxyrequirefunc: (moduleName: string) -> any,
-
-    --- The entrypoint of the isolate
-    read entrypoint: () -> any?,
 
     --- Spawns a task to dispatch an event to this isolate. If `event` is passed, the sub-context
     --- created for the template will have the event set to it.
@@ -58,26 +49,18 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         globaltable[k] = v
     end
 
-    local entrypoint = nil
+    local entrypointloader = LazyLoad(function() 
+        return proxyrequirefunc("./init")
+    end)
 
     isolate.id = id
     isolate.global_table = globaltable
-    isolate.proxyrequirefunc = proxyrequirefunc
-    isolate.requirefunc = requirefunc
-    isolate.entrypoint = function() 
-        return entrypoint
-    end
     isolate.dispatchEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event): channel.OneshotChannel<templateloopImpl.DispatchResult>
         local chan = channel.OneshotChannel() :: channel.OneshotChannel<templateloopImpl.DispatchResult>
 
         task.spawn(function() 
-            local ok, res = xpcall(isolate.runEvent, debug.traceback :: any, rootctx, event)
-
-            if ok then
-                chan:send({type = "ok", id = id, value = res})
-            else
-                chan:send({type = "err", id = id, error = res})
-            end
+            local res = isolate.runEventResult(rootctx, event)
+            chan:send(res)
         end)
 
         return chan
@@ -89,9 +72,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
             capabilities = caps,
         })
 
-        if not entrypoint then
-            entrypoint = proxyrequirefunc("./init")
-        end
+        local entrypoint = entrypointloader.get()
 
         if type(entrypoint) ~= "table" then
             error(`entrypoint.luau for template \`{id}\` did not return a table, got \`{type(entrypoint)}\``)
