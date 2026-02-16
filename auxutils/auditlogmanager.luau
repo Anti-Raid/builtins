@@ -10,14 +10,22 @@ local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
 
 local cacheExpiryTime = 60 -- Cache expiry time
 
+type What = "role_delete" | "channel_delete"
+local function parsewhat(what: string): What
+    if what == "role_delete" or what == "channel_delete" then
+        return what
+    end
+    error("Invalid 'what' value: " .. what)
+end
+
 export type CreateLog = {
     channel_id: string, -- the id of the channel to send logs to
-    what: "role_delete" | "channel_delete", -- what action to log
+    what: What, -- what action to log
 }
 
 export type Log = {
     channel_id: string, -- id of the channel to send logs to
-    what: "role_delete" | "channel_delete", -- What action
+    what: What, -- What action
     created_at: datetime.DateTime, -- When the log was created
 }
 
@@ -55,7 +63,7 @@ local function AuditLogManager(ctx: Primitives.TemplateContext): AuditLogManager
 
         return {
             channel_id = channelId,
-            what = what,
+            what = parsewhat(what),
             created_at = createdAt,
         }
     end
