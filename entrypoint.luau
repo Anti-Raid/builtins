@@ -5,8 +5,7 @@ local settings = require "./settings/settings"
 local afkhandler = require"./auxutils/afkhandler"
 local urlblockhandler = require"./auxutils/urlblockhandler".urlblockHandler
 local honeypothandler = require"./auxutils/honeypothandler"
-local kexs = require"./auxutils/kexs"
-local managers = require"./auxutils/managers"
+local managers = require"./auxutils/managers/managers"
 local devData = require"./devs"
 local isInDevMode = devData.isInDevMode
 local cmdLabel = devData.cmdLabel
@@ -30,8 +29,7 @@ local ret = Framework.setup(
         honeypothandler(msg, ctx)
     end),
     Custom("OnStartup")(function(ctx, data)
-        kexs.getmanagers(ctx) -- Initialize key expiration managers on startup
-        managers.getmanagers(ctx) -- Initialize afk/sting managers on startup
+        managers.getmanagers(ctx) -- Initialize afk/sting/key expiration managers on startup
     end)
 )
 assert(type(ret) == "table", "Framework setup did not return a table")

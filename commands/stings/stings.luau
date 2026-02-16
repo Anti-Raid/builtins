@@ -6,7 +6,7 @@ local datetime = require "@antiraid/datetime"
 local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
 local parseunit = require "@antiraid-ext/unit"
 local apitypes = require "@discord-types/apiTypes"
-local managers = require "../../auxutils/managers"
+local managers = require "../../auxutils/managers/managers"
 
 local function register() 
     return commandBuilder.new({

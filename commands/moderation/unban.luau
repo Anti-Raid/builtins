@@ -2,7 +2,7 @@ local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
-local kexs = require"../../auxutils/kexs"
+local kexs = require"../../auxutils/managers/managers"
 
 local function unban(data: data.RunData): nil
     local userid = nil
@@ -90,19 +90,10 @@ local function unban(data: data.RunData): nil
     })
 
     -- Drop any tempmod key expiries for this user
-    local tempdatas = nil
-    local tempmodKeys = data.ctx.KV:find("%%", {"kex", userid})
-    if #tempmodKeys > 0 then
-        tempdatas = {}
-        for _, record in tempmodKeys do
-            if record.exists then 
-                if record.value.ctx ~= "mod" then
-                    continue
-                end
-                kexs.getmanagers(data.ctx).tempbankex.remove(record.key)
-                table.insert(tempdatas, record)
-            end
-        end
+    local tempbankex = kexs.getmanagers(data.ctx).tempbankex
+    local tempdata = tempbankex.get(userid)
+    if tempdata then
+        tempbankex.remove(tempdata.key)
     end
 
     -- Then, dispatch a AntiraidUnban event
@@ -112,7 +103,7 @@ local function unban(data: data.RunData): nil
         data = {
             userid = userid,
             reason = reason,
-            tempdatas = tempdatas,
+            tempbanrecord = tempdata,
             modid = modid
         },
     })

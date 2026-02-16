@@ -3,7 +3,7 @@ local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local datetime = require "@antiraid/datetime"
 local parseunit = require "@antiraid-ext/unit"
-local managers = require "../../auxutils/managers"
+local managers = require "../../auxutils/managers/managers"
 
 local function register() 
     return commandBuilder.new({

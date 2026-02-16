@@ -4,11 +4,12 @@ local data = require"@antiraid-ext/framework/coretypes"
 local apiTypes = require "@discord-types/apiTypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local avatarUrl = require "@antiraid-ext/utils/avatar".avatarUrl
-local stingmanager = require("@antiraid-ext/utils/stingmanager")
+local managers = require "../../auxutils/managers/managers"
 local kc = require "@antiraid-core/kittycat"
 local permissions = require "@discord-types/permission"
 local permissionsFromBf = permissions.fromBitFlag
 local userinfoplugin = require "@antiraid-ext/utils/userinfo"
+local stingmanager = require "../../auxutils/stingmanager"
 
 local function register() 
     return commandBuilder.new({
@@ -68,7 +69,8 @@ end
 local function run(data: data.RunData) 
     local user = if data.interaction.member then data.interaction.member.user else data.interaction.user
     local isResponseEphemeral = false
-
+    local stingmanager = managers.getmanagers(data.ctx).stingmanager
+    
     -- Parse options
     for _, opt in data.command.options do 
         if opt.name == "user" then 
@@ -186,7 +188,7 @@ local function run(data: data.RunData)
         end
     end
 
-    local stings = data.stingManager.getCachedUserStings(user.id)
+    local stings = stingmanager.getCachedUserStings(user.id)
     local stingCount = 0
     local maxSting: stingmanager.Sting? = nil
     local mostRecentSting: stingmanager.Sting? = nil
@@ -214,7 +216,7 @@ local function run(data: data.RunData)
     if maxSting then
         table.insert(baseFields, {
             name = "Max Sting",
-            value = data.stingManager.stingCompactString(maxSting),
+            value = stingmanager.stingCompactString(maxSting),
             inline = true,
         })
     end
@@ -222,7 +224,7 @@ local function run(data: data.RunData)
     if mostRecentSting then
         table.insert(baseFields, {
             name = "Most Recent Sting",
-            value = data.stingManager.stingCompactString(mostRecentSting),
+            value = stingmanager.stingCompactString(mostRecentSting),
             inline = true,
         })
     end

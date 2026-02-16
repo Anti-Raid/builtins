@@ -1,5 +1,5 @@
 local data = require"@antiraid-ext/framework/coretypes"
-local kexs = require"../../auxutils/kexs"
+local kexs = require"../../auxutils/managers/managers"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
 local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
@@ -86,27 +86,43 @@ local function ban(data: data.RunData): nil
 
     local modid = extractUserIdFromInteraction(data.interaction)
 
+    -- If we need this to be temporary, schedule an unban linked to a key expiry
+    local tempdata = nil
+    if duration and duration > 0 then
+        local tempbankex = kexs.getmanagers(data.ctx).tempbankex
+        if tempbankex.get(userid) then 
+            return interactionutils.replySimple(
+                data.ctx,
+                data.interaction,
+                nil,
+                {
+                    {
+                        title = "User already has an active tempban!",
+                        description = "This user is already tempbanned. Please either wait for the existing tempban to expire or remove it before applying a new one.",
+                        color = 0xFF0000,
+                    },
+                },
+                false
+            )
+        end
+
+        local key = tempbankex.addwithsecs(duration, {
+            userid = userid,
+            modid = modid,
+            reason = reason
+        }, userid) -- Use the userid as the key for easy lookup when unbanning
+        tempdata = {
+            key = key,
+            duration = duration
+        }
+    end
+
     -- First ban them
     data.ctx.Discord:create_guild_ban({
         delete_message_seconds = delete_message_seconds,
         reason = reason,
         user_id = userid,
     })
-
-    -- If we need this to be temporary, schedule an unban linked to a key expiry
-    local tempdata = nil
-    if duration and duration > 0 then
-        local key = kexs.getmanagers(data.ctx).tempbankex.addwithsecs(duration, {
-            userid = userid,
-            modid = modid,
-            reason = reason
-
-        })
-        tempdata = {
-            key = key,
-            duration = duration
-        }
-    end
 
     -- Then, dispatch a AntiraidBan event
     data.loop.dispatchEvent({

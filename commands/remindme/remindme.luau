@@ -1,13 +1,9 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
-local kexs = require"../../auxutils/kexs"
-local apitypes = require "@discord-types/apiTypes"
+local kexs = require"../../auxutils/managers/managers"
 local datetime = require "@antiraid/datetime"
 local data = require"@antiraid-ext/framework/coretypes"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local parseunit = require "@antiraid-ext/unit"
-local isDevMode = require"../../devs".isInDevMode
-
-local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
 
 local function register() 
     return commandBuilder.new({
@@ -92,22 +88,12 @@ local function run(data: data.RunData): nil
     end
 
     local dt = datetime.UTC:now() + datetime.timedelta_seconds(stime or 1)
-    local key = kexs.getmanagers(data.ctx).remindmeexpiry.addat(dt, {
+    kexs.getmanagers(data.ctx).remindmeexpiry.addat(dt, {
         userid = user.id,
-        eventname = "BuiltinsReminder",
-        data = {
-            user_id = user.id,
-            channel_id = data.interaction.channel_id or error("Channel ID is nil"),
-            message = message,
-            ephemeral = isResponseEphemeral,
-        }
-    })
-    data.ctx.KV:set(key, {
-        user_id = user.id,
-        channel_id = data.interaction.channel_id or error("Channel ID is nil"),
+        channelid = data.interaction.channel_id or error("Channel ID is nil"),
         message = message,
         ephemeral = isResponseEphemeral,
-    }, {scopePrefix .. ".remindme"})
+    })
 
     return interactionutils.replySimple(
         data.ctx,
@@ -123,37 +109,7 @@ local function run(data: data.RunData): nil
     )
 end
 
-local function keyexpiries(data: data.KeyExpiryData) 
-    -- Allow immediate expiry in dev mode for testing
-    local kvr = data.ctx.KV:getrecord(data.data.key, {scopePrefix .. ".remindme"})
-    if not kvr or not kvr.exists then
-        error("Key not found or expired: " .. data.data.key)
-        return
-    end
-
-    local userid = kvr.value.user_id
-    local channelid = kvr.value.channel_id
-    local message = kvr.value.message
-
-    if not userid or not channelid or not message then
-        return
-    end
-
-    data.ctx.Discord:create_message({
-        channel_id = channelid,
-        data = {
-            embeds = {
-                {
-                    title = "Reminder",
-                    description = string.format("<@%s> %s", userid :: any, message :: any),
-                }
-            } :: {apitypes.EmbedObject},
-        }
-    })
-end
-
 return {
     register = register,
     run = run,
-    keyexpiries = {[scopePrefix .. ".remindme"] = keyexpiries},
 }

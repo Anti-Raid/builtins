@@ -4,10 +4,10 @@ local discord = require "@discord-types/apiTypes"
 local Primitives = require "@antiraid-core/primitives"
 local typesext = require "@antiraid/typesext"
 local kv = require "@antiraid-core/plugins/kv"
-local kexs = require "./kexs"
 local assertString = require "@antiraid-ext/settings".assertString
 local assertInteger = require "@antiraid-ext/settings".assertInteger
 local tloop = require "@antiraid-core/templateloop"
+local keyexpirymanager = require "@antiraid-ext/keyexpirymanager"
 
 export type Sting = {
     stingId: string,
@@ -51,6 +51,8 @@ export type StingManager = {
     createUserSting: (sting: CreateSting) -> Sting,
     --- Deletes a sting. Note that this does not delete the expiration task (use fullyDeleteSting if you want to do that)
     deleteSting: (userId: discord.Snowflake, stingId: string, mod: string?, auditReason: string) -> (),
+    --- Code to be called when a sting expires, which deletes the internal sting data and dispatches an event with the sting data so other templates can react to it if needed
+    onStingExpire: (userid: discord.Snowflake, stingId: string) -> (),
     --- Compactly stringifies a sting
     stingCompactString: (sting: Sting) -> string,
 }
@@ -58,10 +60,9 @@ export type StingManager = {
 local _cachedUserStings: {[string]: {stings: {Sting}, createdAt: number }} = {}
 local maxBurstCacheTime = 120 -- 2 minutes
 
-local function StingManager(ctx: Primitives.TemplateContext): StingManager
+local function StingManager(ctx: Primitives.TemplateContext, stingexpiry: keyexpirymanager.KeyExpiryManager): StingManager
     local self = {}
 
-    local stingexpiry = kexs.getmanagers(ctx).stingexpiry
     local loop = tloop.getRunningLoop(ctx)
 
     local function _parseStingData(item: kv.KvRecord): Sting?
@@ -73,7 +74,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         local stings = assertInteger("stings", item.value.stings or 1)
         local createdat = item.created_at
         local stingexpiry = stingexpiry.get(stingId)
-        local expiresat = if stingexpiry then stingexpiry.expires_at else nil
+        local expiresat = if stingexpiry then stingexpiry.expiresat else nil
         return {
             stingId = stingId,
             userId = userId,
@@ -108,6 +109,31 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         ctx.KV:delete(stingId, {"builtins.stings", userId})
         -- Delete the expiration task
         stingexpiry.remove(stingId)
+        -- Cache invalidation
+        _cachedUserStings[userId] = nil
+    end
+
+    local function onStingExpire(userId: discord.Snowflake, stingId: string)
+        if not userId or not stingId then
+            error("User ID or Sting ID is nil")
+        end
+
+        -- Fetch the sting
+        local record = ctx.KV:getrecord(stingId, {"builtins.stings", userId})
+        local csting = _parseStingData(record)
+        if not csting then
+            return
+        end
+
+        -- Dispatch event before expiration so that other templates can react to the sting expiration if needed
+        loop.dispatchEvent({
+            name = "BuiltinsStingExpire",
+            author = csting.modId,
+            data = csting,
+        })
+
+        -- Delete the sting (the associated expiry will be automatically deleted by the stingexpiry manager since it's keyed by sting ID)
+        ctx.KV:delete(stingId, {"builtins.stings", userId})
         -- Cache invalidation
         _cachedUserStings[userId] = nil
     end
@@ -201,6 +227,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
     self.getCachedUserStings = getCachedUserStings
     self.createUserSting = createUserSting
     self.deleteSting = deleteSting
+    self.onStingExpire = onStingExpire
     self.getSting = getSting
     self.stingCompactString = stingCompactString
 

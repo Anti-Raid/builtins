@@ -1,11 +1,12 @@
 local Primitives = require "@antiraid-core/primitives"
-local kexs = require "./kexs"
 local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
 local assertString = require "@antiraid-ext/settings".assertString
 local datetime = require "@antiraid/datetime"
+local tloop = require "@antiraid-core/templateloop"
 
 export type CreateAFK = {
     user_id: string, -- ID of the user to set AFK for
+    channel_id: string?, -- ID of the channel to send an optional AFK message to when the AFK expires
     reason: string, -- Reason for the AFK status
     duration: datetime.TimeDelta, -- Duration for which the user should be AFK
 }
@@ -26,18 +27,19 @@ export type AFKManager = {
     set: (data: CreateAFK) -> (),
     --- Deletes a AFK
     delete: (userid: string) -> (),
+    --- Code to be called when an AFK expires, which dispatches an event with the AFK data so other templates can react to it if needed
+    onAfkExpire: (userid: string) -> (),
 }
 
 --- A data fetcher for AFKs.
-local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
+local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryManager.KeyExpiryManager): AFKManager
     local self = {}
-
-    local afkexpiry = kexs.getmanagers(ctx).afkexpiry
+    local loop = tloop.getRunningLoop(ctx)
 
     local function _parseAfk(item: KeyExpiryManager.ExpiringKeyRecord): AFK
         local reason = assertString("reason", item.value.reason)
-        local createdAt = item.created_at
-        local expiresAt = item.expires_at
+        local createdAt = item.createdat
+        local expiresAt = item.expiresat
 
         return {
             user_id = item.key,
@@ -48,7 +50,7 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
     end
 
     local function list(): {AFK}
-        local data = afkexpiry.find()
+        local data = afkexpiry.list()
 
         local afks = {}
         for _, item in data do
@@ -68,16 +70,52 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
         afkexpiry.add(afk.duration, {
             reason = assertString("reason", afk.reason),
         }, afk.user_id)
+        loop.dispatchEvent{
+            name = "BuiltinsAfkSet", 
+            data = { 
+                user_id = afk.user_id, 
+                reason = afk.reason, 
+                duration = afk.duration,
+            },
+            author = nil
+        }
     end
 
     local function delete(userid: string)
+        local afk = get(userid)
+        if not afk then return end
         afkexpiry.remove(userid)
+        loop.dispatchEvent{
+            name = "BuiltinsAfkDelete", 
+            data = { 
+                user_id = userid,  
+                afk = afk,
+            }
+        }
+    end
+
+    local function onAfkExpire(userid: string)
+        local afk = get(userid)
+        if not afk then 
+            loop.debugmanager.print("[AFKManager] Attempted to expire AFK for user "..userid.." but they do not have an active AFK")
+            return 
+        end
+        -- Dispatch an event with the result of the AFK expiry so other templates can react to it if needed
+        local loop = tloop.getRunningLoop(ctx)
+        loop.dispatchEvent{
+            name = "BuiltinsAfkExpiry", 
+            data = { 
+                userid = userid, 
+            },
+            author = nil
+        }
     end
 
     self.list = list
     self.get = get
     self.set = set
     self.delete = delete
+    self.onAfkExpire = onAfkExpire
 
     return self
 end
