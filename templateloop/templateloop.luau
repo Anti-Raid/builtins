@@ -108,7 +108,9 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
             -- Get or create isolate for template
             local isol = _getIsolateForTemplate(templateCache[1])
             local ret = isol.runEventResult(baseCtx, event)
-            if ret.type == "err" then error(ret.value) end
+            if ret.type == "err" then 
+                return {ret}
+            end
             return {ret}
         end
         
