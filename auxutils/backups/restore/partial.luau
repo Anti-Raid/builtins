@@ -4,23 +4,46 @@ local load = require"./load"
 local apitypes = require"@discord-types/apiTypes"
 local resttypes = require"@discord-types/restTypes"
 local blob = require"@antiraid-core/blob"
-local restore = require"./restore"
+local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
+local permission = require"@discord-types/permission" 
+local common = require"./common"
+
+export type PermData = {
+    currentBotMember: apitypes.GuildMemberObject,
+    currentGuild: apitypes.GuildObject,
+}
+
+export type WebhookData = {
+    webhookid: string,
+    webhooktoken: string,
+}
+
+export type GuildFlags = {
+    community: boolean,
+    animated_icon: boolean,
+    banner: boolean,
+    animated_banner: boolean,
+    invite_splash: boolean
+}
 
 --- Partial restore manager
 export type PartialRestoreManager = {
-    --- Restores the base guild settings from the backup
-    restoreBaseGuildSettings: () -> (),
+    --- Returns the base restore manager
+    getBaseManager: () -> common.BaseRestoreManager,
     --- Restores a single channel from the backup (with messages optionally restored)
     ---
     --- Does not delete any existing channels, just creates a new one with the same settings and tries restoring messages if requested
     ---
     --- The restored channel will be restored to inCategory if provided
     restoreChannel: (channelid: string, restoreMessages: boolean, inCategory: string?) -> apitypes.ChannelObject?,
+    --- Restores messages to a channel from the backup using a webhook
+    restoreChannelMessages: (ctx: Primitives.TemplateContext, tgtChannel: apitypes.ChannelObject, messages: {apitypes.MessageObject}, webhook: WebhookData, permData: PermData, updater: types.Updater) -> (),
 }
 
 type IGuildData = {
     currentGuild: apitypes.GuildObject,
-    currentGuildFlags: restore.GuildFlags,
+    currentGuildFlags: GuildFlags,
+    currentBotMember: apitypes.GuildMemberObject,
 }
 
 --- Given a channel to restore and other ext data, create a resttypes.CreateGuildChannelRequest for a partial channel restore
@@ -46,56 +69,15 @@ local function createChannelDataForPartialChannelRestore(
 end
 
 --- Sets up a partial restore manager for restoring bits and pieces of a backup
-local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, updater: types.Updater): PartialRestoreManager
-    local loadedBackup = load.loadBackupFile(ctx, src, enckey, updater)
+local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, updater: types.Updater, opts: types.BackupRestoreOpts): PartialRestoreManager
+    local basemanager = common.BaseRestoreManager(ctx, src, enckey, updater, opts)
+    local loadedBackup = basemanager.getLoadedBackup()
     local coreData = loadedBackup.core
-    local cachedGuildData: IGuildData? = nil
 
-    local self = {} :: PartialRestoreManager
+    local self = {}
 
-    -- Helper method to get current guild data
-    local function _getCurrentGuildData() 
-        if cachedGuildData then 
-            return cachedGuildData
-        end
-
-        -- Test if coreData is valid    
-        assert(coreData.guild.id and #coreData.guild.id > 0, "internal error: guild ID must be set in core data")
-
-        local guildWasCommunity = coreData.guild.features and table.find(coreData.guild.features, "COMMUNITY" :: "COMMUNITY") ~= nil
-
-        local currentGuild = ctx.Discord:get_guild().data
-
-        local currentGuildFlags: restore.GuildFlags = {
-            community = false,
-            banner = false,
-            animated_banner = false,
-            animated_icon = false,
-            invite_splash = false
-        }
-
-        -- Collect features
-        if currentGuild.features then 
-            for _, feature in currentGuild.features do 
-                if feature == "COMMUNITY" then currentGuildFlags.community = true end
-                if feature == "ANIMATED_ICON" then currentGuildFlags.animated_icon = true end
-                if feature == "BANNER" then currentGuildFlags.banner = true end
-                if feature == "ANIMATED_BANNER" then currentGuildFlags.animated_banner = true end
-                if feature == "INVITE_SPLASH" then currentGuildFlags.invite_splash = true end
-            end
-        end
-        
-        if guildWasCommunity and not currentGuildFlags.community then
-            error("Cannot restore a community guild backup to a non-community guild. Please enable the community features in your guild settings.")
-        end
-
-        local guild: IGuildData = {
-            currentGuild = currentGuild,
-            currentGuildFlags = currentGuildFlags,
-        }
-
-        cachedGuildData = guild
-        return guild
+    local function getBaseManager() 
+        return basemanager
     end
 
     -- Restore the base guild settings from the backup
@@ -104,9 +86,14 @@ local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types
 
         -- Note: verification_level and explicit_content_filter are not restored for now
         -- and owner, region can't be restored
+        local desc = coreData.guild.description
+        if desc and #desc > 300 then
+            desc = desc:sub(1, 300)
+            updater.addStatus("Guild description is longer than 300 characters, truncating to 300 characters")
+        end
         local updateData: resttypes.ModifyGuildRequest = {
             name = coreData.guild.name,
-            description = coreData.guild.description,
+            description = desc,
             default_message_notifications = coreData.guild.default_message_notifications,
             system_channel_flags = coreData.guild.system_channel_flags,
             afk_timeout = coreData.guild.afk_timeout,
@@ -128,7 +115,7 @@ local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types
         end
 
         ctx.Discord:modify_guild({
-            reason = "Partial restore of base guild settings from backup",
+            reason = "Restore backup: Restore base guild settings step",
             data = updateData
         })
 
@@ -159,12 +146,35 @@ local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types
         return createdChannel
     end
 
+    --- Restores the messages of a channel from the backup
+    local function restoreChannelMessages(
+        ctx: Primitives.TemplateContext,
+        tgtChannel: apitypes.ChannelObject,
+        messages: {apitypes.MessageObject},
+        webhook: WebhookData,
+        permData: PermData,
+        updater: types.Updater
+    ) 
+        -- Check if we can restore messages to this channel
+        local perms = discordpermcalc.MemberChannelPerms(permData.currentGuild, permData.currentBotMember, tgtChannel)
+        local canManageWebhooks = discordpermcalc.HasPermission(perms, permission.PermissionSet.ManageWebhooks)
+        if not canManageWebhooks then 
+            updater.addStatus("Bot does not have 'Manage Webhooks' permissions in channel ``" .. tgtChannel.name .. "`` with ID: ``" .. tgtChannel.id .. "`` , ignoring message restore...")
+            return
+        else 
+            updater.addStatus("Restoring " .. #messages .. " messages to channel ``" .. tgtChannel.name .. "`` with ID: ``" .. tgtChannel.id .. "``")
+        end
+
+        --- TODO: This is currently waiting on Webhook support in Khronos
+        error("Not yet implemented")
+    end
+
+    self.getBaseManager = getBaseManager
     self.restoreBaseGuildSettings = restoreBaseGuildSettings
     self.restoreChannel = restoreChannel
+    self.restoreChannelMessages = restoreChannelMessages
 
     return self
 end
 
-return {
-    PartialRestoreManager = PartialRestoreManager,
-}
+return PartialRestoreManager
