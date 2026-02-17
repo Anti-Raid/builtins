@@ -104,6 +104,7 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
 
     local function dispatchEvent(event: Primitives.Event, targetId: string?): {templateloopImpl.DispatchResult}
         -- Fast path: if there are no templates besides builtins, we can avoid creating a new thread
+        debugmanager.print("[TemplateLoopManager] Dispatching event", event.name, "to templates", targetId and `with id {targetId}` or "with no target id")
         if #templateCache <= 1 and templateCache[1] and templateCache[1].source.type == "builtins" then
             -- Get or create isolate for template
             local isol = _getIsolateForTemplate(templateCache[1])
