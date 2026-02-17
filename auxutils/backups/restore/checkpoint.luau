@@ -3,8 +3,9 @@ local typesext = require"@antiraid/typesext"
 local apitypes = require"@discord-types/apiTypes"
 local datetime = require"@antiraid/datetime"
 local types = require"../backups"
+local managers = require "../../managers/managers"
 
-local CHECKPOINT_EXPIRE_TIME = 60 * 15 -- 15 minutes
+local CHECKPOINT_EXPIRE_TIME = datetime.timedelta_seconds(60 * 15) -- 15 minutes
 
 export type BaseCheckpointData = {
     --- The URL of the backup being restored
@@ -69,6 +70,8 @@ export type CheckpointConstruct = {
 
 --- Checkpoint is a abstraction to enable easy/simple checkpointing
 local function Checkpoint(ctx: Primitives.TemplateContext, construct: CheckpointConstruct): Checkpoint
+    local backuprestorecheckpointexpiry = managers.getmanagers(ctx).backuprestorecheckpointexpiry
+    
     type CreatedCheckpoint = {
         checkpoint: CheckpointData,
         base: BaseCheckpointData,
@@ -86,7 +89,10 @@ local function Checkpoint(ctx: Primitives.TemplateContext, construct: Checkpoint
     
     --- Saves a checkpoint to the KV store.
     local function _saveCheckpoint(checkpoint: CheckpointData): CheckpointData
-        ctx.KV:set(self.id, { checkpoint = checkpoint, base = self.base }, {"builtins.backups.checkpoints"}, datetime.UTC:now() + datetime.timedelta_seconds(CHECKPOINT_EXPIRE_TIME), true)
+        backuprestorecheckpointexpiry.add(CHECKPOINT_EXPIRE_TIME, {
+            checkpoint = checkpoint,
+            base = self.base
+        }, self.id)
         return checkpoint
     end
 

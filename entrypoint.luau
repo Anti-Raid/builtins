@@ -29,7 +29,9 @@ local ret = Framework.setup(
         honeypothandler(msg, ctx)
     end),
     Custom("OnStartup")(function(ctx, data)
-        managers.getmanagers(ctx) -- Initialize afk/sting/key expiration managers on startup
+        -- Initialize afk/sting/key expiration managers on startup
+        -- along with backup restore checkpoint expiry with oninit logic to resume existing checkpoints
+        managers.getmanagers(ctx) 
     end)
 )
 assert(type(ret) == "table", "Framework setup did not return a table")

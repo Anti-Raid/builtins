@@ -24,7 +24,6 @@ local templatemanagerImpl = require"@antiraid-core/templatemanager"
 local TemplateManager = require"./templatemanager"
 
 local TEMPLATE_DISPATCH_TIMEOUT = datetime.timedelta_seconds(5) -- 5 seconds
-local MAX_STDOUT_SIZE = 1024 * 10 -- 10 KB
 
 type Prop = "builtins_havetemplates" | "builtins_eventrefs" | "builtins_kex"
 local function _getTenantStateProp(tenantState: runtime.TenantState, prop: Prop): any
@@ -46,40 +45,9 @@ local function _setTenantStateProp(tenantState: runtime.TenantState, prop: Prop,
 end
 
 -- stdout logging for debugging
-local function DebugManager() 
-    local _stdout: {{
-        now: datetime.DateTime,
-        msg: any,
-    }} = {}
-    local size = 0
-    local function print(msg: any)
-        -- If a global debug function exists, use that instead
-        if _G._debug then 
-            (_G._debug :: any)(msg) 
-            return 
-        end 
-        table.insert(_stdout, { now = datetime.UTC:now(), msg = msg })
-        size += #msg
-        -- Trim if needed
-        while size > MAX_STDOUT_SIZE do
-            local removed = table.remove(_stdout, 1)
-            if not removed then break end
-            size -= #removed.msg
-        end
-    end
-
-    local function stdout(): {string} 
-        local out: {string} = {}
-        for _, entry in _stdout do 
-            table.insert(out, `[{entry.now:format("%Y-%m-%d %H:%M:%S")}] {entry.msg}`)
-        end
-        return out
-    end
-
-    local self = {}
-    self.print = print
-    self.stdout = stdout
-    return self
+local function DebugManager(): templateloopImpl.DebugManager 
+    if _G._debug then return { print = _G._debug } end
+    return { print = function(...) end }
 end
 
 local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager

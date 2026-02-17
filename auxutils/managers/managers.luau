@@ -13,6 +13,7 @@ export type Managers = {
     remindmeexpiry: KeyExpiryManager.KeyExpiryManager,
     afkexpiry: KeyExpiryManager.KeyExpiryManager,
     stingexpiry: KeyExpiryManager.KeyExpiryManager,
+    backuprestorecheckpointexpiry: KeyExpiryManager.KeyExpiryManager, -- backup restore checkpoint expiry manager, used to automatically delete backup restore checkpoints after a certain amount of time to prevent clutter and potential security issues
 }
 
 local managers: Managers? = nil
@@ -116,6 +117,17 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         return nil
     end)
 
+    local backuprestorecheckpointexpiryManager = KeyExpiryManager(ctx, scopePrefix..".backuprestorecheckpoints", function(loop, record)
+        return nil
+    end, function(loop, records) 
+        -- on init, resume any existing checkpoints
+        --
+        -- for now, we just log
+        loop.debugmanager.print("[BuiltinsBackupRestoreCheckpointExpiry] Resuming backup restore checkpoints", records)
+        loop.debugmanager.print(records)
+        return nil
+    end)
+
     local afkmanager = afkmanager(ctx, afkExpiryManager)
     local stingmanager = stingmanager(ctx, stingExpiryManager)
 
@@ -126,6 +138,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         remindmeexpiry = remindmeExpiryManager,
         afkexpiry = afkExpiryManager,
         stingexpiry = stingExpiryManager,
+        backuprestorecheckpointexpiry = backuprestorecheckpointexpiryManager
     }
 
     return managers or error("Failed to initialize managers")
