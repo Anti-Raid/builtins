@@ -110,6 +110,7 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
             local isol = _getIsolateForTemplate(templateCache[1])
             local ret = isol.runEventResult(baseCtx, event)
             if ret.type == "err" then 
+                debugmanager.print("[TemplateLoopManager] Error dispatching event to builtins template:", ret)
                 return {ret}
             end
             return {ret}
