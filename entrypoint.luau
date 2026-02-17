@@ -24,6 +24,7 @@ local ret = Framework.setup(
         if devData.isInDevMode then
             require("./devmsg")(ctx, msg)
         end
+        managers.getmanagers(ctx) -- Ensure managers are initialized before handling any messages, it is generally a good idea to ensure all managers are ready before processing any events
         afkhandler(msg, ctx)
         urlblockhandler(msg, ctx)
         honeypothandler(msg, ctx)
