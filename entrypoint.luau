@@ -10,6 +10,13 @@ local devData = require"./devs"
 local isInDevMode = devData.isInDevMode
 local cmdLabel = devData.cmdLabel
 
+-- Audit log event handlers
+local auditlogBan = require"./auxutils/auditlogs/AntiraidBan"
+local auditlogKick = require"./auxutils/auditlogs/AntiraidKick"
+local auditlogUnban = require"./auxutils/auditlogs/AntiraidUnban"
+local auditlogStingCreated = require"./auxutils/auditlogs/BuiltinsStingCreated"
+local auditlogStingDelete = require"./auxutils/auditlogs/BuiltinsStingDelete"
+
 -- Setup framework
 local Framework = require"@antiraid-ext/framework"
 local suffix = if isInDevMode then cmdLabel else nil
@@ -32,8 +39,14 @@ local ret = Framework.setup(
     Custom("OnStartup")(function(ctx, data)
         -- Initialize afk/sting/key expiration managers on startup
         -- along with backup restore checkpoint expiry with oninit logic to resume existing checkpoints
-        managers.getmanagers(ctx) 
-    end)
+        managers.getmanagers(ctx)
+    end),
+    -- Audit log event handlers
+    auditlogBan,
+    auditlogKick,
+    auditlogUnban,
+    auditlogStingCreated,
+    auditlogStingDelete
 )
 assert(type(ret) == "table", "Framework setup did not return a table")
 return ret
