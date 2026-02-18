@@ -2,6 +2,7 @@
 local Primitives = require "@antiraid-core/primitives"
 local AuditLogManager = require "../auditlogmanager"
 local datetime = require "@antiraid/datetime"
+local discord = require "@discord-types/apiTypes"
 
 -- Event data types matching the dispatch sites
 
@@ -65,7 +66,7 @@ local function sendAuditLog(ctx: Primitives.TemplateContext, embed: AuditLogEmbe
 
     -- Add timestamp footer
     local now = datetime.UTC:now()
-    local fullEmbed: any = {
+    local fullEmbed: discord.EmbedObject = {
         title = embed.title,
         description = embed.description,
         color = embed.color,
