@@ -6,7 +6,7 @@ local resttypes = require"@discord-types/restTypes"
 local blob = require"@antiraid-core/blob"
 local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
 local permission = require"@discord-types/permission" 
-local common = require"./common"
+local RestoreManager = require"./impl"
 
 export type PermData = {
     currentBotMember: apitypes.GuildMemberObject,
@@ -29,48 +29,14 @@ export type GuildFlags = {
 --- Partial restore manager
 export type PartialRestoreManager = {
     --- Returns the base restore manager
-    getBaseManager: () -> common.BaseRestoreManager,
-    --- Restores a single channel from the backup (with messages optionally restored)
-    ---
-    --- Does not delete any existing channels, just creates a new one with the same settings and tries restoring messages if requested
-    ---
-    --- The restored channel will be restored to inCategory if provided
-    restoreChannel: (channelid: string, restoreMessages: boolean, inCategory: string?) -> apitypes.ChannelObject?,
+    getBaseManager: () -> RestoreManager.BaseRestoreManager,
     --- Restores messages to a channel from the backup using a webhook
     restoreChannelMessages: (ctx: Primitives.TemplateContext, tgtChannel: apitypes.ChannelObject, messages: {apitypes.MessageObject}, webhook: WebhookData, permData: PermData, updater: types.Updater) -> (),
 }
 
-type IGuildData = {
-    currentGuild: apitypes.GuildObject,
-    currentGuildFlags: GuildFlags,
-    currentBotMember: apitypes.GuildMemberObject,
-}
-
---- Given a channel to restore and other ext data, create a resttypes.CreateGuildChannelRequest for a partial channel restore
-local function createChannelDataForPartialChannelRestore(
-    channel: apitypes.ChannelObject, 
-    parentId: string?
-): resttypes.CreateGuildChannelRequest
-    -- Fix permission overwrites
-    local permOverwrites: {apitypes.OverwriteObject} = table.create(#channel.permission_overwrites) :: {apitypes.OverwriteObject}
-
-    return {
-        name = channel.name,
-        type = channel.type,
-        topic = channel.topic,
-        user_limit = channel.user_limit,
-        rate_limit_per_user = channel.rate_limit_per_user,
-        position = channel.position,
-        permission_overwrites = permOverwrites,
-        parent_id = parentId,
-        nsfw = channel.nsfw,
-        default_thread_rate_limit_per_user = channel.default_thread_rate_limit_per_user,
-    }
-end
-
 --- Sets up a partial restore manager for restoring bits and pieces of a backup
 local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, updater: types.Updater, opts: types.BackupRestoreOpts): PartialRestoreManager
-    local basemanager = common.BaseRestoreManager(ctx, src, enckey, updater, opts)
+    local basemanager = RestoreManager(ctx, src, enckey, updater, {opts = opts})
     local loadedBackup = basemanager.getLoadedBackup()
     local coreData = loadedBackup.core
 
@@ -122,30 +88,6 @@ local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types
         updater.addStatus("Done modifying basic server settings")
     end
 
-    -- See PartialRestoreManager type definition for docs
-    local function restoreChannel(channelid: string, restoreMessages: boolean, inCategory: string?): apitypes.ChannelObject?
-        local createdChannel: apitypes.ChannelObject? = nil
-        for _, c in coreData.channels do 
-            if c.id ~= channelid then 
-                continue
-            end
-
-            local ud = createChannelDataForPartialChannelRestore(c, inCategory)
-
-            updater.addStatus("Creating channel ``" .. c.name .. "`` with ID: ``" .. c.id .. "``")
-
-
-            createdChannel = ctx.Discord:create_guild_channel({
-                reason = "Backup restore: Create channels step",
-                data = ud,
-            }).data
-
-            updater.addStatus("Created channel ``" .. c.name .. "`` with ID: ``" .. c.id .. "``")
-        end
-
-        return createdChannel
-    end
-
     --- Restores the messages of a channel from the backup
     local function restoreChannelMessages(
         ctx: Primitives.TemplateContext,
@@ -171,7 +113,6 @@ local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types
 
     self.getBaseManager = getBaseManager
     self.restoreBaseGuildSettings = restoreBaseGuildSettings
-    self.restoreChannel = restoreChannel
     self.restoreChannelMessages = restoreChannelMessages
 
     return self

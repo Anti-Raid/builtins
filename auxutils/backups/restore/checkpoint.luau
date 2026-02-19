@@ -1,9 +1,9 @@
 local Primitives = require"@antiraid-core/primitives"
 local typesext = require"@antiraid/typesext"
-local apitypes = require"@discord-types/apiTypes"
 local datetime = require"@antiraid/datetime"
 local types = require"../backups"
 local managers = require "../../managers/managers"
+local impl = require"./impl"
 
 local CHECKPOINT_EXPIRE_TIME = datetime.timedelta_seconds(60 * 15) -- 15 minutes
 
@@ -17,25 +17,26 @@ export type BaseCheckpointData = {
 }
 
 export type CheckpointData = {
-    step: "EditBaseGuild"
+    step: "EditBaseGuild",
+    gre: impl.GetRestored?
 } | {
-    step: "DeleteOldRoles"
+    step: "DeleteOldRoles",
+    gre: impl.GetRestored
 } | {
     step: "CreateRoles",
-    restoredRoles: {[string]: apitypes.GuildRoleObject} -- Map of old role ID on the backup to new role objects
+    gre: impl.GetRestored
 } | {
     step: "DeleteOldChannels",
-    restoredRoles: {[string]: apitypes.GuildRoleObject} 
+    gre: impl.GetRestored
 } | {
     step: "CreateChannels",
-    restoredRoles: {[string]: apitypes.GuildRoleObject},
-    restoredChannels: {[string]: apitypes.ChannelObject} -- Map of old channel ID on the backup to new channel objects
+    gre: impl.GetRestored
 } | {
     step: "FinishBaseRestore",
-    restoredRoles: {[string]: apitypes.GuildRoleObject},
-    restoredChannels: {[string]: apitypes.ChannelObject},
+    gre: impl.GetRestored
 } | {
     step: "Done",
+    gre: impl.GetRestored
 }
 
 export type Checkpoint = {
