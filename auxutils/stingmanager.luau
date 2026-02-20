@@ -170,6 +170,9 @@ local function StingManager(ctx: Primitives.TemplateContext, stingexpiry: keyexp
 
     local function createUserSting(sting: CreateSting): Sting
         local stingId = typesext.randstring(16)
+        while stingexpiry.exists(stingId) do
+            stingId = typesext.randstring(16)
+        end
 
         -- Create the sting
         if sting.expires_at then stingexpiry.addat(sting.expires_at, {userid = sting.userId}, stingId) end

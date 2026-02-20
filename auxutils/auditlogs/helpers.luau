@@ -56,9 +56,9 @@ export type AuditLogEmbed = {
 }
 
 --- Sends an audit log embed to all configured audit log channels
-local function sendAuditLog(ctx: Primitives.TemplateContext, embed: AuditLogEmbed): ()
-    local auditlogmanager = AuditLogManager(ctx)
-    local logs = auditlogmanager.listcached()
+local function sendAuditLog(ctx: Primitives.TemplateContext, embed: AuditLogEmbed, what: AuditLogManager.What): ()
+    local auditlogmanager = AuditLogManager.AuditLogManager(ctx)
+    local logs = auditlogmanager.list()
 
     if #logs == 0 then
         return -- No audit log channels configured
@@ -76,7 +76,17 @@ local function sendAuditLog(ctx: Primitives.TemplateContext, embed: AuditLogEmbe
         },
     }
 
+    -- While this is technically O(channels*whats), this is bounded by channels<=7 and whats<=5
+    -- so this is in practice O(1) with a max of 35 iterations.
     for _, log in logs do
+        local shouldsend = false
+        for _, w in log.whats do 
+            if w == what or w == "*" then
+                shouldsend = true
+                break
+            end
+        end
+        if not shouldsend then continue end
         pcall(function()
             ctx.Discord:create_message({
                 channel_id = log.channel_id,

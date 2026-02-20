@@ -24,5 +24,5 @@ return Custom("AntiraidUnban")(function(ctx: Primitives.TemplateContext, data: h
         ),
         color = 0x00FF00,
         fields = fields,
-    })
+    }, "antiraid_unban")
 end)

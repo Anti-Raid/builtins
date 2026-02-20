@@ -18,5 +18,5 @@ return Custom("AntiraidKick")(function(ctx: Primitives.TemplateContext, data: he
         fields = {
             { name = "Reason", value = helpers.truncate(reason, 1024), inline = false },
         },
-    })
+    }, "antiraid_kick")
 end)

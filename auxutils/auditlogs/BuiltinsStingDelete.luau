@@ -25,5 +25,5 @@ return Custom("BuiltinsStingDelete")(function(ctx: Primitives.TemplateContext, d
         ),
         color = 0x8B0000,
         fields = fields,
-    })
+    }, "sting_delete")
 end)

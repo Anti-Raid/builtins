@@ -31,5 +31,5 @@ return Custom("AntiraidBan")(function(ctx: Primitives.TemplateContext, data: hel
         description = description,
         color = 0xFF0000,
         fields = fields,
-    })
+    }, "antiraid_ban")
 end)

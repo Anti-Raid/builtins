@@ -25,5 +25,5 @@ return Custom("BuiltinsStingCreated")(function(ctx: Primitives.TemplateContext, 
         ),
         color = 0xFFD700,
         fields = fields,
-    })
+    }, "sting_create")
 end)
