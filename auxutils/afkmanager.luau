@@ -28,15 +28,20 @@ export type AFKManager = {
     --- Deletes a AFK
     delete: (userid: string) -> (),
     --- Code to be called when an AFK expires, which dispatches an event with the AFK data so other templates can react to it if needed
-    onAfkExpire: (userid: string) -> (),
+    onAfkExpire: (record: KeyExpiryManager.ExpiringKeyRecord<AFKExpiryData>) -> (),
+}
+
+--- AFK expiry manager
+export type AFKExpiryData = {
+    reason: string,
 }
 
 --- A data fetcher for AFKs.
-local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryManager.KeyExpiryManager): AFKManager
+local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryManager.KeyExpiryManager<AFKExpiryData>): AFKManager
     local self = {}
     local loop = tloop.getRunningLoop(ctx)
 
-    local function _parseAfk(item: KeyExpiryManager.ExpiringKeyRecord): AFK
+    local function _parseAfk(item: KeyExpiryManager.ExpiringKeyRecord<AFKExpiryData>): AFK
         local reason = assertString("reason", item.value.reason)
         local createdAt = item.createdat
         local expiresAt = item.expiresat
@@ -94,10 +99,10 @@ local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryM
         }
     end
 
-    local function onAfkExpire(userid: string)
-        local afk = get(userid)
+    local function onAfkExpire(record: KeyExpiryManager.ExpiringKeyRecord<AFKExpiryData>)
+        local afk = get(record.key)
         if not afk then 
-            loop.debugmanager.print("[AFKManager] Attempted to expire AFK for user "..userid.." but they do not have an active AFK")
+            loop.debugmanager.print("[AFKManager] Attempted to expire AFK for user "..record.key.." but they do not have an active AFK")
             return 
         end
         -- Dispatch an event with the result of the AFK expiry so other templates can react to it if needed
@@ -105,7 +110,9 @@ local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryM
         loop.dispatchEvent{
             name = "BuiltinsAfkExpiry", 
             data = { 
-                userid = userid, 
+                userid = record.key,
+                reason = record.value.reason,
+                createdat = record.createdat, 
             },
             author = nil
         }

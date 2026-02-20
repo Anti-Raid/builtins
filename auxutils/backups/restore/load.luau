@@ -5,7 +5,6 @@ local types = require"../backups"
 local serde = require"@lune/serde"
 local assetfetch = require"../create/assetfetch"
 local conditions = require"../conditions"
-local array = require"@antiraid-ext/array"
 
 local function isEncryptedBackup(filename: string): boolean
     return filename:sub(-1) == "e"
@@ -20,61 +19,6 @@ local function isBackupFile(filename: string): BackupFile
         return "arb2"  
     else 
         return nil
-    end
-end
-
-local function stripExcessMessages(coreData: types.CoreBackupData) 
-    -- Ensure the messages match our limits by removing excess messages
-    for channelId, messages in coreData.messages do
-        if #messages > coreData.options.perChannel then
-            coreData.messages[channelId] = array.slice(messages, 1, coreData.options.perChannel)
-        end
-    end
-
-    -- Ensure the total number of messages does not exceed maxMessages
-    local totalMessages = 0
-    for _, messages in coreData.messages do
-        totalMessages += #messages
-    end
-
-    -- Drop channels until we meet this requirement
-    -- if we still don't meet this requirement
-    if totalMessages > coreData.options.maxMessages then
-        local iters = 0
-        while totalMessages > coreData.options.maxMessages and iters <= conditions.MAX_STRIP_ITERS do 
-            local nextChannel = nil
-            local nextMsgCount = nil
-
-            -- Get next channel using a generalized iteration
-            for channelId, messages in coreData.messages do 
-                nextChannel = channelId
-                nextMsgCount = #messages
-                break
-            end
-
-            if nextChannel then 
-                coreData.messages[nextChannel] = nil
-                totalMessages -= if nextMsgCount then nextMsgCount else 0
-            end
-            
-            iters += 1
-        end
-
-        if iters > conditions.MAX_STRIP_ITERS then 
-            error("Internal Error: failed to strip out excess messages after trying " .. iters .. " times to do so")
-        end
-    end
-
-    -- Ensure the total number of messages does not exceed maxMessages one final time as a sanity check
-    totalMessages = 0
-    for _, messages in coreData.messages do
-        totalMessages += #messages
-    end
-
-    -- Drop channels until we meet this requirement
-    -- if we still don't meet this requirement
-    if totalMessages > coreData.options.maxMessages then 
-        error("Internal Error: total messages is still above limit despite attempt to prune backup. Please contact support if you think this a bug")
     end
 end
 
@@ -122,9 +66,6 @@ local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey:
     if coreData.options.perChannel > coreData.options.maxMessages then
         coreData.options.perChannel = coreData.options.maxMessages
     end
-    
-    -- Ensure the messages match our limits by removing excess messages
-    stripExcessMessages(coreData)
 
     local assets = {}
     for _, assetEntry in tarArchive:entries() do

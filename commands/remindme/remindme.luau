@@ -87,6 +87,8 @@ local function run(data: data.RunData): nil
         )
     end
 
+    assert(message, "message option is required") -- should never fail since we set it as required in the command definition
+
     local dt = datetime.UTC:now() + datetime.timedelta_seconds(stime or 1)
     kexs.getmanagers(data.ctx).remindmeexpiry.addat(dt, {
         userid = user.id,

@@ -6,14 +6,26 @@ local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
 local isDevMode = require"../../devs".isInDevMode
 local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
 
+type TempBan = {
+    userid: string,
+    modid: string?,
+    reason: string,
+}
+
+type RemindMe = {
+    userid: string,
+    channelid: string,
+    message: string,
+    ephemeral: boolean,
+}
+
 export type Managers = {
     stingmanager: stingmanager.StingManager,
     afkmanager: afkmanager.AFKManager,
-    tempbankex: KeyExpiryManager.KeyExpiryManager,
-    remindmeexpiry: KeyExpiryManager.KeyExpiryManager,
-    afkexpiry: KeyExpiryManager.KeyExpiryManager,
-    stingexpiry: KeyExpiryManager.KeyExpiryManager,
-    backuprestorecheckpointexpiry: KeyExpiryManager.KeyExpiryManager, -- backup restore checkpoint expiry manager, used to automatically delete backup restore checkpoints after a certain amount of time to prevent clutter and potential security issues
+    tempbankex: KeyExpiryManager.KeyExpiryManager<TempBan>,
+    remindmeexpiry: KeyExpiryManager.KeyExpiryManager<RemindMe>,
+    afkexpiry: KeyExpiryManager.KeyExpiryManager<afkmanager.AFKExpiryData>,
+    stingexpiry: KeyExpiryManager.KeyExpiryManager<stingmanager.StingExpiryData>,
 }
 
 local managers: Managers? = nil
@@ -22,7 +34,7 @@ local managers: Managers? = nil
 local function getmanagers(ctx: Primitives.TemplateContext): Managers
     if managers then return managers end
 
-    local tempbanExpiryManager = KeyExpiryManager(ctx, scopePrefix..".tempbans", function(loop, record) 
+    local tempbanExpiryManager = KeyExpiryManager<<TempBan>>(ctx, scopePrefix..".tempbans", function(loop, record) 
         -- userid = userid, modid = modid, reason = reason, [createdat = createdat, expiresat = expiresat]
         local userid = record.value.userid
         local modid = record.value.modid
@@ -52,7 +64,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         }
         return nil
     end)
-    local remindmeExpiryManager = KeyExpiryManager(ctx, scopePrefix..".remindme", function(loop, record) 
+    local remindmeExpiryManager = KeyExpiryManager<<RemindMe>>(ctx, scopePrefix..".remindme", function(loop, record) 
         local userid = record.value.userid
         local channelid = record.value.channelid
         local message = record.value.message
@@ -89,42 +101,20 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         }
         return nil
     end)
-    local afkExpiryManager = KeyExpiryManager(ctx, scopePrefix..".afk", function(loop, record) 
-        local userid = record.key
-        if not userid then 
-            loop.debugmanager.print("[BuiltinsAfkExpiry] Missing userid in record for key "..record.key)
-            return
-        end
+    local afkExpiryManager = KeyExpiryManager<<afkmanager.AFKExpiryData>>(ctx, scopePrefix..".afk", function(loop, record) 
         if not managers then 
             loop.debugmanager.print("[BuiltinsAfkExpiry] AFKManager not initialized when trying to expire AFK for user "..record.key)
             return
         end
-        managers.afkmanager.onAfkExpire(record.key) -- this automatically dispatches the BuiltinsAfkExpiry event as well, so no need to do that here
+        managers.afkmanager.onAfkExpire(record) -- this automatically dispatches the BuiltinsAfkExpiry event as well, so no need to do that here
         return nil
     end)
-    local stingExpiryManager = KeyExpiryManager(ctx, scopePrefix..".stings", function(loop, record) 
-        local stingid = record.key
-        local userid = record.value.userid
-        if not stingid or not userid then
-            loop.debugmanager.print("[BuiltinsStingExpiry] Missing stingid or userid in record for key "..record.key)
-            return
-        end
+    local stingExpiryManager = KeyExpiryManager<<stingmanager.StingExpiryData>>(ctx, scopePrefix..".stings", function(loop, record) 
         if not managers then 
-            loop.debugmanager.print("[BuiltinsStingExpiry] StingManager not initialized when trying to expire sting "..stingid)
+            loop.debugmanager.print("[BuiltinsStingExpiry] StingManager not initialized when trying to expire sting "..record.key)
             return
         end
-        managers.stingmanager.onStingExpire(userid, stingid) -- this automatically dispatches the BuiltinsStingDelete event as well, so no need to do that here
-        return nil
-    end)
-
-    local backuprestorecheckpointexpiryManager = KeyExpiryManager(ctx, scopePrefix..".backuprestorecheckpoints", function(loop, record)
-        return nil
-    end, function(loop, records) 
-        -- on init, resume any existing checkpoints
-        --
-        -- for now, we just log
-        loop.debugmanager.print("[BuiltinsBackupRestoreCheckpointExpiry] Resuming backup restore checkpoints", records)
-        loop.debugmanager.print(records)
+        managers.stingmanager.onStingExpire(record) -- this automatically dispatches the BuiltinsStingDelete event as well, so no need to do that here
         return nil
     end)
 
@@ -138,7 +128,6 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         remindmeexpiry = remindmeExpiryManager,
         afkexpiry = afkExpiryManager,
         stingexpiry = stingExpiryManager,
-        backuprestorecheckpointexpiry = backuprestorecheckpointexpiryManager
     }
 
     return managers or error("Failed to initialize managers")
