@@ -25,7 +25,7 @@ export type ChannelChange = {
     newparentid: string?
 }
 
-local function diff(old: {apitypes.ChannelObject}, new: {apitypes.ChannelObject}): ChannelChange 
+local function diff(old: {apitypes.ChannelObject}, new: {apitypes.ChannelObject}): {ChannelChange}
     error("not implemented yet")
 end
 
