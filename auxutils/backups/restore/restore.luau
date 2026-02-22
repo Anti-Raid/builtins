@@ -12,8 +12,7 @@ export type Opts = {
     gre: RestoreManager.GetRestored,
 
     -- For sending status updates
-    channelid: string, -- The channel ID to send status updates to
-    msgid: string, -- The message ID to send status updates to
+    interactiontoken: string
 }
 
 --- Helper function to get the restore manager from the slate or create a new one if it doesn't exist. This is used to persist the restore manager across checkpoints.
