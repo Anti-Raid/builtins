@@ -21,11 +21,11 @@ export type ChannelChange = {
     type: "MoveChannel",
     --- The ID of the channel to move
     channelid: string,
-    --- The ID of the new parent category. If null, the channel will be moved to the root of the guild.
+    --- The ID of the new parent category. If null, the channel will not have a category attached to it anymore
     newparentid: string?
 }
 
-local function diff(old: apitypes.ChannelObject, new: apitypes.ChannelObject): ChannelChange 
+local function diff(old: {apitypes.ChannelObject}, new: {apitypes.ChannelObject}): ChannelChange 
     error("not implemented yet")
 end
 
