@@ -2,7 +2,7 @@ local Primitives = require"@antiraid-core/primitives"
 local datamgmt = require"@antiraid/datamgmt"
 local coreBackup = require"./corebackup"
 local types = require"../backups"
-local serde = require"@lune/serde"
+local json = require"@antiraid/json"
 local finalize = require"./finalize"
 local assetfetch = require"./assetfetch"
 local validate = require"./validate"
@@ -18,9 +18,9 @@ local function createBackup(ctx: Primitives.TemplateContext, opts: types.BackupC
         local coreBackup = coreBackup(ctx, opts, updater)
         updater.addStatus("Generating backup archive")
         local tararchive = datamgmt.TarArchive()
-        local encoded = serde.encode("json", coreBackup)
-        local gzipped = serde.compress("gzip", encoded)
-        tararchive:addfile("core.json.gz", gzipped)
+        local encoded = json.tojsonstring(coreBackup)
+        local gzippedblob = datamgmt.compress("gzip", encoded)
+        tararchive:addfile("core.json.gz", gzippedblob)
 
         -- Add assets
         for _, asset in opts.backupGuildAssets do

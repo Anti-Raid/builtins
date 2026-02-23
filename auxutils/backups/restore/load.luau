@@ -2,7 +2,7 @@ local Primitives = require"@antiraid-core/primitives"
 local datamgmt = require"@antiraid/datamgmt"
 local blob = require"@antiraid-core/blob"
 local types = require"../backups"
-local serde = require"@lune/serde"
+local json = require"@antiraid/json"
 local assetfetch = require"../create/assetfetch"
 local conditions = require"../conditions"
 
@@ -44,12 +44,12 @@ local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey:
     if format == "arb1" then 
         local coreDataBlob = tarArchive:takefile("core.json")
         assert(coreDataBlob, "Core backup data not found in backup archive")
-        coreData = serde.decode("json", coreDataBlob:tobuffer())
+        coreData = json.fromjsonstring(coreDataBlob)
     elseif format == "arb2" then
         local coreDataBlob = tarArchive:takefile("core.json.gz")
         assert(coreDataBlob, "Core backup data not found in backup archive")
-        local decompressed = serde.decompress("gzip", coreDataBlob:tobuffer())
-        coreData = serde.decode("json", decompressed)
+        local decompressedblob = datamgmt.decompress("gzip", coreDataBlob) -- this creates a blob owned by rust containing the decompressed data
+        coreData = json.fromjsonstring(decompressedblob) -- creates the luau value from this rust-owned blob without any copying to luau
     else
         error("Unsupported backup format: " .. format)
     end

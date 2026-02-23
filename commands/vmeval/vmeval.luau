@@ -3,7 +3,7 @@ local data = require"@antiraid-ext/framework/coretypes"
 local luau = require "@antiraid/luau"
 local toArray = require "@antiraid-ext/array".toArray
 local apitypes = require "@discord-types/apiTypes"
-local serde = require "@lune/serde"
+local json = require "@antiraid/json"
 local interop = require "@antiraid/interop"
 local interactionutils = require "@antiraid-ext/utils/interaction"
 local UserInfoManager = require"@antiraid-ext/utils/userinfo"
@@ -65,10 +65,8 @@ local function run(data: data.RunData): nil
     chunk.environment = {
         globals = _G,
         require = require,
-        serde = serde,
-        jsonify = function(obj)
-            return serde.encode("json", obj)
-        end,
+        json = json,
+        jsonify = json.tojsonstring,
         ctx = data.ctx,
         data = data,
         interaction = data.interaction,
