@@ -22,7 +22,7 @@ local function honeypotHandler(msg: apitypes.MessageObject, ctx: Primitives.Temp
         honeypotManager = HoneypotManager(ctx)
     end
     assert(honeypotManager, "Internal error: HoneypotManager is nil")
-    local honeypots = honeypotManager.listcached()
+    local honeypots = honeypotManager.list()
     for _, honeypot in honeypots do
         if msg.channel_id == honeypot.channelid then
             if msg.author.bot and honeypot.botallowed then break end -- Ignore clearly bot messages if bots are allowed in the honeypot

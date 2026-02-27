@@ -1,15 +1,10 @@
 local Primitives = require "@antiraid-core/primitives"
-local kv = require "@antiraid-core/plugins/kv"
 local datetime = require "@antiraid/datetime"
-local assertBoolean = require "@antiraid-ext/settings".assertBoolean
-local assertStringChoices = require "@antiraid-ext/settings".assertStringChoices
 local isDevMode = require"../devs".isInDevMode
+local KeyManager = require "@antiraid-ext/keymanager"
 
 local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
-local punishmentChoices = {"ban", "kick"}
 local MAX_HONEYPOTS = 3 -- Maximum honeypots allowed per server
-
-local cacheExpiryTime = 60 -- Cache expiry time
 
 export type CreateHoneypot = {
     botallowed: boolean, -- Whether bots are allowed to message in the honeypot
@@ -27,88 +22,70 @@ export type Honeypot = {
 export type HoneypotManager = {
     --- Returns all setup honeypots on the server
     list: () -> {Honeypot},
-    --- Returns all setup honeypots on the server (cached)
-    listcached: () -> {Honeypot},
     --- Sets a honeypot for a channel
     set: (data: CreateHoneypot) -> (),
     --- Deletes a honeypot
     delete: (channelid: string) -> (),
 }
 
+export type HoneypotData = {
+    botallowed: boolean, -- Whether bots are allowed to message in the honeypot
+    punishment: "ban" | "kick", -- Punishment to apply
+}
+
 --- A data fetcher for honeypots.
 local function HoneypotManager(ctx: Primitives.TemplateContext): HoneypotManager
+    local km = KeyManager<<HoneypotData>>(ctx, scopePrefix .. ".honeypots")
+    local cachedlist: {Honeypot}? = nil
+
     local self = {}
 
-    type CachedHoneypots = {
-        honeypots: {Honeypot},
-        made: number
-    }
-
-    local honeypotsCache: CachedHoneypots? = nil
-
-    local function _parseHoneypot(item: kv.KvRecord): Honeypot
-        assert(item.exists, "Internal error: Honeypot item does not exist")
+    local function _parseHoneypot(item: KeyManager.KeyRecord<HoneypotData>): Honeypot
         local channelid = item.key
-        local createdAt = item.created_at
-        local botallowed = assertBoolean("botallowed", item.value.botallowed or false)
-        local punishment = assertStringChoices("punishment", item.value.punishment, punishmentChoices) :: "ban" | "kick"
+        local createdAt = item.createdat
 
         return {
             channelid = channelid,
-            botallowed = botallowed,
-            punishment = punishment,
+            botallowed = item.value.botallowed,
+            punishment = item.value.punishment,
             created_at = createdAt,
         }
     end
 
     local function list(): {Honeypot}
-        local data = ctx.KV:find("%%", {scopePrefix .. ".honeypots"})
+        if cachedlist then return cachedlist end
+        local data = km.list()
 
-        local honeypots = {}
+        local pots = {}
         for _, item in data do
-            local honeypot = _parseHoneypot(item)
-            table.freeze(honeypot)
-            table.insert(honeypots, honeypot)
+            local pot = _parseHoneypot(item)
+            table.insert(pots, pot)
         end
-        honeypots = table.freeze(honeypots) :: {Honeypot} -- Freeze the table to make it immutable
 
-        honeypotsCache = {
-            honeypots = honeypots,
-            made = os.clock(),
-        }
-
-        return honeypots
+        pots = table.freeze(pots) :: {Honeypot}
+        cachedlist = pots
+        return pots
     end
 
     local function set(honeypot: CreateHoneypot): ()
-        local honeypots = list()
-        if #honeypots >= MAX_HONEYPOTS then
+        if km.count() >= MAX_HONEYPOTS then
             error("Maximum of 5 honeypots can be set at once")
         end
 
-        ctx.KV:set(honeypot.channelid, {
-            botallowed = assertBoolean("botallowed", honeypot.botallowed),
-            punishment = assertStringChoices("punishment", honeypot.punishment, punishmentChoices),
-        }, {scopePrefix .. ".honeypots"})
+        km.add({
+            botallowed = honeypot.botallowed,
+            punishment = honeypot.punishment,
+        }, honeypot.channelid)
 
-        honeypotsCache = nil -- Invalidate cache
+        cachedlist = nil -- Invalidate cache
     end
 
-    local function delete(userid: string)
-        ctx.KV:delete(userid, {scopePrefix .. ".afks"})
-        honeypotsCache = nil -- Invalidate cache
-    end
-
-    local function listcached(): {Honeypot}
-        if honeypotsCache and os.clock() - honeypotsCache.made > cacheExpiryTime then
-            return honeypotsCache.honeypots
-        end
-
-        return list()
+    local function delete(channelid: string)
+        km.remove(channelid)
+        cachedlist = nil -- Invalidate cache
     end
 
     self.list = list
-    self.listcached = listcached
     self.set = set
     self.delete = delete
 

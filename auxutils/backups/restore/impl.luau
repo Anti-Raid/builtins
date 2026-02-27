@@ -10,6 +10,7 @@ local compare = require"@antiraid-ext/utils/rolecmp"
 local discord = require"@antiraid-core/plugins/discord"
 local permission = require"@discord-types/permission"
 local channel = require"@discord-types/channel"
+local validate = require"../create/validate"
 
 export type PermData = {
     currentBotMember: apitypes.GuildMemberObject,
@@ -105,6 +106,8 @@ local function BaseRestoreManager(
     assert(coreData.guild.roles, "invalid backup: guild roles data is missing in core data")
     compare.SortRolesByHierarchyDesc(coreData.guild.roles) -- Sort backup roles in hierarchy order
     
+    validate.validate(coreData.options)
+
     -- Set src and target guild ids and do basic validation
     local srcGuildId = coreData.guild.id
     assert(srcGuildId and #srcGuildId > 0, "invalid backup: guild ID is missing or invalid")

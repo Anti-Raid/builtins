@@ -104,7 +104,6 @@ local function AuditLogManager(ctx: Primitives.TemplateContext): AuditLogManager
             km.updatedata(logData.channel_id, {
                 whats = logData.whats,
             })
-            cachedlist = nil -- Invalidate cache
         else
             if km.count() >= MAX_CHANNELS then
                 error("Maximum number of log channels reached")
@@ -112,8 +111,8 @@ local function AuditLogManager(ctx: Primitives.TemplateContext): AuditLogManager
             km.add({
                 whats = logData.whats,
             }, logData.channel_id)
-            cachedlist = nil -- Invalidate cache
         end
+        cachedlist = nil -- Invalidate cache
     end
 
     local function delete(channelid: string)
