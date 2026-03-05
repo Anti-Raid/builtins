@@ -3,7 +3,7 @@ local typesext = require"@antiraid/typesext"
 local luau = require"@antiraid/luau"
 local channel = require"@antiraid/channel"
 local templateloopImpl = require"@antiraid-core/templateloop"
-local LazyLoad = require"@antiraid-ext/lazyload"
+local LazyLoad = require"@antiraid-ext/sync/lazyload"
 
 export type Isolate = {
     --- The ID of the isolate.

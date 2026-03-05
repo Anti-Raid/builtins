@@ -5,7 +5,7 @@ local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local EmojiBuilder = require"@discord-types/builders/emoji"
 local datetime = require"@antiraid/datetime"
 local types = require"./backups"
-local Ticker = require"@antiraid-ext/ticker"
+local Ticker = require"@antiraid-ext/sync/ticker"
 
 local map = {
     running = ":hourglass_flowing_sand:",
