@@ -69,7 +69,10 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         --- Create sub-context for template
         local subctx = rootctx:with({
             event = event,
-            capabilities = caps,
+            limitations = {
+                capabilities = caps,
+                reserved_key_scopes = {"tloop.reserved"}
+            },
         })
 
         local entrypoint = entrypointloader.get()
