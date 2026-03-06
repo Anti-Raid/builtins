@@ -1,13 +1,12 @@
 local Primitives = require "@antiraid-core/primitives"
 local settingsext = require "@antiraid-ext/settings"
 local kv = require "@antiraid-core/plugins/kv"
-local runtime = require"@antiraid-core/plugins/runtime"
 local typesext = require"@antiraid/typesext"
 local templatemanagerImpl = require"@antiraid-core/templatemanager"
 
 --- Internal storage type for templates (the item.value in KV)
 type ITemplateStore = {
-    content: runtime.LazyContent,
+    content: typesext.MemoryVfs,
     allowed_caps: { string },
     paused: boolean,
     name: string,
@@ -34,12 +33,11 @@ local function TemplateManager(ctx: Primitives.TemplateContext): templatemanager
     local VfsBuiltinsPatches = exposedvfs.BuiltinsPatches or error("Internal error: BuiltinsPatches VFS not found in exposed VFSs")
     local VfsTemplatingTypes = exposedvfs.TemplatingTypes or error("Internal error: TemplatingTypes VFS not found in exposed VFSs")
 
-
     local function _parseCustomTemplate(item: kv.KvRecord): templatemanagerImpl.Template
         assert(item.exists, "Internal error: Template item does not exist")
         local content = item.value.content
         local name = settingsext.assertString("name", item.value.name)
-        assert(type(content) == "userdata", "Internal error: Template content is not userdata")
+        assert(type(content) == "userdata", "Internal error: Template content is not a MemoryVfs")
         local allowedCaps = settingsext.assertStringArray("allowed_caps", item.value.allowed_caps)
         local paused = settingsext.assertBoolean("paused", item.value.paused)
         local language = settingsext.assertString("language", item.value.language)
@@ -54,7 +52,7 @@ local function TemplateManager(ctx: Primitives.TemplateContext): templatemanager
                 key = item.key,
                 name = name,
                 language = language,
-                content = content :: runtime.LazyContent,
+                content = content :: typesext.MemoryVfs,
                 created_at = createdAt,
                 last_updated_at = lastUpdatedAt,
             },
