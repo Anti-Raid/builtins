@@ -89,7 +89,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
     end
 
     isolate.runEventResult = function(rootctx: Primitives.TemplateContext, event: Primitives.Event): templateloopImpl.DispatchResult
-        local ok, res = xpcall(isolate.runEvent, debug.traceback :: any, rootctx, event)
+        local ok, res = xpcall(isolate.runEvent, function(e) return debug.traceback(tostring(e), 2) end, rootctx, event)
 
         if ok then
             return {type = "ok", id = id, value = res}
