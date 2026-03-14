@@ -30,7 +30,6 @@ local function TemplateManager(ctx: Primitives.TemplateContext): templatemanager
 
     local exposedvfs = ctx.Runtime:getexposedvfs()
     local VfsBuiltins = exposedvfs.Builtins or error("Internal error: Builtins VFS not found in exposed VFSs")
-    local VfsBuiltinsPatches = exposedvfs.BuiltinsPatches or error("Internal error: BuiltinsPatches VFS not found in exposed VFSs")
     local VfsTemplatingTypes = exposedvfs.TemplatingTypes or error("Internal error: TemplatingTypes VFS not found in exposed VFSs")
 
     local function _parseCustomTemplate(item: kv.KvRecord): templatemanagerImpl.Template
@@ -119,7 +118,6 @@ local function TemplateManager(ctx: Primitives.TemplateContext): templatemanager
 
         if template.source.type == "builtins" then 
             local vfs = typesext.Vfs.newoverlay({
-                VfsBuiltinsPatches,
                 VfsBuiltins,
                 VfsTemplatingTypes,
             })

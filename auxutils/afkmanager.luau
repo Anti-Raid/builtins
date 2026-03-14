@@ -1,3 +1,4 @@
+--!strict
 local Primitives = require "@antiraid-core/primitives"
 local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
 local assertString = require "@antiraid-ext/settings".assertString
@@ -21,6 +22,8 @@ export type AFK = {
 export type AFKManager = {
     --- Returns a list of all AFKs
     list: () -> {AFK},
+    --- Returns the count of all AFKs we currently have
+    count: () -> number,
     --- Returns a user's AFK if they have one
     get: (userid: string) -> AFK | nil,
     --- Sets a AFK for a user
@@ -64,6 +67,10 @@ local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryM
         end
 
         return afks
+    end
+
+    local function count(): number
+        return afkexpiry.count()
     end
 
     local function get(userid: string): AFK | nil
@@ -119,6 +126,7 @@ local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryM
     end
 
     self.list = list
+    self.count = count
     self.get = get
     self.set = set
     self.delete = delete

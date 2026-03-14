@@ -1,3 +1,4 @@
+--!strict
 local Primitives = require"@antiraid-core/primitives"
 local typesext = require"@antiraid/typesext"
 local luau = require"@antiraid/luau"
@@ -78,7 +79,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         local entrypoint = entrypointloader.get()
 
         if type(entrypoint) ~= "table" then
-            error(`entrypoint.luau for template \`{id}\` did not return a table, got \`{type(entrypoint)}\``)
+            error(`init.luau for template \`{id}\` did not return a table, got \`{type(entrypoint)}\``)
         end
         local func: unknown = entrypoint[event.name]
         if func and type(func) == "function" then 

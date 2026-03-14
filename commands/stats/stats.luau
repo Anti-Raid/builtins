@@ -1,35 +1,29 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
-local data = require"@antiraid-ext/framework/coretypes"
-local interactionutils = require "@antiraid-ext/utils/interaction"
+local data = require"@antiraid-ext/frameworkv2/context"
 local datetime = require("@antiraid/datetime")
 local formatTimeDelta = require "@antiraid-ext/formattimedelta"
 
-local function register() 
-    return commandBuilder.new({
-        name = "stats",
-    })
-    :addIntegrationType("GuildInstall")
-    :setType("ChatInput")
-    :addContext("Guild")
-    :setDescription("View stats about the bot")
-    :build()
-end
+local command = commandBuilder.new({
+    name = "stats",
+})
+:addIntegrationType("GuildInstall")
+:setType("ChatInput")
+:addContext("Guild")
+:setDescription("View stats about the bot")
+:build()
 
-local function run(data: data.RunData): nil
-    local stats = data.ctx.Runtime:stats()
+local function run(data: data.CommandContext)
+    local stats = data.framework.ctx.Runtime:stats()
 
     local startedAt = datetime.UTC:now():duration_since(stats.last_started_at)
 
-    return interactionutils.replySimple(
-        data.ctx,
-        data.interaction,
-        nil,
-        {
+    data.interaction.reply{
+        embeds = {
             {
                 title = "Stats",
                 description = "Here are the some cool bot stats",
                 fields = {
-                    { name = "Bot Name", value = tostring(data.ctx.current_user.username), inline = true },
+                    { name = "Bot Name", value = tostring(data.framework.ctx.current_user.username), inline = true },
                     --{ name = "Total Users", value = tostring(stats.total_members), inline = true },
                     { name = "Total Servers", value = tostring(stats.total_guilds), inline = true },
                     { name = "Total Cached Servers", value = tostring(stats.total_cached_guilds), inline = true },
@@ -37,12 +31,11 @@ local function run(data: data.RunData): nil
                     { name = "Bot Uptime", value = formatTimeDelta(startedAt), inline = true }
                 }
             }
-        },
-        false
-    )
+        }
+    }
 end
 
 return {
-    register = register,
+    command = command,
     run = run,
 }

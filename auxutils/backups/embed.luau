@@ -5,7 +5,6 @@ local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local EmojiBuilder = require"@discord-types/builders/emoji"
 local datetime = require"@antiraid/datetime"
 local types = require"./backups"
-local Ticker = require"@antiraid-ext/sync/ticker"
 
 local map = {
     running = ":hourglass_flowing_sand:",
@@ -14,7 +13,7 @@ local map = {
 }
 
 local function getIconOfState(state: string): string 
-    return map[state] or map.__wildcard__
+    return map[state] or map.running
 end
 
 local function _formatValue(value: any): string
@@ -43,13 +42,8 @@ local function _formatValue(value: any): string
     end
 end
 
-export type Status = {
-    ts: number,
-    message: string
-}
-
 export type EmbedData = {
-    statuses: {Status},
+    statuses: {types.Status},
     state: "running" | "completed" | "failed",
     createdat: number,
     finalFilePath: string?,
@@ -136,63 +130,19 @@ local function backupJobToEmbed(
     return embed, components
 end
 
-export type EmbedUpdateOptions = {
-    spawner: (updater: types.Updater, initial: EmbedData) -> (),
-    callback: (EmbedData) -> (),
-    interval: number
-}
-
-local function updateTillComplete(opts: EmbedUpdateOptions)
-    local initialEmbedData: EmbedData = {
-        id = "",
-        createdat = os.time(),
-        state = "running",
-        statuses = {},
-        numUpdates = 0,
+local function Updater(): types.Updater 
+    local statuses: {types.Status} = {}
+    local function addStatus(msg: string) 
+        table.insert(statuses, {message = msg, ts = os.time()})
+    end
+    local function getStatus() return statuses end
+    return {
+        addStatus = addStatus,
+        getStatus = getStatus
     }
-
-    local changesMade = false
-    local ticker: Ticker.Ticker
-    ticker = Ticker(opts.interval, function() 
-        if not ticker then return end
-        if changesMade then 
-            changesMade = false 
-            local ok = pcall(opts.callback, initialEmbedData)
-            if not ok then initialEmbedData.state = "failed" end
-        end
-
-        if initialEmbedData.state == "completed" or initialEmbedData.state == "failed" then 
-             ticker.cancel()
-        end
-    end)
-
-    local updater = {}
-    updater.addStatus = function(s: string) 
-        table.insert(initialEmbedData.statuses, { message = s, ts = os.time() })
-        changesMade = true
-    end
-    updater.setState = function(state: "running" | "completed" | "failed") 
-        initialEmbedData.state = state
-        changesMade = true
-    end
-    updater.setId = function(id: string) 
-        initialEmbedData.id = id
-        changesMade = true
-    end
-
-    local ok, res = pcall(opts.spawner, updater, initialEmbedData)
-    if ticker then ticker.cancel() end
-    if not ok then 
-        initialEmbedData.state = "failed"
-        table.insert(initialEmbedData.statuses, { message = "Failed to start backup job: " .. tostring(res), ts = os.time() })
-    elseif initialEmbedData.state ~= "failed" then
-        initialEmbedData.state = "completed"
-    end
-
-    pcall(opts.callback, initialEmbedData)
 end
 
 return {
     backupJobToEmbed = backupJobToEmbed,
-    updateTillComplete = updateTillComplete
+    Updater = Updater
 }
