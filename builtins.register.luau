@@ -6,11 +6,10 @@
 local commands = require "./commands/commands"
 local commandList = {}
 for _, command in commands.commands do
-    if not command or not command.register then
-        continue -- ignore invalid commands
+    if not command or not command.command then
+        error(`Command {command} is invalid, doesn't have a \`command\` object associated with it`)
     end
-    local cmd = command.register()
-    table.insert(commandList, cmd)
+    table.insert(commandList, command.command)
 end
 
 return {

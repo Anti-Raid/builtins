@@ -1,10 +1,8 @@
 local stingmanager = require"../stingmanager"
 local afkmanager = require"../afkmanager"
+local honeypotmanager = require"../honeypotmanager"
 local Primitives = require"@antiraid-core/primitives"
 local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
-
-local isDevMode = require"../../devs".isInDevMode
-local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
 
 type TempBan = {
     userid: string,
@@ -22,6 +20,7 @@ type RemindMe = {
 export type Managers = {
     stingmanager: stingmanager.StingManager,
     afkmanager: afkmanager.AFKManager,
+    honeypotmanager: honeypotmanager.HoneypotManager,
     tempbankex: KeyExpiryManager.KeyExpiryManager<TempBan>,
     remindmeexpiry: KeyExpiryManager.KeyExpiryManager<RemindMe>,
     afkexpiry: KeyExpiryManager.KeyExpiryManager<afkmanager.AFKExpiryData>,
@@ -34,7 +33,7 @@ local managers: Managers? = nil
 local function getmanagers(ctx: Primitives.TemplateContext): Managers
     if managers then return managers end
 
-    local tempbanExpiryManager = KeyExpiryManager<<TempBan>>(ctx, scopePrefix..".tempbans", function(loop, record) 
+    local tempbanExpiryManager = KeyExpiryManager<<TempBan>>(ctx, "builtins.tempbans", function(loop, record) 
         -- userid = userid, modid = modid, reason = reason, [createdat = createdat, expiresat = expiresat]
         local userid = record.value.userid
         local modid = record.value.modid
@@ -64,7 +63,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         }
         return nil
     end)
-    local remindmeExpiryManager = KeyExpiryManager<<RemindMe>>(ctx, scopePrefix..".remindme", function(loop, record) 
+    local remindmeExpiryManager = KeyExpiryManager<<RemindMe>>(ctx, "builtins.remindme", function(loop, record) 
         local userid = record.value.userid
         local channelid = record.value.channelid
         local message = record.value.message
@@ -101,7 +100,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         }
         return nil
     end)
-    local afkExpiryManager = KeyExpiryManager<<afkmanager.AFKExpiryData>>(ctx, scopePrefix..".afk", function(loop, record) 
+    local afkExpiryManager = KeyExpiryManager<<afkmanager.AFKExpiryData>>(ctx, "builtins.afk", function(loop, record) 
         if not managers then 
             loop.debugmanager.print("[BuiltinsAfkExpiry] AFKManager not initialized when trying to expire AFK for user "..record.key)
             return
@@ -109,7 +108,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         managers.afkmanager.onAfkExpire(record) -- this automatically dispatches the BuiltinsAfkExpiry event as well, so no need to do that here
         return nil
     end)
-    local stingExpiryManager = KeyExpiryManager<<stingmanager.StingExpiryData>>(ctx, scopePrefix..".stings", function(loop, record) 
+    local stingExpiryManager = KeyExpiryManager<<stingmanager.StingExpiryData>>(ctx, "builtins.stings", function(loop, record) 
         if not managers then 
             loop.debugmanager.print("[BuiltinsStingExpiry] StingManager not initialized when trying to expire sting "..record.key)
             return
@@ -120,10 +119,12 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
 
     local afkmanager = afkmanager(ctx, afkExpiryManager)
     local stingmanager = stingmanager(ctx, stingExpiryManager)
+    local honeypotmanager = honeypotmanager(ctx)
 
     managers = {
         stingmanager = stingmanager,
         afkmanager = afkmanager,
+        honeypotmanager = honeypotmanager,
         tempbankex = tempbanExpiryManager,
         remindmeexpiry = remindmeExpiryManager,
         afkexpiry = afkExpiryManager,

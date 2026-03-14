@@ -1,27 +1,25 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
-local interactionutils = require "@antiraid-ext/utils/interaction"
 local NewSnowflake = require "@discord-types/snowflake"
 local apitypes = require "@discord-types/apiTypes"
 local compare = require "@antiraid-ext/utils/rolecmp"
 local guildIconUrl = require "@antiraid-ext/utils/avatar".guildIconUrl
+local context = require"@antiraid-ext/frameworkv2/context"
 
 local function getCreationTimestampFromSnowflake(snowflake: string): number
     return NewSnowflake.new(snowflake):getTimestamp().timestamp_seconds
 end
 
-local function register()
-    return commandBuilder.new({
-        name = "serverinfo",
-    })
-    :addIntegrationType("GuildInstall") 
-    :setType("ChatInput")
-    :addContext("Guild")
-    :setDescription("Shows information about this server/guild")
-    :build()
-end
+local command = commandBuilder.new({
+    name = "serverinfo",
+})
+:addIntegrationType("GuildInstall") 
+:setType("ChatInput")
+:addContext("Guild")
+:setDescription("Shows information about this server/guild")
+:build()
 
-local function run(data)
-    local guild: apitypes.GuildObject = data.ctx.Discord:get_guild().data 
+local function run(data: context.CommandContext)
+    local guild: apitypes.GuildObject = data.framework.ctx.Discord:get_guild().data 
 
     local guildId = guild.id or error("Guild ID not found in context")
     local channels: {apitypes.ChannelObject} = data.ctx.Discord:get_guild_channels().data
@@ -76,7 +74,6 @@ local function run(data)
             creationTimestamp
         ),
         fields = {
-            -- { name = "Members", value = tostring(memberCount), inline = true },
             { name = "Highest Role", value = highestRole and string.format("<@&%s>", highestRole.id) or "Unknown", inline = true },
             { name = "Roles", value = tostring(#roles), inline = true }, 
             { name = "Text Channels", value = tostring(textChannels), inline = true },
@@ -100,16 +97,12 @@ local function run(data)
         thumbnail = { url = guildIconUrl(guild) or "" },
     }
 
-    return interactionutils.replySimple(
-        data.ctx,
-        data.interaction,
-        nil,
-        { embed },
-        false
-    )
+    data.interaction.reply({
+        embeds = {embed}
+    })
 end
 
 return {
-    register = register,
+    command = command,
     run = run,
 }

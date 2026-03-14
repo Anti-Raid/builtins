@@ -1,9 +1,8 @@
 local Primitives = require "@antiraid-core/primitives"
 local datetime = require "@antiraid/datetime"
-local isDevMode = require"../devs".isInDevMode
 local KeyManager = require "@antiraid-ext/keymanager"
+local tloop = require "@antiraid-core/templateloop"
 
-local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
 local MAX_HONEYPOTS = 3 -- Maximum honeypots allowed per server
 
 export type CreateHoneypot = {
@@ -22,6 +21,8 @@ export type Honeypot = {
 export type HoneypotManager = {
     --- Returns all setup honeypots on the server
     list: () -> {Honeypot},
+    --- Returns if a channelid is setup as a honeypot
+    has: (channelid: string) -> boolean,
     --- Sets a honeypot for a channel
     set: (data: CreateHoneypot) -> (),
     --- Deletes a honeypot
@@ -35,8 +36,9 @@ export type HoneypotData = {
 
 --- A data fetcher for honeypots.
 local function HoneypotManager(ctx: Primitives.TemplateContext): HoneypotManager
-    local km = KeyManager<<HoneypotData>>(ctx, scopePrefix .. ".honeypots")
+    local km = KeyManager<<HoneypotData>>(ctx, "builtins.honeypots")
     local cachedlist: {Honeypot}? = nil
+    local loop = tloop.getRunningLoop(ctx)
 
     local self = {}
 
@@ -67,11 +69,15 @@ local function HoneypotManager(ctx: Primitives.TemplateContext): HoneypotManager
         return pots
     end
 
+    local function has(channelid: string) 
+        return km.exists(channelid)
+    end
+
     local function set(honeypot: CreateHoneypot): ()
         if km.count() >= MAX_HONEYPOTS then
             error("Maximum of 5 honeypots can be set at once")
         end
-
+        loop.subscribeEvent("MESSAGE", "honeypot")
         km.add({
             botallowed = honeypot.botallowed,
             punishment = honeypot.punishment,
@@ -82,10 +88,16 @@ local function HoneypotManager(ctx: Primitives.TemplateContext): HoneypotManager
 
     local function delete(channelid: string)
         km.remove(channelid)
+        -- Unsubscribe if no more honeypots
+        if km.count() == 0 then
+            loop.unsubscribeEvent("MESSAGE", "honeypot")
+        end
+
         cachedlist = nil -- Invalidate cache
     end
 
     self.list = list
+    self.has = has
     self.set = set
     self.delete = delete
 

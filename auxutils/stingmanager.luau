@@ -66,6 +66,7 @@ export type StingExpiryData = {
 
 local function StingManager(ctx: Primitives.TemplateContext, stingexpiry: keyexpirymanager.KeyExpiryManager<StingExpiryData>): StingManager
     local self = {}
+    
 
     local loop = tloop.getRunningLoop(ctx)
 

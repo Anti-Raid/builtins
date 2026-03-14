@@ -1,115 +1,100 @@
 local discord = require "@discord-types/apiTypes"
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
-local data = require"@antiraid-ext/framework/coretypes"
-local interactionutils = require "@antiraid-ext/utils/interaction"
-local HoneypotManager = require "../../auxutils/honeypotmanager"
-local registerEvent = require "@antiraid-ext/utils/eventmgmt".registerEvent
-local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
+local data = require"@antiraid-ext/frameworkv2/context"
+local units = require"@antiraid-ext/frameworkv2/unit"
+local managers = require "../../auxutils/managers/managers"
 local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
-local paginate = require "@antiraid-ext/framework/paginate"
+local paginate = require "@antiraid-ext/frameworkv2/paginate"
 
-local function register() 
-    return commandBuilder.new({
-        name = "honeypot",
-    })
-    :addIntegrationType("GuildInstall")
-    :setType("ChatInput")
-    :addContext("Guild")
-    :setDescription("Setup honeypot channels")
-    :option(
-        function(opt)
-            return opt
-            :setType("SubCommand")
-            :setName("list")
-            :setDescription("List all honeypot channels")
-            :build()  
-        end     
-    )
-    :option(
-        function(opt) 
-            return opt
-            :setType("SubCommand")
-            :setName("setup")
-            :setDescription("Sets up a channel as a honeypot")  
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("Channel")
-                    :setName("channelid")
-                    :setDescription("The channel to set as a honeypot")  
-                    :setRequired(true)
-                    :build()      
-                end
-            )
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("Boolean")
-                    :setName("botallowed")
-                    :setDescription("Whether bots are allowed to message in this honeypot")  
-                    :setRequired(true)
-                    :build()      
-                end
-            )
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("String")
-                    :setName("punishment")
-                    :setDescription("What punishment to apply (ban/kick)")
-                    :setRequired(true)
-                    :build()
-                end
-            )
-            :build()      
-        end
-    )
-    :option(
-        function(opt) 
-            return opt
-            :setType("SubCommand")
-            :setName("remove")
-            :setDescription("Remove a honeypot from a channel")
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("Channel")
-                    :setName("channelid")
-                    :setDescription("The honeypot channel to remove")  
-                    :setRequired(true)
-                    :build()      
-                end
-            )  
-            :build()
-        end
-    )
-    :build()
-end
+local command = commandBuilder.new({
+    name = "honeypot",
+})
+:addIntegrationType("GuildInstall")
+:setType("ChatInput")
+:addContext("Guild")
+:setDescription("Setup honeypot channels")
+:option(
+    function(opt)
+        return opt
+        :setType("SubCommand")
+        :setName("list")
+        :setDescription("List all honeypot channels")
+        :build()  
+    end     
+)
+:option(
+    function(opt) 
+        return opt
+        :setType("SubCommand")
+        :setName("setup")
+        :setDescription("Sets up a channel as a honeypot")  
+        :option(
+            function(opt) 
+                return opt
+                :setType("Channel")
+                :setName("channelid")
+                :setDescription("The channel to set as a honeypot")  
+                :setRequired(true)
+                :build()      
+            end
+        )
+        :option(
+            function(opt) 
+                return opt
+                :setType("Boolean")
+                :setName("botallowed")
+                :setDescription("Whether bots are allowed to message in this honeypot")  
+                :setRequired(true)
+                :build()      
+            end
+        )
+        :option(
+            function(opt) 
+                return opt
+                :setType("String")
+                :setName("punishment")
+                :setDescription("What punishment to apply (ban/kick)")
+                :setRequired(true)
+                :build()
+            end
+        )
+        :build()      
+    end
+)
+:option(
+    function(opt) 
+        return opt
+        :setType("SubCommand")
+        :setName("remove")
+        :setDescription("Remove a honeypot from a channel")
+        :option(
+            function(opt) 
+                return opt
+                :setType("Channel")
+                :setName("channelid")
+                :setDescription("The honeypot channel to remove")  
+                :setRequired(true)
+                :build()      
+            end
+        )  
+        :build()
+    end
+)
+:build()
 
-local function run(data: data.RunData): nil
+local function run(data: data.CommandContext): nil
     local cmdname = data.command.nameList[2]
+    local honeypotmanager = managers.getmanagers(data.ctx).honeypotmanager
 
     if cmdname == "list" then
         canModeratorDo(
-            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
+            data.framework.userinfomanager.get(data.interaction.userid()),
             "honeypots.list"
         )
 
-        local honeypots = HoneypotManager(data.ctx).list()
+        local honeypots = honeypotmanager.list()
         if #honeypots == 0 then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "No Honeypots",
-                        description = "There are currently no honeypot channels set up.",
-                        color = 0xffff00, -- Yellow color
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("No Honeypots", "There are currently no honeypot channels set up.", units.YELLOW_COLOR)
         end
 
         local honeypotEmbeds: {discord.EmbedObject} = {}
@@ -136,164 +121,55 @@ local function run(data: data.RunData): nil
         })
         return nil    
     elseif cmdname == "add" then
-        local channelid: string? = nil
-        local botallowed: boolean? = nil
-        local punishment: string? = nil
-
-        -- Parse options
-        for _, opt in data.command.options do 
-            if opt.name == "channelid" then
-                if opt.value.kind == "Channel" then
-                    channelid = opt.value.channel.id
-                end
-            end
-            if opt.name == "botallowed" then
-                if opt.value.kind == "Boolean" then
-                    botallowed = opt.value.value
-                end
-            end
-            if opt.name == "punishment" then
-                if opt.value.kind == "String" then
-                    punishment = opt.value.value
-                end
-            end
-        end  
-
-        -- Recast due to type checking limitations
-        channelid = channelid :: string
-        botallowed = botallowed :: boolean
-        punishment = punishment :: string
+        local channelid = data.args.channelid("channelid")
+        local botallowed = data.args.boolean("botallowed")
+        local punishment = data.args.string("punishment")
 
         -- TODO: Add more options here
         if punishment ~= "ban" and punishment ~= "kick" then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Invalid punishment",
-                        description = "Punishment must be either 'ban' or 'kick'.",
-                        color = 0xff0000, -- Red color
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("Invalid punishment", "Punishment must be either 'ban' or 'kick'.", units.RED_COLOR)
         end
         
         if not channelid or not botallowed or not punishment then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Error processing command",
-                        description = "Something went wrong while trying to find options. Please try again?",
-                        color = 0xff0000, -- Red color
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("Error processing command", "Something went wrong while trying to find options. Please try again?", units.RED_COLOR) 
         end
 
         canModeratorDo(
-            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
+            data.framework.userinfomanager.get(data.interaction.userid()),
             "honeypots.add"
         )
         
-        HoneypotManager(data.ctx).set({
+        honeypotmanager.set({
             channelid = channelid,
             botallowed = botallowed,
             punishment = punishment,
         })
 
-        registerEvent(data.ctx, "MESSAGE")
-
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Honeypot Added/Updated",
-                    description = "Honeypot successfully added/updated for the specified channel.",
-                    color = 0x00ff00, -- Green color
-                },
-            },
-            false
-        )
+        return data.interaction.replysimpleembed("Honeypot Added/Updated", "Honeypot successfully added/updated for the specified channel.", units.GREEN_COLOR)
     elseif cmdname == "remove" then
-        local channelid: string? = nil
-        -- Parse options
-        for _, opt in data.command.options do 
-            if opt.name == "channelid" then
-                if opt.value.kind == "Channel" then
-                    channelid = opt.value.channel.id
-                end
-            end
-        end
+        local channelid = data.args.channelid("channelid")
 
         if not channelid then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Error processing command",
-                        description = "Something went wrong while trying to find channel id. Please try again?",
-                        color = 0xff0000, -- Red color
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("Error processing command", "Something went wrong while trying to find channel id. Please try again?", units.RED_COLOR)
         end
 
         canModeratorDo(
-            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
+            data.framework.userinfomanager.get(data.interaction.userid()),
             "honeypots.remove"
         )
 
-        local honeypots = HoneypotManager(data.ctx).list()
-        for _, honeypot in honeypots do
-            if honeypot.channelid == channelid then
-                HoneypotManager(data.ctx).delete(channelid)
-                return interactionutils.replySimple(
-                    data.ctx,
-                    data.interaction,
-                    nil,
-                    {
-                        {
-                            title = "Honeypot Removed",
-                            description = "Honeypot successfully removed from the specified channel.",
-                            color = 0x00ff00, -- Green color
-                        },
-                    },
-                    false
-                )
-            end
+        if not honeypotmanager.has(channelid) then 
+            return data.interaction.replysimpleembed("Honeypot Not Found", "No honeypot found for the specified channel.", units.RED_COLOR)
         end
 
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Honeypot Not Found",
-                    description = "No honeypot found for the specified channel.",
-                    color = 0xff0000, -- Red color
-                },
-            },
-            false
-        )
+        honeypotmanager.delete(channelid)
+        return data.interaction.replysimpleembed("Honeypot Removed", "Honeypot successfully removed from the specified channel.", units.RED_COLOR)
     else 
         error("Unknown subcommand: " .. tostring(cmdname))
     end
 end
 
 return {
-    register = register,
+    command = command,
     run = run,
 }

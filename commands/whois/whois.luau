@@ -1,8 +1,7 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 --local commandOptionBuilder = require "@discord-types/builders/interaction/option"
-local data = require"@antiraid-ext/framework/coretypes"
+local data = require"@antiraid-ext/frameworkv2/context"
 local apiTypes = require "@discord-types/apiTypes"
-local interactionutils = require "@antiraid-ext/utils/interaction"
 local avatarUrl = require "@antiraid-ext/utils/avatar".avatarUrl
 local managers = require "../../auxutils/managers/managers"
 local kc = require "@antiraid-core/kittycat"
@@ -11,34 +10,32 @@ local permissionsFromBf = permissions.fromBitFlag
 local userinfoplugin = require "@antiraid-ext/utils/userinfo"
 local stingmanager = require "../../auxutils/stingmanager"
 
-local function register() 
-    return commandBuilder.new({
-        name = "whois",
-    })
-    :addIntegrationType("GuildInstall")
-    :setType("ChatInput")
-    :addContext("Guild")
-    :setDescription("Provides basic information about a user")
-    :option(
-        function(opt) 
-            return opt
-            :setType("User")
-            :setName("user")
-            :setDescription("The user to get information about")  
-            :build()      
-        end
-    )
-    :option(
-        function(opt) 
-            return opt
-            :setType("Boolean")
-            :setName("ephemeral")
-            :setDescription("Whether to make the response ephemeral or not")
-            :build()
-        end
-    )
-    :build()
-end
+local command = commandBuilder.new({
+    name = "whois",
+})
+:addIntegrationType("GuildInstall")
+:setType("ChatInput")
+:addContext("Guild")
+:setDescription("Provides basic information about a user")
+:option(
+    function(opt) 
+        return opt
+        :setType("User")
+        :setName("user")
+        :setDescription("The user to get information about")  
+        :build()      
+    end
+)
+:option(
+    function(opt) 
+        return opt
+        :setType("Boolean")
+        :setName("ephemeral")
+        :setDescription("Whether to make the response ephemeral or not")
+        :build()
+    end
+)
+:build()
 
 local function dangerousPerms(discordPerms: {permissions.Permissions}): {permissions.Permissions} 
     local dangerPermsFound = {}
@@ -66,48 +63,27 @@ local function dangerousPerms(discordPerms: {permissions.Permissions}): {permiss
 end
 
 -- TODO: Spruce this up with more information (e.g. what permissions they have etc)
-local function run(data: data.RunData) 
-    local user = if data.interaction.member then data.interaction.member.user else data.interaction.user
-    local isResponseEphemeral = false
+local function run(data: data.CommandContext) 
+    local user = data.args.user("user") or data.interaction.user()
+    local isResponseEphemeral = data.args.boolean("ephemeral")
     local stingmanager = managers.getmanagers(data.ctx).stingmanager
     
-    -- Parse options
-    for _, opt in data.command.options do 
-        if opt.name == "user" then 
-            if opt.value.kind == "User" then
-                user = opt.value.user
-            elseif opt.value.kind == "Unresolved" then
-                local userid = opt.value.id
-                user = data.ctx.Discord:get_guild_member(userid).data.user
-            end
-        elseif opt.name == "ephemeral" then
-            if opt.value.kind == "Boolean" then
-                isResponseEphemeral = opt.value.value
-            end
-        end
-    end
-
     if not user then 
-        error("HERE")
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
+        data.interaction.reply({
+            embeds = {
                 {
                     title = "Error looking up user",
                     description = "Something went wrong while trying to find the user. Please try again?",
-                }
+                } 
             },
-            true
-        )
+            ephemeral = isResponseEphemeral
+        })
+        return
     end
 
-    assert(user, "User cannot be nil at this point")
+    local userinfook, userinfo = pcall(data.framework.userinfomanager.get, user.id, data.interaction.interaction)
 
-    local userinfook, userinfo = pcall(data.userinfomanager.get, user.id, data.interaction)
-
-    local baseFields = {
+    local baseFields: {apiTypes.EmbedFieldObject} = {
         {
             name = "User ID",
             value = user.id,
@@ -230,11 +206,8 @@ local function run(data: data.RunData)
     end
 
     local avatarUrl = avatarUrl(user)
-    return interactionutils.replySimple(
-        data.ctx,
-        data.interaction,
-        nil,
-        {
+    data.interaction.reply({
+        embeds = {
             {
                 title = "User Information",
                 description = "Here is the information AntiRaid has found about the user",
@@ -243,12 +216,12 @@ local function run(data: data.RunData)
                     url = avatarUrl,
                 },
             }
-        } :: {apiTypes.EmbedObject},
-        isResponseEphemeral
-    )
+        },
+        ephemeral = isResponseEphemeral
+    })
 end
 
 return {
-    register = register,
+    command = command,
     run = run,
 }

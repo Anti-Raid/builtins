@@ -1,8 +1,8 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local context = require"@antiraid-ext/frameworkv2/context"
 local datetime = require "@antiraid/datetime"
-local parseunit = require "@antiraid-ext/unit"
 local managers = require "../../auxutils/managers/managers"
+local units = require"@antiraid-ext/frameworkv2/unit"
 
 local command = commandBuilder.new({
     name = "afk",
@@ -40,6 +40,20 @@ local command = commandBuilder.new({
         :option(
             function(opt) 
                 return opt
+                :setType("String")
+                :setName("timeunit")
+                :setDescription("The unit of time")  
+                :setRequired(true)
+                :choice(function(choice) return choice:setName("Seconds"):setValue("seconds"):build() end)
+                :choice(function(choice) return choice:setName("Minutes"):setValue("minutes"):build() end)
+                :choice(function(choice) return choice:setName("Hours"):setValue("hours"):build() end)
+                :choice(function(choice) return choice:setName("Days"):setValue("days"):build() end)
+                :build()      
+            end
+        )
+        :option(
+            function(opt) 
+                return opt
                 :setType("Boolean")
                 :setName("ephemeral")
                 :setDescription("Whether to make the response ephemeral or not")
@@ -62,42 +76,21 @@ local command = commandBuilder.new({
 
 local function run(data: context.CommandContext): nil
     local cmdname = data.command.nameList[2]
-    local afkmanager = managers.getmanagers(data.framework.ctx).afkmanager
+    local afkmanager = managers.getmanagers(data.ctx).afkmanager
 
     if cmdname == "start" then
         local user = data.interaction.user()
-        local reason: string? = nil
-        local stime: number? = nil
-        local isResponseEphemeral = false
+        local reason = data.args.string("reason")
+        local stime = data.args.time("time", "timeunit")
+        local isResponseEphemeral = data.args.boolean("ephemeral")
 
-        -- Parse options
-        for _, opt in data.command.options do 
-            if opt.name == "reason" then
-                if opt.value.kind == "String" then
-                    reason = opt.value.value
-                end
-            end
-
-            if opt.name == "time" then
-                if opt.value.kind == "String" then
-                    stime = parseunit(opt.value.value)
-                end
-            end
-
-            if opt.name == "ephemeral" then
-                if opt.value.kind == "Boolean" then
-                    isResponseEphemeral = opt.value.value
-                end
-            end
-        end  
-
-        if not user or not reason or not stime then
+        if not reason or not stime then
             data.interaction.reply{
                 embeds = {
                     {
                         title = "Error processing command",
                         description = "Something went wrong while trying to find message and time. Please try again?",
-                        color = 0xff0000, -- Red color
+                        color = units.RED_COLOR
                     },
                 },
                 ephemeral = isResponseEphemeral
@@ -111,14 +104,12 @@ local function run(data: context.CommandContext): nil
             duration = datetime.timedelta_seconds(stime or 1),
         })
 
-        data.framework.loop.subscribeEvent("MESSAGE", "afk")
-
         data.interaction.reply{
             embeds = {
                 {
                     title = "AFK Set",
                     description = "Enjoy the peace and quiet!",
-                    color = 0x00ff00, -- Green color
+                    color = units.GREEN_COLOR
                 },
             },
             ephemeral = isResponseEphemeral
@@ -126,20 +117,6 @@ local function run(data: context.CommandContext): nil
         return nil
     elseif cmdname == "stop" then
         local user = data.interaction.user()
-        if not user then
-            data.interaction.reply{
-                embeds = {
-                    {
-                        title = "Error processing command",
-                        description = "Something went wrong while trying to find user. Please try again?",
-                        color = 0xff0000, -- Red color
-                    },
-                },
-                ephemeral = true
-            }
-            return nil
-        end
-
         local afk = afkmanager.get(user.id)
         if not afk then
             data.interaction.reply{
@@ -147,7 +124,7 @@ local function run(data: context.CommandContext): nil
                     {
                         title = "You are not AFK",
                         description = "You are not AFK, so you cannot stop being AFK.", 
-                        color = 0xff0000, -- Red color
+                        color = units.RED_COLOR
                     },
                 },
                 ephemeral = true
@@ -162,17 +139,12 @@ local function run(data: context.CommandContext): nil
                 {
                     title = "AFK Stopped",
                     description = "You are no longer AFK. Welcome back!",
-                    color = 0x00ff00, -- Green color
+                    color = units.GREEN_COLOR
                 },
             },
             ephemeral = true
         }
         
-        -- Unsubscribe if no more afks
-        if afkmanager.count() == 0 then
-            data.framework.loop.unsubscribeEvent("MESSAGE", "afk")
-        end
-
         return nil
     else 
         error("Unknown subcommand: " .. tostring(cmdname))

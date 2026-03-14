@@ -1,62 +1,37 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
-local data = require"@antiraid-ext/framework/coretypes"
+local data = require"@antiraid-ext/frameworkv2/context"
 local luau = require "@antiraid/luau"
-local toArray = require "@antiraid-ext/array".toArray
-local apitypes = require "@discord-types/apiTypes"
 local json = require "@antiraid/json"
 local interop = require "@antiraid/interop"
-local interactionutils = require "@antiraid-ext/utils/interaction"
-local UserInfoManager = require"@antiraid-ext/utils/userinfo"
 local modutils = require "@antiraid-ext/utils/modhierarchy"
+local units = require"@antiraid-ext/frameworkv2/unit"
 
-local function register() 
-    return commandBuilder.new({
-        name = "vmeval",
-    })
-    :addIntegrationType("GuildInstall")
-    :setType("ChatInput")
-    :addContext("Guild")
-    :setDescription("Run code on the VM")
-    :option(
-        function(opt) 
-            return opt
-            :setType("String")
-            :setName("message")
-            :setDescription("The code to run on the VM")  
-            :setRequired(true)
-            :build()
-        end
-    )
-    :build()
-end
-
-local function run(data: data.RunData): nil
-    modutils.canModeratorDo(data.userinfomanager.get(modutils.extractUserIdFromInteraction(data.interaction), data.interaction), "vmeval.exec")
-
-    local chunkContent: string? = nil
-
-    -- Parse options
-    for _, opt in data.command.options do 
-        if opt.name == "message" then 
-            if opt.value.kind == "String" then
-                chunkContent = opt.value.value
-            end
-        end
+local command = commandBuilder.new({
+    name = "vmeval",
+})
+:addIntegrationType("GuildInstall")
+:setType("ChatInput")
+:addContext("Guild")
+:setDescription("Run code on the VM")
+:option(
+    function(opt) 
+        return opt
+        :setType("String")
+        :setName("code")
+        :setDescription("The code to run on the VM")  
+        :setRequired(true)
+        :build()
     end
-    
+)
+:build()
+
+local function run(data: data.CommandContext): nil
+    modutils.canModeratorDo(data.framework.userinfomanager.get(data.interaction.userid(), data.interaction.interaction), "vmeval.exec")
+
+    local chunkContent = data.args.string("code")
+
     if not chunkContent then 
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "No message specified",
-                    description = "Please specify a message to extract URLs from",
-                },
-            },
-            false
-        )
+        return data.interaction.replysimpleembed("No Code", "Please specify some code to run on the VM", units.RED_COLOR)
     end
 
     local chunk = luau.load(chunkContent)
@@ -75,7 +50,8 @@ local function run(data: data.RunData): nil
         typeof = typeof,
         interop = interop,
         memusage = interop.memusage,
-        userinfomanager = UserInfoManager(data.ctx)
+        framework = data.framework,
+        userinfomanager = data.framework.userinfomanager
     }
 
     local ok, result = pcall(chunk.call_async, chunk, {})    
@@ -86,32 +62,29 @@ local function run(data: data.RunData): nil
         resp = resp:sub(1, 3997) .. "..."   
     end
 
-    return interactionutils.replySimple(
-        data.ctx,
-        data.interaction,
-        nil,
-        {
+    data.interaction.reply({
+        embeds = {
             {
                 title = "Result",
                 description = "```\n" .. resp .. "\n```",
-                fields = toArray({
+                fields = {
                     {
                         name = "OK",
                         value = tostring(ok),
                         inline = false,
                     },
-                }),
+                },
                 footer = {
                     text = "Note that all code executed runs in AntiRaids sandboxed custom scripting VM. Have fun :)"
                 },
-                color = if ok then 0x00FF00 else 0xFF0000,
+                color = if ok then units.GREEN_COLOR else units.RED_COLOR,
             },
-        } :: {apitypes.EmbedObject},
-        false
-    )
+        }
+    })
+    return nil
 end
 
 return {
-    register = register,
+    command = command,
     run = run,
 }

@@ -82,6 +82,7 @@ local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryM
         afkexpiry.add(afk.duration, {
             reason = assertString("reason", afk.reason),
         }, afk.user_id)
+        loop.subscribeEvent("MESSAGE", "afk")
         loop.dispatchEvent{
             name = "BuiltinsAfkSet", 
             data = { 
@@ -97,6 +98,12 @@ local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryM
         local afk = get(userid)
         if not afk then return end
         afkexpiry.remove(userid)
+
+        -- Unsubscribe if no more afks
+        if count() == 0 then
+            loop.unsubscribeEvent("MESSAGE", "afk")
+        end
+
         loop.dispatchEvent{
             name = "BuiltinsAfkDelete", 
             data = { 
