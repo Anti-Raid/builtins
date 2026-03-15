@@ -1,5 +1,4 @@
 local data = require"@antiraid-ext/frameworkv2/context"
-local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
 local backupTypes = require"../../auxutils/backups/backups"
 local createBackup = require "../../auxutils/backups/create/start"
 local units = require"@antiraid-ext/frameworkv2/unit"
@@ -8,10 +7,7 @@ local tempbutton = require"@antiraid-ext/frameworkv2/tempbutton"
 local embed = require"../../auxutils/backups/embed"
 
 local function create(data: data.CommandContext): nil
-    canModeratorDo(
-        data.framework.userinfomanager.get(data.interaction.userid(), data.interaction.interaction),
-        "backups.create"
-    )
+    data.interaction.assertpermission("backups.create")
 
     local opts: backupTypes.BackupCreateOpts = {
         channels = {},

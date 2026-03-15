@@ -1,5 +1,4 @@
 local data = require"@antiraid-ext/frameworkv2/context"
-local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
 local backupTypes = require"../../auxutils/backups/backups"
 local units = require"@antiraid-ext/frameworkv2/unit"
 local sb = require"@antiraid-ext/utils/statusbuffer"
@@ -7,10 +6,7 @@ local tempbutton = require"@antiraid-ext/frameworkv2/tempbutton"
 local managers = require "../../auxutils/managers/managers"
 
 local function restore(data: data.CommandContext): nil
-    canModeratorDo(
-        data.framework.userinfomanager.get(data.interaction.userid(), data.interaction.interaction),
-        "backups.restore"
-    )
+    data.interaction.assertpermission("backups.restore")
 
     local opts: backupTypes.BackupRestoreOpts = {
         protectedChannels = {},

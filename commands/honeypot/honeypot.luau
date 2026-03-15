@@ -3,7 +3,6 @@ local commandBuilder = require "@discord-types/builders/interaction/interaction"
 local data = require"@antiraid-ext/frameworkv2/context"
 local units = require"@antiraid-ext/frameworkv2/unit"
 local managers = require "../../auxutils/managers/managers"
-local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
 local paginate = require "@antiraid-ext/frameworkv2/paginate"
 
 local command = commandBuilder.new({
@@ -87,10 +86,7 @@ local function run(data: data.CommandContext): nil
     local honeypotmanager = managers.getmanagers(data.ctx).honeypotmanager
 
     if cmdname == "list" then
-        canModeratorDo(
-            data.framework.userinfomanager.get(data.interaction.userid()),
-            "honeypots.list"
-        )
+        data.interaction.assertpermission("honeypots.list")
 
         local honeypots = honeypotmanager.list()
         if #honeypots == 0 then
@@ -121,6 +117,8 @@ local function run(data: data.CommandContext): nil
         })
         return nil    
     elseif cmdname == "add" then
+        data.interaction.assertpermission("honeypots.add")
+
         local channelid = data.args.channelid("channelid")
         local botallowed = data.args.boolean("botallowed")
         local punishment = data.args.string("punishment")
@@ -133,11 +131,6 @@ local function run(data: data.CommandContext): nil
         if not channelid or not botallowed or not punishment then
             return data.interaction.replysimpleembed("Error processing command", "Something went wrong while trying to find options. Please try again?", units.RED_COLOR) 
         end
-
-        canModeratorDo(
-            data.framework.userinfomanager.get(data.interaction.userid()),
-            "honeypots.add"
-        )
         
         honeypotmanager.set({
             channelid = channelid,
@@ -147,16 +140,12 @@ local function run(data: data.CommandContext): nil
 
         return data.interaction.replysimpleembed("Honeypot Added/Updated", "Honeypot successfully added/updated for the specified channel.", units.GREEN_COLOR)
     elseif cmdname == "remove" then
+        data.interaction.assertpermission("honeypots.remove")
         local channelid = data.args.channelid("channelid")
 
         if not channelid then
             return data.interaction.replysimpleembed("Error processing command", "Something went wrong while trying to find channel id. Please try again?", units.RED_COLOR)
         end
-
-        canModeratorDo(
-            data.framework.userinfomanager.get(data.interaction.userid()),
-            "honeypots.remove"
-        )
 
         if not honeypotmanager.has(channelid) then 
             return data.interaction.replysimpleembed("Honeypot Not Found", "No honeypot found for the specified channel.", units.RED_COLOR)

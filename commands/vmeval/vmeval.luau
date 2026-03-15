@@ -3,7 +3,6 @@ local data = require"@antiraid-ext/frameworkv2/context"
 local luau = require "@antiraid/luau"
 local json = require "@antiraid/json"
 local interop = require "@antiraid/interop"
-local modutils = require "@antiraid-ext/utils/modhierarchy"
 local units = require"@antiraid-ext/frameworkv2/unit"
 
 local command = commandBuilder.new({
@@ -26,7 +25,7 @@ local command = commandBuilder.new({
 :build()
 
 local function run(data: data.CommandContext): nil
-    modutils.canModeratorDo(data.framework.userinfomanager.get(data.interaction.userid(), data.interaction.interaction), "vmeval.exec")
+    data.interaction.assertpermission("vmeval.exec")
 
     local chunkContent = data.args.string("code")
 
