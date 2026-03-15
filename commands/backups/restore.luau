@@ -1,16 +1,14 @@
-local data = require"@antiraid-ext/framework/coretypes"
-local interactionutils = require "@antiraid-ext/utils/interaction"
-local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
+local data = require"@antiraid-ext/frameworkv2/context"
 local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
 local backupTypes = require"../../auxutils/backups/backups"
-local embed = require "../../auxutils/backups/embed"
-local restoreBackup = require "../../auxutils/backups/restore/restore".restoreBackup
+local units = require"@antiraid-ext/frameworkv2/unit"
+local sb = require"@antiraid-ext/utils/statusbuffer"
+local tempbutton = require"@antiraid-ext/frameworkv2/tempbutton"
+local managers = require "../../auxutils/managers/managers"
 
-local POLL_INTERVAL_RESTORE = 10
-
-local function restore(data: data.RunData): nil
+local function restore(data: data.CommandContext): nil
     canModeratorDo(
-        data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
+        data.framework.userinfomanager.get(data.interaction.userid(), data.interaction.interaction),
         "backups.restore"
     )
 
@@ -21,26 +19,15 @@ local function restore(data: data.RunData): nil
     local enckey: string? = nil
     local source: backupTypes.RestoreSource? = nil
 
-    if data.interaction.channel_id then 
-        opts.protectedChannels = {data.interaction.channel_id}
+    if data.interaction.interaction.channel_id then 
+        opts.protectedChannels = {data.interaction.interaction.channel_id}
     end
 
     for _, opt in data.command.options do 
         if opt.name == "backup_file" then
             if opt.value.kind == "Attachment" then
                 if source then 
-                    return interactionutils.replySimple(
-                        data.ctx,
-                        data.interaction,
-                        nil,
-                        {
-                            {
-                                title = "Error processing command",
-                                description = "You cannot specify both a backup file and a backup ID. Please choose one.",
-                            },
-                        },
-                        false
-                    )
+                    return data.interaction.replysimpleembed("Error processing command", "You cannot specify both a backup file and a backup ID. Please choose one.", units.RED_COLOR)
                 end
                 source = {
                     type = "attachment" :: "attachment",
@@ -51,34 +38,12 @@ local function restore(data: data.RunData): nil
         elseif opt.name == "backup_id" then
             if opt.value.kind == "String" then
                 if source then
-                    return interactionutils.replySimple(
-                        data.ctx,
-                        data.interaction,
-                        nil,
-                        {
-                            {
-                                title = "Error processing command",
-                                description = "You cannot specify both a backup file and a backup ID. Please choose one.",
-                            },
-                        },
-                        false
-                    )
+                    return data.interaction.replysimpleembed("Error processing command", "You cannot specify both a backup file and a backup ID. Please choose one.", units.RED_COLOR)
                 end
 
                 local backupData = data.ctx.KV:getrecord(opt.value.value, {"builtins.backups.metadata"})
                 if not backupData.exists then
-                    return interactionutils.replySimple(
-                        data.ctx,
-                        data.interaction,
-                        nil,
-                        {
-                            {
-                                title = "Error processing command",
-                                description = "Backup with ID `" .. opt.value.value .. "` does not exist.",
-                            },
-                        },
-                        false
-                    )
+                    return data.interaction.replysimpleembed("Error processing command", "Backup with ID `" .. opt.value.value .. "` does not exist.", units.RED_COLOR)
                 end
 
                 assert(type(backupData.value.filename) == "string", "Backup data does not contain a filename")
@@ -119,62 +84,41 @@ local function restore(data: data.RunData): nil
 
     -- Check if we have a backup source
     if not source then
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Error processing command",
-                    description = "You must specify either a backup file or a backup ID to restore from.",
-                },
-            },
-            false
-        )
+        return data.interaction.replysimpleembed("Error processing command", "You must specify either a backup file or a backup ID to restore from.", units.RED_COLOR)
     end
 
     -- Send spawning message
-    interactionutils.replySimple(
-        data.ctx,
-        data.interaction,
-        nil,
-        {
-            {
-                title = "Restoring backup",
-                description = "Spawning restore job...",
-            },
-        },
-        false
-    )
-
-    data.sethasEdited(true)
-
-    embed.updateTillComplete({
-        interval = POLL_INTERVAL_RESTORE,
-        spawner = function(updater: backupTypes.Updater, initial: embed.EmbedData) 
-            restoreBackup(data.ctx, source :: backupTypes.RestoreSource, enckey, opts, nil, updater)
-
-            -- TODO: Consider storing metadata in KV about the restore job
-        end,
-        callback = function(embedData: embed.EmbedData) 
-            if embedData.state == "failed" then return end
-            local embed, components = embed.backupJobToEmbed(
-                data.ctx,
-                embedData,
-                true,
-                true
-            )
-
-            -- Edit original interaction response with the job status
-            interactionutils.editSimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {embed},
-                components
-            )
-        end,
+    local buf = sb.StatusBuffer()
+    local tempbutton = tempbutton.tempbutton(data, {
+        title = "View Logs",
+        embed = function() 
+            return {
+                title = "Logs",
+                description = table.concat(sb.stringifybuffer(buf), "\n"),
+                color = units.YELLOW_COLOR
+            }
+        end
     })
+    data.interaction.replysimpleembed("Restoring backup", "Please wait...", units.GREEN_COLOR, {tempbutton.actionrow})
+    managers.getmanagers(data.ctx).backupcheckpointmanager.new({
+        opts = opts,
+        enckey = enckey,
+        gre = {
+            restoredRoles = {},
+            restoredChannels = {},
+        },
+        src = source
+    })
+
+    data.interaction.replyedit({
+        embeds = {
+            {
+                title = "Backup Restored Successfully",
+                color = units.GREEN_COLOR
+            }
+        }
+    })
+
     return nil
 end
 

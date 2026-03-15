@@ -382,9 +382,6 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
         end)
     end
 
-    -- Dispatch startup events to all templates initially
-    --task.spawn(dispatchEvent, baseCtx, {name = "OnStartup", data = { reason = "initialization" }}, nil)
-
     self.updateTemplateCache = updateTemplateCache
     self.dispatchEvent = dispatchEvent
     self.subscribeEvent = subscribeEvent

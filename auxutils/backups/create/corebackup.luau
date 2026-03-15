@@ -5,8 +5,9 @@ local types = require"../backups"
 local channelallocs = require"../channelallocs"
 local set = require"@antiraid-ext/set"
 local typesext = require"@antiraid/typesext"
+local sb = require"@antiraid-ext/utils/statusbuffer"
 
-local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, updater: types.Updater): types.CoreBackupData 
+local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, updater: sb.StatusBuffer): types.CoreBackupData 
     local guild = ctx.Discord:get_guild().data
     local channels = ctx.Discord:get_guild_channels().data
 

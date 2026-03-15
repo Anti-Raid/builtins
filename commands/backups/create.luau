@@ -1,16 +1,15 @@
-local data = require"@antiraid-ext/framework/coretypes"
-local interactionutils = require "@antiraid-ext/utils/interaction"
-local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
+local data = require"@antiraid-ext/frameworkv2/context"
 local canModeratorDo = require "@antiraid-ext/utils/modhierarchy".canModeratorDo
 local backupTypes = require"../../auxutils/backups/backups"
-local embed = require "../../auxutils/backups/embed"
 local createBackup = require "../../auxutils/backups/create/start"
+local units = require"@antiraid-ext/frameworkv2/unit"
+local sb = require"@antiraid-ext/utils/statusbuffer"
+local tempbutton = require"@antiraid-ext/frameworkv2/tempbutton"
+local embed = require"../../auxutils/backups/embed"
 
-local POLL_INTERVAL_CREATE = 3
-
-local function create(data: data.RunData): nil
+local function create(data: data.CommandContext): nil
     canModeratorDo(
-        data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
+        data.framework.userinfomanager.get(data.interaction.userid(), data.interaction.interaction),
         "backups.create"
     )
 
@@ -54,18 +53,7 @@ local function create(data: data.RunData): nil
                     if key and value then
                         opts.specialAllocations[key] = tonumber(value)
                     else 
-                        return interactionutils.replySimple(
-                            data.ctx,
-                            data.interaction,
-                            nil,
-                            {
-                                {
-                                    title = "Error processing command",
-                                    description = "Invalid format for special allocations. Use channel_id=number,channel_id=number. Failing entry was: ``" .. pair .. "``",
-                                },
-                            },
-                            false
-                        )
+                        return data.interaction.replysimpleembed("Error processing command", "Invalid format for special allocations. Use channel_id=number,channel_id=number. Failing entry was: ``" .. pair .. "``", units.RED_COLOR)
                     end
                 end                    
             end
@@ -77,57 +65,40 @@ local function create(data: data.RunData): nil
     end
 
     -- Send spawning message
-    interactionutils.replySimple(
-        data.ctx,
-        data.interaction,
-        nil,
+    local buf = sb.StatusBuffer()
+    local tempbutton = tempbutton.tempbutton(data, {
+        title = "View Logs",
+        embed = function() 
+            return {
+                title = "Logs",
+                description = table.concat(sb.stringifybuffer(buf), "\n"),
+                color = units.YELLOW_COLOR
+            }
+        end
+    })
+    data.interaction.replysimpleembed("Creating backup", "Please wait...", units.GREEN_COLOR, {tempbutton.actionrow})
+
+    local built = createBackup(data.ctx, opts, enckey, buf)
+
+    -- Upload and save metadata
+    data.ctx.KV:set(
+        built.id, 
         {
-            {
-                title = "Creating backup",
-                description = "Starting backup...",
-            },
+            filename = built.filename,
+            created_by = data.interaction.userid(),
         },
-        true
+        {"builtins.backups.metadata"}
     )
+    data.ctx.ObjectStorage:upload_file(built.filename, built.backup)
 
-    data.sethasEdited(true)
+    local embed, comps = embed.toembed(data.ctx, {
+        id = built.id,
+        finalFilePath = built.filename,
+    })
 
-    embed.updateTillComplete({
-        interval = POLL_INTERVAL_CREATE,
-        spawner = function(updater: backupTypes.Updater, initial: embed.EmbedData) 
-            local built = createBackup(data.ctx, opts, enckey, updater)
-
-            -- Upload and save metadata
-            data.ctx.KV:set(
-                built.id, 
-                {
-                    filename = built.filename,
-                    created_by = extractUserIdFromInteraction(data.interaction),
-                    num_updates = initial.numUpdates or 0,
-                },
-                {"builtins.backups.metadata"}
-            )
-            data.ctx.ObjectStorage:upload_file(built.filename, built.backup)
-            initial.finalFilePath = built.filename
-        end,
-        callback = function(embedData: embed.EmbedData) 
-            if embedData.state == "failed" then return end
-            local embed, components = embed.backupJobToEmbed(
-                data.ctx,
-                embedData,
-                true,
-                true
-            )
-
-            -- Edit original interaction response with the job status
-            interactionutils.editSimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {embed},
-                components
-            )
-        end,
+    data.interaction.replyedit({
+        embeds = {embed},
+        components = comps
     })
 
     return nil

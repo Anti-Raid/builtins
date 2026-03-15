@@ -10,7 +10,8 @@ local compare = require"@antiraid-ext/utils/rolecmp"
 local discord = require"@antiraid-core/plugins/discord"
 local permission = require"@discord-types/permission"
 local channel = require"@discord-types/channel"
-local validate = require"../create/validate"
+local sb = require"@antiraid-ext/utils/statusbuffer"
+local conditions = require"../conditions"
 
 export type PermData = {
     currentBotMember: apitypes.GuildMemberObject,
@@ -98,7 +99,7 @@ local function BaseRestoreManager(
     ctx: Primitives.TemplateContext, 
     src: types.RestoreSource, 
     enckey: string?, 
-    updater: types.Updater, 
+    updater: sb.StatusBuffer, 
     opts: BaseRestoreManagerOpts
 ): BaseRestoreManager
     local loadedBackup = load.loadBackupFile(ctx, src, enckey, updater)
@@ -106,7 +107,7 @@ local function BaseRestoreManager(
     assert(coreData.guild.roles, "invalid backup: guild roles data is missing in core data")
     compare.SortRolesByHierarchyDesc(coreData.guild.roles) -- Sort backup roles in hierarchy order
     
-    validate.validate(coreData.options)
+    conditions.validate(coreData.options)
 
     -- Set src and target guild ids and do basic validation
     local srcGuildId = coreData.guild.id
@@ -382,7 +383,6 @@ local function BaseRestoreManager(
     --- Given a channel to restore and other ext data, create a resttypes.CreateGuildChannelRequest
     local function _createChannelData(
         channel: apitypes.ChannelObject, 
-        updater: types.Updater,
         parentid: string?
     ): resttypes.CreateGuildChannelRequest
         -- Fix permission overwrites
@@ -449,7 +449,7 @@ local function BaseRestoreManager(
             return nil -- Ignore and continue
         end
 
-        local ud = _createChannelData(chan, updater, parentid)
+        local ud = _createChannelData(chan, parentid)
 
         if chan.type == channel.ChannelTypesMap.GuildCategory then
             updater.addStatus("Creating category ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "``")

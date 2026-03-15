@@ -7,6 +7,7 @@ local blob = require"@antiraid-core/blob"
 local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
 local permission = require"@discord-types/permission" 
 local RestoreManager = require"./impl"
+local sb = require"@antiraid-ext/utils/statusbuffer"
 
 export type PermData = {
     currentBotMember: apitypes.GuildMemberObject,
@@ -31,11 +32,11 @@ export type PartialRestoreManager = {
     --- Returns the base restore manager
     getBaseManager: () -> RestoreManager.BaseRestoreManager,
     --- Restores messages to a channel from the backup using a webhook
-    restoreChannelMessages: (ctx: Primitives.TemplateContext, tgtChannel: apitypes.ChannelObject, messages: {apitypes.MessageObject}, webhook: WebhookData, permData: PermData, updater: types.Updater) -> (),
+    restoreChannelMessages: (tgtChannel: apitypes.ChannelObject, messages: {apitypes.MessageObject}, webhook: WebhookData, permData: PermData) -> (),
 }
 
 --- Sets up a partial restore manager for restoring bits and pieces of a backup
-local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, updater: types.Updater, opts: types.BackupRestoreOpts): PartialRestoreManager
+local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, updater: sb.StatusBuffer, opts: types.BackupRestoreOpts): PartialRestoreManager
     local basemanager = RestoreManager(ctx, src, enckey, updater, {opts = opts})
     local loadedBackup = basemanager.getLoadedBackup()
     local coreData = loadedBackup.core
@@ -90,12 +91,10 @@ local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types
 
     --- Restores the messages of a channel from the backup
     local function restoreChannelMessages(
-        ctx: Primitives.TemplateContext,
         tgtChannel: apitypes.ChannelObject,
         messages: {apitypes.MessageObject},
         webhook: WebhookData,
-        permData: PermData,
-        updater: types.Updater
+        permData: PermData
     ) 
         -- Check if we can restore messages to this channel
         local perms = discordpermcalc.MemberChannelPerms(permData.currentGuild, permData.currentBotMember, tgtChannel)

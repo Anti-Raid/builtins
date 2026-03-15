@@ -5,6 +5,7 @@ local types = require"../backups"
 local json = require"@antiraid/json"
 local assetfetch = require"../create/assetfetch"
 local conditions = require"../conditions"
+local sb = require"@antiraid-ext/utils/statusbuffer"
 
 local function isEncryptedBackup(filename: string): boolean
     return filename:sub(-1) == "e"
@@ -90,7 +91,7 @@ local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey:
 end
 
 --- Loads a backup file from a given source
-local function loadBackupFile(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, updater: types.Updater): types.LoadedBackup
+local function loadBackupFile(ctx: Primitives.TemplateContext, src: types.RestoreSource, enckey: string?, updater: sb.StatusBuffer): types.LoadedBackup
     updater.addStatus("Loading backup data...")
     local blob = nil
     if src.type == "attachment" then 

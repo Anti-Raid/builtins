@@ -3,6 +3,8 @@ local afkmanager = require"../afkmanager"
 local honeypotmanager = require"../honeypotmanager"
 local Primitives = require"@antiraid-core/primitives"
 local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
+local CheckpointManager = require "@antiraid-ext/checkpoint"
+local restoresteps = require"../backups/restore/restore"
 
 type TempBan = {
     userid: string,
@@ -25,6 +27,7 @@ export type Managers = {
     remindmeexpiry: KeyExpiryManager.KeyExpiryManager<RemindMe>,
     afkexpiry: KeyExpiryManager.KeyExpiryManager<afkmanager.AFKExpiryData>,
     stingexpiry: KeyExpiryManager.KeyExpiryManager<stingmanager.StingExpiryData>,
+    backupcheckpointmanager: CheckpointManager.CheckpointManager<restoresteps.Opts>
 }
 
 local managers: Managers? = nil
@@ -120,6 +123,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
     local afkmanager = afkmanager(ctx, afkExpiryManager)
     local stingmanager = stingmanager(ctx, stingExpiryManager)
     local honeypotmanager = honeypotmanager(ctx)
+    local backupcheckpointmanager = CheckpointManager<<restoresteps.Opts>>(ctx, "builtins.backups", restoresteps.CHECKPOINT_EXPIRY, restoresteps.RESTORE_STEPS)
 
     managers = {
         stingmanager = stingmanager,
@@ -129,6 +133,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         remindmeexpiry = remindmeExpiryManager,
         afkexpiry = afkExpiryManager,
         stingexpiry = stingExpiryManager,
+        backupcheckpointmanager = backupcheckpointmanager
     }
 
     return managers or error("Failed to initialize managers")

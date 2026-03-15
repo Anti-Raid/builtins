@@ -4,15 +4,16 @@ local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
 local permission = require"@discord-types/permission"
 local RestoreManager = require"./impl"
 local CheckpointManager = require"@antiraid-ext/checkpoint"
+local sb = require"@antiraid-ext/utils/statusbuffer"
+local datetime = require"@antiraid/datetime"
+
+local CHECKPOINT_EXPIRY = datetime.timedelta_minutes(15)
 
 export type Opts = {
     opts: types.BackupRestoreOpts,
     src: types.RestoreSource, 
     enckey: string?, 
     gre: RestoreManager.GetRestored,
-
-    -- For sending status updates
-    interactiontoken: string
 }
 
 --- Helper function to get the restore manager from the slate or create a new one if it doesn't exist. This is used to persist the restore manager across checkpoints.
@@ -23,7 +24,7 @@ local function getmanagerfromslate(ctx: CheckpointManager.CheckpointContext<Opts
     end
 
     local data = ctx.data()
-    local updater: types.Updater = {} :: types.Updater -- TODO: Implement a proper updater that updates the checkpoint status as well
+    local updater = sb.StatusBuffer() 
     local rm = RestoreManager(ctx.tctx, data.src, data.enckey, updater, {
         opts = data.opts,
         gre = data.gre
@@ -171,5 +172,6 @@ local RESTORE_STEPS: {CheckpointManager.CheckpointStep<Opts>} = {
 }
 
 return {
-    RESTORE_STEPS = RESTORE_STEPS
+    RESTORE_STEPS = RESTORE_STEPS,
+    CHECKPOINT_EXPIRY = CHECKPOINT_EXPIRY
 }

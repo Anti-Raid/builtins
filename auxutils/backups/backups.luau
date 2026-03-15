@@ -66,15 +66,4 @@ export type LoadedBackup = {
     assets: {[assets.Asset]: blob.Blob}, -- A map of asset names to their blobs
 }
 
-export type Status = {
-    ts: number,
-    message: string
-}
-
---- An Updater stores status and state info on the currently running backup job
-export type Updater = {
-    addStatus: (msg: string) -> (),
-    getStatus: () -> {Status}
-}
-
 return {}
