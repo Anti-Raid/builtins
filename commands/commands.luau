@@ -3,7 +3,6 @@ local commands:  { [string]: any } = {
     whois = require"./whois/whois",
     remindme = require"./remindme/remindme",
     settings = require"./settings/settings",
-    urlblock = require"./urlblock/urlblock",
     lockdowns = require"./lockdowns/lockdowns",
     stings = require"./stings/stings",
     stats = require"./stats/stats",
