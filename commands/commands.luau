@@ -1,16 +1,17 @@
 local commands:  { [string]: any } = {
     afk = require"./afk/afk",
-    whois = require"./whois/whois",
-    remindme = require"./remindme/remindme",
-    settings = require"./settings/settings",
-    lockdowns = require"./lockdowns/lockdowns",
-    stings = require"./stings/stings",
-    stats = require"./stats/stats",
-    help = require"./help/help",
-    moderation = require"./moderation/moderation",
     backups = require"./backups/backups",
-    vmeval = require"./vmeval/vmeval",
+    help = require"./help/help",
+    honeypot = require"./honeypot/honeypot",
+    lockdowns = require"./lockdowns/lockdowns",
+    moderation = require"./moderation/moderation",
+    perms = require"./perms/perms",
+    remindme = require"./remindme/remindme",
     serverinfo = require"./serverinfo/serverinfo",
+    stats = require"./stats/stats",
+    stings = require"./stings/stings",
+    vmeval = require"./vmeval/vmeval",
+    whois = require"./whois/whois",
 }
 
 return {
