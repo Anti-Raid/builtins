@@ -1,7 +1,6 @@
 --!strict
 local Primitives = require "@antiraid-core/primitives"
 local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
-local assertString = require "@antiraid-ext/settings".assertString
 local datetime = require "@antiraid/datetime"
 local tloop = require "@antiraid-core/templateloop"
 
@@ -45,7 +44,7 @@ local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryM
     local loop = tloop.getRunningLoop(ctx)
 
     local function _parseAfk(item: KeyExpiryManager.ExpiringKeyRecord<AFKExpiryData>): AFK
-        local reason = assertString("reason", item.value.reason)
+        local reason = item.value.reason
         local createdAt = item.createdat
         local expiresAt = item.expiresat
 
@@ -80,7 +79,7 @@ local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryM
 
     local function set(afk: CreateAFK): ()
         afkexpiry.add(afk.duration, {
-            reason = assertString("reason", afk.reason),
+            reason = afk.reason,
         }, afk.user_id)
         loop.subscribeEvent("MESSAGE_CREATE", "afk")
         loop.dispatchEvent{

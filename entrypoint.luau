@@ -3,7 +3,6 @@ local Custom = require "@antiraid-ext/events/antiraid/Custom"
 local commands = require "./commands/commands"
 --local settings = require "./settings/settings"
 local afkhandler = require"./auxutils/afkhandler"
-local urlblockhandler = require"./auxutils/urlblockhandler".urlblockHandler
 local honeypothandler = require"./auxutils/honeypothandler"
 local managers = require"./auxutils/managers/managers"
 local Framework = require"@antiraid-ext/frameworkv2"
@@ -20,7 +19,6 @@ return Framework.setup(
     Message(function(ctx, msg)
         managers.getmanagers(ctx) -- Ensure managers are initialized before handling any messages, it is generally a good idea to ensure all managers are ready before processing any events
         afkhandler(msg, ctx)
-        urlblockhandler(msg, ctx)
         honeypothandler(msg, ctx)
     end),
     Custom("OnStartup")(function(ctx, data)
