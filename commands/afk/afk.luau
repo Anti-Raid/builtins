@@ -147,7 +147,7 @@ local function run(data: context.CommandContext): nil
         
         return nil
     else 
-        error("Unknown subcommand: " .. tostring(cmdname))
+        return data.interaction.replysimpleembed("Error processing command", "Unknown subcommand", units.RED_COLOR)
     end
 end
 

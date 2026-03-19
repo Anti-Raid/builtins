@@ -1,149 +1,146 @@
 local commandBuilder = require "@discord-types/builders/interaction/interaction"
-local data = require"@antiraid-ext/framework/coretypes"
-local interactionutils = require "@antiraid-ext/utils/interaction"
-local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
+local data = require"@antiraid-ext/frameworkv2/context"
 local datetime = require "@antiraid/datetime"
-local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
-local parseunit = require "@antiraid-ext/unit"
 local apitypes = require "@discord-types/apiTypes"
 local managers = require "../../auxutils/managers/managers"
+local units = require"@antiraid-ext/frameworkv2/unit"
 
-local function register() 
-    return commandBuilder.new({
-        name = "stings",
-    })
-    :addIntegrationType("GuildInstall")
-    :setType("ChatInput")
-    :addContext("Guild")
-    :setDescription("Sting-related commands")
-    :option(
-        function(opt) 
-            return opt
-            :setType("SubCommand")
-            :setName("list")
-            :setDescription("See all stings on a user")  
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("User")
-                    :setName("user")
-                    :setDescription("The user to lookup")
-                    :setRequired(false)  
-                    :build()
-                end
-            )
-            :build()      
-        end
-    )
-    :option(
-        function(opt) 
-            return opt
-            :setType("SubCommand")
-            :setName("give")
-            :setDescription("Stings/warns a user with a specified number of stings")
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("User")
-                    :setName("user")
-                    :setDescription("The user to sting")  
-                    :setRequired(true)
-                    :build()      
-                end
-            )
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("Number")
-                    :setName("stings")
-                    :setDescription("The number of stings to give")  
-                    :setRequired(true)
-                    :build()      
-                end
-            )
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("String")
-                    :setName("reason")
-                    :setDescription("The reason to sting the user")  
-                    :setRequired(true)
-                    :build()      
-                end
-            )
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("String")
-                    :setName("time")
-                    :setDescription("How long should the sting last for?")
-                    :build()
-                end
-            )                
-            :build()
-        end
-    )
-    :option(
-        function(opt) 
-            return opt
-            :setType("SubCommand")
-            :setName("cure")
-            :setDescription("Removes stings from a user")
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("User")
-                    :setName("user")
-                    :setDescription("The user to cure stings from")  
-                    :setRequired(true)
-                    :build()      
-                end
-            )
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("String")
-                    :setName("id")
-                    :setDescription("The sting ID to cure")  
-                    :setRequired(true)
-                    :setAutocompleteEnabled(true)
-                    :build()      
-                end
-            )
-            :option(
-                function(opt) 
-                    return opt
-                    :setType("String")
-                    :setName("reason")
-                    :setDescription("The reason to cure the user of this sting")  
-                    :setRequired(true)
-                    :build()      
-                end
-            )
-            :build()
-        end
-    )
-    :build()
-end
+local command = commandBuilder.new({
+    name = "stings",
+})
+:addIntegrationType("GuildInstall")
+:setType("ChatInput")
+:addContext("Guild")
+:setDescription("Sting-related commands")
+:option(
+    function(opt) 
+        return opt
+        :setType("SubCommand")
+        :setName("list")
+        :setDescription("See all stings on a user")  
+        :option(
+            function(opt) 
+                return opt
+                :setType("User")
+                :setName("user")
+                :setDescription("The user to lookup")
+                :setRequired(false)  
+                :build()
+            end
+        )
+        :build()      
+    end
+)
+:option(
+    function(opt) 
+        return opt
+        :setType("SubCommand")
+        :setName("give")
+        :setDescription("Stings/warns a user with a specified number of stings")
+        :option(
+            function(opt) 
+                return opt
+                :setType("User")
+                :setName("user")
+                :setDescription("The user to sting")  
+                :setRequired(true)
+                :build()      
+            end
+        )
+        :option(
+            function(opt) 
+                return opt
+                :setType("Number")
+                :setName("stings")
+                :setDescription("The number of stings to give")  
+                :setRequired(true)
+                :build()      
+            end
+        )
+        :option(
+            function(opt) 
+                return opt
+                :setType("String")
+                :setName("reason")
+                :setDescription("The reason to sting the user")  
+                :setRequired(true)
+                :build()      
+            end
+        )
+        :option(
+            function(opt) 
+                return opt
+                :setType("Number")
+                :setName("time")
+                :setDescription("How long should the sting last for?")
+                :build()
+            end
+        )
+        :option(
+            function(opt) 
+                return opt
+                :setType("String")
+                :setName("timeunit")
+                :setDescription("The unit of time")  
+                :setRequired(true)
+                :choice(function(choice) return choice:setName("Seconds"):setValue("seconds"):build() end)
+                :choice(function(choice) return choice:setName("Minutes"):setValue("minutes"):build() end)
+                :choice(function(choice) return choice:setName("Hours"):setValue("hours"):build() end)
+                :choice(function(choice) return choice:setName("Days"):setValue("days"):build() end)
+                :build()      
+            end
+        )         
+        :build()
+    end
+)
+:option(
+    function(opt) 
+        return opt
+        :setType("SubCommand")
+        :setName("cure")
+        :setDescription("Removes stings from a user")
+        :option(
+            function(opt) 
+                return opt
+                :setType("User")
+                :setName("user")
+                :setDescription("The user to cure stings from")  
+                :setRequired(true)
+                :build()      
+            end
+        )
+        :option(
+            function(opt) 
+                return opt
+                :setType("String")
+                :setName("id")
+                :setDescription("The sting ID to cure")  
+                :setRequired(true)
+                :setAutocompleteEnabled(true)
+                :build()      
+            end
+        )
+        :option(
+            function(opt) 
+                return opt
+                :setType("String")
+                :setName("reason")
+                :setDescription("The reason to cure the user of this sting")  
+                :setRequired(true)
+                :build()      
+            end
+        )
+        :build()
+    end
+)
+:build()
 
-local function run(data: data.RunData): nil
+local function run(data: data.CommandContext): nil
     local cmdname = data.command.nameList[2]
     local stingmanager = managers.getmanagers(data.ctx).stingmanager
 
     if cmdname == "list" then 
-        local userid = extractUserIdFromInteraction(data.interaction)
-
-        -- Parse options
-        for _, opt in data.command.options do 
-            if opt.name == "user" then 
-                if opt.value.kind == "User" then
-                    userid = opt.value.user.id
-                elseif opt.value.kind == "Unresolved" then
-                    userid = opt.value.id
-                end
-            end
-        end
-        
+        local userid = data.args.userid("user") or data.interaction.userid()
         local stings = stingmanager.getStingsOnUser(userid)
     
         local stingEmbeds = {}
@@ -172,129 +169,48 @@ local function run(data: data.RunData): nil
                 title = `Sting {sting.stingId}`,
                 description = sting.reason,
                 fields = fields,
-            }
+            } :: apitypes.EmbedObject
     
             table.insert(stingEmbeds, embed)
         end
     
         if #stingEmbeds == 0 then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "No stings found",
-                        description = `No stings found for <@{userid}>`,
-                        color = 0x00ff00,
-                    }
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("No stings found", `No stings found for <@{userid}>`, units.RED_COLOR)
         else
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                stingEmbeds,
-                false
-            )
+            data.interaction.reply{embeds = stingEmbeds}
+            return nil
         end  
     elseif cmdname == "give" then 
-        local user = nil
-        local numberOfStings: number? = nil
-        local reason: string? = nil
-        local stingTime: number? = nil
-    
-        -- Parse options
-        for _, opt in data.command.options do 
-            if opt.name == "user" then 
-                if opt.value.kind == "User" then
-                    user = opt.value.user
-                end
-            elseif opt.name == "stings" then
-                if opt.value.kind == "Number" then
-                    numberOfStings = opt.value.value
-                end
-            elseif opt.name == "reason" then
-                if opt.value.kind == "String" then
-                    reason = opt.value.value
-                end
-            elseif opt.name == "time" then
-                if opt.value.kind == "String" then
-                    stingTime = parseunit(opt.value.value)
-                end
-            end
-        end
-        
+        local modinfo = data.interaction.assertpermission("moderation.sting")
+
+        local user = data.args.user("user")
+        local numberOfStings = data.args.number("stings")
+        local reason = data.args.string("reason")
+        local stingTime = data.args.time("time", "timeunit")
+            
         if not user then 
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "No user specified",
-                        description = "Please specify a user to sting",
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("No user specified", "Please specify a user to sting", units.RED_COLOR)
         end
     
         if not numberOfStings then 
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "No number of stings specified",
-                        description = "Please specify a number of stings to give",
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("No number of stings specified", "Please specify a number of stings to give", units.RED_COLOR)
         end
     
         if not reason then 
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "No reason specified",
-                        description = "Please specify a reason for the sting",
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("No reason specified", "Please specify a reason for the sting", units.RED_COLOR)
         end
-    
-        local modid = extractUserIdFromInteraction(data.interaction)
         
-        canModeratorAffectTarget(
-            data.ctx, 
-            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction),
-            user.id, 
-            "moderation.sting"
-        )
-    
         local expiresat = if stingTime then datetime.UTC:now() + datetime.timedelta_seconds(stingTime) else nil
         local createdSting = stingmanager.createUserSting({
             userId = user.id,
-            modId = modid,
+            modId = modinfo.userid,
             reason = reason,
             stings = numberOfStings,
             expires_at = expiresat
         })
-        
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
+
+        data.interaction.reply{
+            embeds = {
                 {
                     title = "Sting created",
                     description = `Successfully stung {user.username} with \`\`{numberOfStings}\`\` stings for: \`\`{reason}\`\` with a sting ID of \`\`{createdSting.stingId}\`\``,
@@ -305,158 +221,49 @@ local function run(data: data.RunData): nil
                             inline = true,
                         }
                     },
-                    color = 0x00ff00,
+                    color = units.GREEN_COLOR,
                 },
-            },
-            false
-        )    
+            }
+        }
+        return nil
     elseif cmdname == "cure" then
-        local user = nil
-        local stingId: string? = nil
-        local reason: string? = nil
-    
-        -- Parse options
-        for _, opt in data.command.options do 
-            if opt.name == "user" then 
-                if opt.value.kind == "User" then
-                    user = opt.value.user
-                end
-            elseif opt.name == "id" then
-                if opt.value.kind == "String" then
-                    stingId = opt.value.value
-                end
-            elseif opt.name == "reason" then
-                if opt.value.kind == "String" then
-                    reason = opt.value.value
-                end
-            end
-        end
-    
+        local modinfo = data.interaction.assertpermission("moderation.curesting")
+
+        local user = data.args.userid("user")
+        local stingId = data.args.string("id")
+        local reason = data.args.string("reason")
+        
         if not user then 
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "No user specified",
-                        description = "Please specify a user to cure",
-                        color = 0xff0000,
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("No user specified", "Please specify a user to sting", units.RED_COLOR)
         end
     
         if not stingId then 
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "No sting ID specified",
-                        description = "Please specify a sting ID to cure",
-                        color = 0xff0000,
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("No sting ID specified", "Please specify a sting ID to cure", units.RED_COLOR)
         end
     
         if not reason then 
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "No reason specified",
-                        description = "Please specify a reason for the cure",
-                        color = 0xff0000,
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("No reason specified", "Please specify a reason for the cure", units.RED_COLOR)
         end
-    
-        local modId = extractUserIdFromInteraction(data.interaction)
-        canModeratorAffectTarget(
-            data.ctx, 
-            data.userinfomanager.get(extractUserIdFromInteraction(data.interaction), data.interaction), 
-            user.id, 
-            "moderation.curesting"
-        )
-    
-        -- Check that the sting exists
-        local sting = stingmanager.getSting(user.id, stingId)
+            -- Check that the sting exists
+        local sting = stingmanager.getSting(user, stingId)
         if not sting then
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "Sting not found",
-                        description = `No sting with ID \`\`{stingId}\`\` found for <@{user.id}>`,
-                        color = 0xff0000,
-                    },
-                },
-                false
-            )
+            return data.interaction.replysimpleembed("Sting not found", `No sting with ID \`\`{stingId}\`\` found for <@{user}>`, units.RED_COLOR)
         end
 
-        stingmanager.deleteSting(user.id, stingId, modId, reason)
-    
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Sting cured",
-                    description = `Successfully cured <@{user.id}> of their sting with ID \`\`{stingId}\`\``,
-                    color = 0x00ff00,
-                }
-            },
-            false
-        )
+        stingmanager.deleteSting(user, stingId, modinfo.userid, reason)
+        return data.interaction.replysimpleembed("Sting cured",`Successfully cured <@{user}> of their sting with ID \`\`{stingId}\`\``, units.GREEN_COLOR)
+    else
+        return data.interaction.replysimpleembed("Error processing command", "Please use `/stings list` to see all stings on a user or `/stings give` to give a user stings", units.RED_COLOR)
     end
-
-    return interactionutils.replySimple(
-        data.ctx,
-        data.interaction,
-        nil,
-        {
-            {
-                title = "Unknown command",
-                description = "Please use `/stings list` to see all stings on a user or `/stings give` to give a user stings",
-            }
-        },
-        false
-    )
 end
 
-local function autocompleter(data: data.AutocompleteRunData): {apitypes.ApplicationCommandOptionChoiceObject}
+local function autocompleter(data: data.CommandAutocompleteContext): {apitypes.ApplicationCommandOptionChoiceObject}
     local cmdname = data.command.nameList[2]
     local stingmanager = managers.getmanagers(data.ctx).stingmanager
 
     if cmdname == "cure" then 
-        local userId = nil
-        local typedName = nil
-        for _, opt in data.command.options do 
-            if opt.name == "user" then 
-                if opt.value.kind == "User" then
-                    userId = opt.value.user.id
-                elseif opt.value.kind == "Unresolved" then
-                    userId = opt.value.id
-                end
-            elseif opt.name == "id" then
-                if opt.value.kind == "String" then
-                    typedName = opt.value.value
-                end
-            end
-        end
+        local userId = data.args.userid("user")
+        local typedName = data.args.string("id")
 
         if not userId then 
             return {}
@@ -476,7 +283,7 @@ local function autocompleter(data: data.AutocompleteRunData): {apitypes.Applicat
             table.insert(choices, {
                 name = `Sting ID: {sting.stingId}`,
                 value = sting.stingId,
-            })
+            } :: apitypes.ApplicationCommandOptionChoiceObject)
         end
         return choices
     end
@@ -485,7 +292,7 @@ local function autocompleter(data: data.AutocompleteRunData): {apitypes.Applicat
 end
 
 return {
-    register = register,
+    command = command,
     run = run,
     autocompleter = autocompleter,
 }
