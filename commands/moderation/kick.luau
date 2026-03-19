@@ -1,68 +1,19 @@
-local data = require"@antiraid-ext/framework/coretypes"
-local interactionutils = require "@antiraid-ext/utils/interaction"
-local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
-local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
+local data = require"@antiraid-ext/frameworkv2/context"
+local units = require"@antiraid-ext/frameworkv2/unit"
 
-local function kick(data: data.RunData): nil
-    local userid = nil
-    local reason = nil
+local function kick(data: data.CommandContext): nil
+    local modinfo = data.interaction.assertpermission("moderation.kick")
 
-    for _, opt in data.command.options do 
-        if opt.name == "user" then 
-            if opt.value.kind == "User" then
-                userid = opt.value.user.id
-            elseif opt.value.kind == "Unresolved" then
-                userid = opt.value.id
-            end
-        end
-
-        if opt.name == "reason" then
-            if opt.value.kind == "String" then
-                reason = opt.value.value
-            end
-        end
-    end
+    local userid = data.args.userid("user")
+    local reason = data.args.string("reason")
 
     if not userid then
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Cannot kick unknown user!",
-                    description = "No user specified",
-                    color = 0xFF0000,
-                },
-            },
-            false
-        )
+        return data.interaction.replysimpleembed("Cannot kick unknown user!", "No user specified", units.RED_COLOR)
     end
 
     if not reason or reason == "" then
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Cannot kick user without a reason!",
-                    description = "Please provide a reason for the kick",
-                    color = 0xFF0000,
-                },
-            },
-            false
-        )
+        return data.interaction.replysimpleembed("Cannot kick user without a reason!", "Please provide a reason for kicking this user", units.RED_COLOR)
     end
-
-    canModeratorAffectTarget(
-        data.ctx, 
-        data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
-        userid, 
-        "moderation.kick"
-    )
-
-    local modid = extractUserIdFromInteraction(data.interaction)
 
     -- First kick them
     data.ctx.Discord:remove_guild_member({
@@ -73,26 +24,14 @@ local function kick(data: data.RunData): nil
     -- Then, dispatch a AntiraidKick event
     data.loop.dispatchEvent({
         name = "AntiraidKick",
-        author = modid,
+        author = modinfo.userid,
         data = {
             userid = userid,
             reason = reason,
         },
     })
-
-    return interactionutils.replySimple(
-        data.ctx,
-        data.interaction,
-        nil,
-        {
-            {
-                title = "Successfully kicked user",
-                description = "User <@" .. userid .. "> was successfully kicked from this server!",
-                color = 0x00FF00
-            },
-        },
-        false
-    )
+    
+    return data.interaction.replysimpleembed("Successfully kicked user!", "User <@" .. userid .. "> was successfully kicked from this server!", units.GREEN_COLOR)
 end
 
 return kick

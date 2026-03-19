@@ -1,114 +1,36 @@
-local data = require"@antiraid-ext/framework/coretypes"
+local data = require"@antiraid-ext/frameworkv2/context"
 local kexs = require"../../auxutils/managers/managers"
-local interactionutils = require "@antiraid-ext/utils/interaction"
-local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
-local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
-local parseunit = require "@antiraid-ext/unit"
+local units = require"@antiraid-ext/frameworkv2/unit"
 
-local function ban(data: data.RunData): nil
-    local userid = nil
-    local reason = nil
-    local delete_message_seconds = 0
-    local duration = nil
+local function ban(data: data.CommandContext): nil
+    local modinfo = data.interaction.assertpermission("moderation.ban")
 
-    for _, opt in data.command.options do 
-        if opt.name == "user" then 
-            if opt.value.kind == "User" then
-                userid = opt.value.user.id
-            elseif opt.value.kind == "Unresolved" then
-                userid = opt.value.id
-            end
-        end
-
-        if opt.name == "reason" then
-            if opt.value.kind == "String" then
-                reason = opt.value.value
-            end
-        end
-
-        if opt.name == "delete_message_days" then
-            if opt.value.kind == "Integer" then
-                delete_message_seconds += opt.value.value * 86400 -- Convert days to seconds
-            end
-        end
-
-        if opt.name == "delete_message_seconds" then
-            if opt.value.kind == "Integer" then
-                delete_message_seconds += opt.value.value -- Already in seconds
-            end
-        end
-
-        if opt.name == "duration" then
-            if opt.value.kind == "String" then
-                duration = parseunit(opt.value.value)
-            end
-        end
-    end
+    local userid = data.args.userid("user")
+    local reason = data.args.string("reason")
+    local delete_message_seconds = data.args.number("delete_message_seconds")
+    local duration = data.args.time("duration", "durationunit")
 
     if not userid then
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Cannot ban unknown user!",
-                    description = "No user specified",
-                    color = 0xFF0000,
-                },
-            },
-            false
-        )
+        return data.interaction.replysimpleembed("Cannot ban unknown user!", "No user specified", units.RED_COLOR)
     end
 
     if not reason or reason == "" then
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Cannot ban user without a reason!",
-                    description = "Please provide a reason for the ban",
-                    color = 0xFF0000,
-                },
-            },
-            false
-        )
+        return data.interaction.replysimpleembed("Cannot ban user without a reason!", "Please provide a reason for the ban", units.RED_COLOR)
     end
 
-    canModeratorAffectTarget(
-        data.ctx, 
-        data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
-        userid, 
-        "moderation.ban"
-    )
+    local tempdata = nil
+    local tempbankex = kexs.getmanagers(data.ctx).tempbankex
 
-    local modid = extractUserIdFromInteraction(data.interaction)
+    -- Ensure user isn't alr tempbanned
+    if tempbankex.get(userid) then 
+        return data.interaction.replysimpleembed("User already has an active tempban!", "This user is already tempbanned. Please either wait for the existing tempban to expire or remove it before applying a new one.", units.RED_COLOR)
+    end
 
     -- If we need this to be temporary, schedule an unban linked to a key expiry
-    local tempdata = nil
     if duration and duration > 0 then
-        local tempbankex = kexs.getmanagers(data.ctx).tempbankex
-        if tempbankex.get(userid) then 
-            return interactionutils.replySimple(
-                data.ctx,
-                data.interaction,
-                nil,
-                {
-                    {
-                        title = "User already has an active tempban!",
-                        description = "This user is already tempbanned. Please either wait for the existing tempban to expire or remove it before applying a new one.",
-                        color = 0xFF0000,
-                    },
-                },
-                false
-            )
-        end
-
         local key = tempbankex.addwithsecs(duration, {
             userid = userid,
-            modid = modid,
+            modid = modinfo.userid,
             reason = reason
         }, userid) -- Use the userid as the key for easy lookup when unbanning
         tempdata = {
@@ -127,7 +49,7 @@ local function ban(data: data.RunData): nil
     -- Then, dispatch a AntiraidBan event
     data.loop.dispatchEvent({
         name = "AntiraidBan",
-        author = modid,
+        author = modinfo.userid,
         data = {
             userid = userid,
             reason = reason,
@@ -135,20 +57,8 @@ local function ban(data: data.RunData): nil
             tempdata = tempdata
         },
     })
-
-    return interactionutils.replySimple(
-        data.ctx,
-        data.interaction,
-        nil,
-        {
-            {
-                title = "Successfully banned user",
-                description = "User <@" .. userid .. "> was successfully banned from this server!",
-                color = 0x00FF00
-            },
-        },
-        false
-    )
+    
+    return data.interaction.replysimpleembed("Successfully banned user!", "User <@" .. userid .. "> was successfully banned from this server!", units.GREEN_COLOR)
 end
 
 return ban

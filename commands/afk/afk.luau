@@ -30,7 +30,7 @@ local command = commandBuilder.new({
         :option(
             function(opt) 
                 return opt
-                :setType("String")
+                :setType("Number")
                 :setName("time")
                 :setDescription("How long you want to be AFK for")  
                 :setRequired(true)

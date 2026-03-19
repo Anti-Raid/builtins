@@ -1,86 +1,25 @@
-local data = require"@antiraid-ext/framework/coretypes"
-local interactionutils = require "@antiraid-ext/utils/interaction"
-local extractUserIdFromInteraction = require "@antiraid-ext/utils/modhierarchy".extractUserIdFromInteraction
-local canModeratorAffectTarget = require "@antiraid-ext/utils/modhierarchy".canModeratorAffectTarget
+local data = require"@antiraid-ext/frameworkv2/context"
 local kexs = require"../../auxutils/managers/managers"
+local units = require"@antiraid-ext/frameworkv2/unit"
 
-local function unban(data: data.RunData): nil
-    local userid = nil
-    local reason = nil
+local function unban(data: data.CommandContext): nil
+    local modinfo = data.interaction.assertpermission("moderation.unban")
 
-    for _, opt in data.command.options do
-        if opt.name == "user" then
-            if opt.value.kind == "User" then
-                userid = opt.value.user.id
-            elseif opt.value.kind == "Unresolved" then
-                userid = opt.value.id
-            end
-        end
-
-        if opt.name == "reason" then
-            if opt.value.kind == "String" then
-                reason = opt.value.value
-            end
-        end
-    end
+    local userid = data.args.userid("userid")
+    local reason = data.args.string("reason")
 
     if not userid then
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Cannot unban unknown user!",
-                    description = "No user specified",
-                    color = 0xFF0000,
-                },
-            },
-            false
-        )
+        return data.interaction.replysimpleembed("Cannot unban unknown user!", "No user specified", units.RED_COLOR)
     end
 
     if not reason or reason == "" then
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Cannot unban user without a reason!",
-                    description = "Please provide a reason for the unban",
-                    color = 0xFF0000,
-                },
-            },
-            false
-        )
+        return data.interaction.replysimpleembed("Cannot unban user without a reason!", "Please provide a reason for the unban", units.RED_COLOR)
     end
-
-    canModeratorAffectTarget(
-        data.ctx, 
-        data.userinfomanager.get(extractUserIdFromInteraction(data.interaction)),
-        userid, 
-        "moderation.unban"
-    )
-    
-    local modid = extractUserIdFromInteraction(data.interaction)
 
     -- Check if a ban exists
     local ban = data.ctx.Discord:get_guild_ban(userid)
     if not ban.data then
-        return interactionutils.replySimple(
-            data.ctx,
-            data.interaction,
-            nil,
-            {
-                {
-                    title = "Cannot unban a user who is not banned!",
-                    description = "User <@" .. userid .. "> is not banned from this server!",
-                    color = 0xFF0000,
-                },
-            },
-            false
-        )
+        return data.interaction.replysimpleembed("Cannot unban a user who is not banned!", "User <@" .. userid .. "> is not banned from this server!", units.RED_COLOR)
     end
 
     -- Then unban them
@@ -99,28 +38,15 @@ local function unban(data: data.RunData): nil
     -- Then, dispatch a AntiraidUnban event
     data.loop.dispatchEvent({
         name = "AntiraidUnban",
-        author = modid,
+        author = modinfo.userid,
         data = {
             userid = userid,
             reason = reason,
             tempbanrecord = tempdata,
-            modid = modid
         },
     })
 
-    return interactionutils.replySimple(
-        data.ctx,
-        data.interaction,
-        nil,
-        {
-            {
-                title = "Successfully unbanned user",
-                description = "User <@" .. userid .. "> was successfully unbanned from this server!",
-                color = 0x00FF00
-            },
-        },
-        false
-    )
+    return data.interaction.replysimpleembed("Successfully unbanned user", "User <@" .. userid .. "> was successfully unbanned from this server!", units.GREEN_COLOR)
 end
 
 return unban
