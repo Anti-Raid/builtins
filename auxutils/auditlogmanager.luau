@@ -2,10 +2,7 @@
 
 local Primitives = require "@antiraid-core/primitives"
 local datetime = require "@antiraid/datetime"
-local isDevMode = require"../devs".isInDevMode
 local KeyManager = require "@antiraid-ext/keymanager"
-
-local scopePrefix = if isDevMode then "builtins-dev" else "builtins"
 
 local MAX_CHANNELS = 7
 local MAX_WHATS_PER_CHANNEL = 5
@@ -64,7 +61,7 @@ type LogData = {
 local function AuditLogManager(ctx: Primitives.TemplateContext): AuditLogManager
     local self = {}
 
-    local km = KeyManager<<LogData>>(ctx, scopePrefix .. ".auditlogs")
+    local km = KeyManager<<LogData>>(ctx, "builtins.auditlogs")
     local cachedlist: {Log}? = nil
 
     local function _parseLog(item: KeyManager.KeyRecord<LogData>): Log
