@@ -67,15 +67,6 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         return chan
     end
     isolate.runEvent = function(rootctx: Primitives.TemplateContext, event: Primitives.Event): any 
-        --- Create sub-context for template
-        local subctx = rootctx:with({
-            event = event,
-            limitations = {
-                capabilities = caps,
-                reserved_key_scopes = {"tloop.reserved"}
-            },
-        })
-
         local entrypoint = entrypointloader.get()
 
         if type(entrypoint) ~= "table" then
@@ -83,7 +74,7 @@ local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]
         end
         local func: unknown = entrypoint[event.name]
         if func and type(func) == "function" then 
-            return (func :: (Primitives.TemplateContext) -> any)(subctx)
+            return (func :: (Primitives.TemplateContext, Primitives.Event) -> any)(rootctx, event)
         else 
             return nil
         end
