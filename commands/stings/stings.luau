@@ -81,8 +81,8 @@ local command = commandBuilder.new({
                 return opt
                 :setType("String")
                 :setName("timeunit")
-                :setDescription("The unit of time")  
-                :setRequired(true)
+                :setDescription("The unit of time")
+                :setRequired(false)
                 :choice(function(choice) return choice:setName("Seconds"):setValue("seconds"):build() end)
                 :choice(function(choice) return choice:setName("Minutes"):setValue("minutes"):build() end)
                 :choice(function(choice) return choice:setName("Hours"):setValue("hours"):build() end)

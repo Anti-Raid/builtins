@@ -5,6 +5,7 @@ local Primitives = require"@antiraid-core/primitives"
 local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
 local CheckpointManager = require "@antiraid-ext/checkpoint"
 local LockdownSet = require"../lockdowns/lockdownset"
+local AuditLogManager = require"../auditlogmanager"
 local restoresteps = require"../backups/restore/restore"
 
 type TempBan = {
@@ -29,7 +30,8 @@ export type Managers = {
     afkexpiry: KeyExpiryManager.KeyExpiryManager<afkmanager.AFKExpiryData>,
     stingexpiry: KeyExpiryManager.KeyExpiryManager<stingmanager.StingExpiryData>,
     backupcheckpointmanager: CheckpointManager.CheckpointManager<restoresteps.Opts>,
-    lockdownset: LockdownSet.LockdownSet
+    lockdownset: LockdownSet.LockdownSet,
+    auditlogmanager: AuditLogManager.AuditLogManager,
 }
 
 local managers: Managers? = nil
@@ -127,6 +129,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
     local honeypotmanager = honeypotmanager(ctx)
     local backupcheckpointmanager = CheckpointManager<<restoresteps.Opts>>(ctx, "builtins.backups", restoresteps.CHECKPOINT_EXPIRY, restoresteps.RESTORE_STEPS)
     local lockdownset = LockdownSet(ctx)
+    local auditlogmanager = AuditLogManager.AuditLogManager(ctx)
 
     managers = {
         stingmanager = stingmanager,
@@ -137,7 +140,8 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         afkexpiry = afkExpiryManager,
         stingexpiry = stingExpiryManager,
         backupcheckpointmanager = backupcheckpointmanager,
-        lockdownset = lockdownset
+        lockdownset = lockdownset,
+        auditlogmanager = auditlogmanager,
     }
 
     return managers or error("Failed to initialize managers")

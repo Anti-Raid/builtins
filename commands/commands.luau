@@ -12,6 +12,7 @@ local commands:  { [string]: any } = {
     stings = require"./stings/stings",
     vmeval = require"./vmeval/vmeval",
     whois = require"./whois/whois",
+    auditlogs = require"./auditlogs/auditlogs"
 }
 
 return {
