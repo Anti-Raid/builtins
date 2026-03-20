@@ -62,8 +62,9 @@ type TenantStateManager = {
     read SubscribeEventAndSetFlag: (event: string, setevent: boolean, flag: number, setflag: boolean) -> (),
 }
 
-local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantStateManager 
+local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantStateManager
     local tenantState: runtime.TenantState = baseCtx.Runtime:gettenantstate()
+    if _G._debug then _G._debug("TenantStateManager init - events:", tenantState.events, "type:", type(tenantState.events), "banned:", tenantState.banned, "flags:", tenantState.flags) end
     local events: {[string]: boolean} = {}
 
     local function _updateDerivedState() 
@@ -83,7 +84,8 @@ local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantSt
     local function IsSubscribedToEvent(event: string): boolean return events[event] ~= nil end
 
     -- Other utilities for managing tenant state
-    local function ClonedTenantState(): runtime.TenantState 
+    local function ClonedTenantState(): runtime.TenantState
+        if _G._debug then _G._debug("ClonedTenantState - events:", tenantState.events, "type:", type(tenantState.events)) end
         return {
             events = table.clone(tenantState.events),
             banned = tenantState.banned,
