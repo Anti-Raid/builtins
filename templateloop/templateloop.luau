@@ -93,7 +93,8 @@ local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantSt
         }
     end
 
-    local function UpdateTenantState(newState: runtime.TenantState) 
+    local function UpdateTenantState(newState: runtime.TenantState)
+        if _G._debug then _G._debug("UpdateTenantState - newState:", newState, "events:", newState and newState.events, "banned:", newState and newState.banned, "flags:", newState and newState.flags) end
         baseCtx.Runtime:settenantstate(newState) -- Update tenant state in runtime
         tenantState = newState -- Update local cache
         _updateDerivedState() -- Update derived state after updating tenant state
