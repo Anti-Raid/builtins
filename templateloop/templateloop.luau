@@ -38,6 +38,12 @@ local TEMPLATE_DISPATCH_TIMEOUT = datetime.timedelta_seconds(5) -- 5 seconds
 
 -- Start code
 
+-- stdout logging for debugging
+local function DebugManager(): templateloopImpl.DebugManager 
+    if _G._debug then return { print = _G._debug } end
+    return { print = function(...) end }
+end
+
 --- Internal manager of tenant state
 type TenantStateManager = {
     --- Returns if a flag is set or not
@@ -64,7 +70,7 @@ type TenantStateManager = {
 
 local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantStateManager
     local tenantState: runtime.TenantState = baseCtx.Runtime:gettenantstate()
-    if _G._debug then _G._debug("TenantStateManager init - events:", tenantState.events, "type:", type(tenantState.events), "banned:", tenantState.banned, "flags:", tenantState.flags) end
+    DebugManager().print("TenantStateManager init - events:", tenantState.events, "type:", type(tenantState.events), "flags:", tenantState.flags)
     local events: {[string]: boolean} = {}
 
     local function _updateDerivedState() 
@@ -85,16 +91,15 @@ local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantSt
 
     -- Other utilities for managing tenant state
     local function ClonedTenantState(): runtime.TenantState
-        if _G._debug then _G._debug("ClonedTenantState - events:", tenantState.events, "type:", type(tenantState.events)) end
+        DebugManager().print("ClonedTenantState - events:", tenantState.events, "type:", type(tenantState.events))
         return {
             events = table.clone(tenantState.events),
-            banned = tenantState.banned,
             flags = tenantState.flags,
         }
     end
 
     local function UpdateTenantState(newState: runtime.TenantState)
-        if _G._debug then _G._debug("UpdateTenantState - newState:", newState, "events:", newState and newState.events, "banned:", newState and newState.banned, "flags:", newState and newState.flags) end
+        DebugManager().print("UpdateTenantState - newState:", newState, "events:", newState and newState.events, "flags:", newState and newState.flags)
         baseCtx.Runtime:settenantstate(newState) -- Update tenant state in runtime
         tenantState = newState -- Update local cache
         _updateDerivedState() -- Update derived state after updating tenant state
@@ -229,14 +234,14 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
         if IsSubscribed(event, system) then return end -- No need to subscribe if we are already subscribed
         local refs = geteventrefs()
         if refs[event] then refs[event][system] = true else refs[event] = { [system] = true } end -- Update refs with new subscription
-        
-        -- Update event refs
-        updateeventrefs(refs)
-        
+                
         -- Also subscribe to event in tenant state manager to ensure we are subscribed at the runtime level
         --
         -- This is anyways a no-op if we are already subscribed, so we don't need to check before subscribing
         tenantStateManager.SubscribeEventAndSetFlag(event, true, FLAG_BUILTINS_HAVEEVENTREFS, true)
+
+        -- Update event refs *here* to ensure we rollback
+        updateeventrefs(refs)
     end
 
     local function Unsubscribe(event: string, system: string) 
@@ -249,9 +254,6 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
                 refs[event] = nil 
             end 
         end
-
-        -- Update event refs
-        updateeventrefs(refs)
         
         local isEventStillActive = (refs[event] ~= nil)
         local hasAnyRefsRemaining = (next(refs) ~= nil)
@@ -263,6 +265,9 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
             FLAG_BUILTINS_HAVEEVENTREFS, 
             hasAnyRefsRemaining
         )
+
+        -- Update event refs *here* to ensure we rollback
+        updateeventrefs(refs)
     end
 
     return table.freeze{
@@ -270,12 +275,6 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
         Unsubscribe = Unsubscribe,
         IsSubscribed = IsSubscribed,
     }
-end
-
--- stdout logging for debugging
-local function DebugManager(): templateloopImpl.DebugManager 
-    if _G._debug then return { print = _G._debug } end
-    return { print = function(...) end }
 end
 
 local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
