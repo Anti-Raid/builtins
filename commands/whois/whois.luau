@@ -164,7 +164,7 @@ local function run(data: data.CommandContext)
         end
     end
 
-    local stings = stingmanager.getCachedUserStings(user.id)
+    local stings = stingmanager.getStingsOnUser(user.id)
     local stingCount = 0
     local maxSting: stingmanager.Sting? = nil
     local mostRecentSting: stingmanager.Sting? = nil
