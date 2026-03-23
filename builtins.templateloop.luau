@@ -9,7 +9,7 @@
 local templateloop = require "./templateloop/templateloop"
 
 local function main(ctx) 
-    local tlm = templateloop.getOrInit(ctx) -- Get or create the TemplateLoopManager instance 
+    local tlm = templateloop(ctx) -- Get or create the TemplateLoopManager instance 
     return tlm.dispatchEvent(ctx:event())
 end
 

@@ -23,11 +23,10 @@ local templateloopImpl = require"@antiraid-core/templateloop"
 local templatemanagerImpl = require"@antiraid-core/templatemanager"
 local TemplateManager = require"./templatemanager"
 local MutexFn = require"@antiraid-ext/sync/mutex"
+local LazyLoad = require"@antiraid-ext/sync/lazyload"
 
 -- Flags 
 
---- Tenant state flag: Whether or not we have any custom templates that require fetching from the DB
-local FLAG_BUILTINS_HAVETEMPLATES = bit32.lshift(1, 0) 
 --- Tenant state flag: Whether or not we have any event refs for any events (used to determine whether we need to fetch eventrefs from the DB or not)
 local FLAG_BUILTINS_HAVEEVENTREFS = bit32.lshift(1, 1)
 
@@ -277,92 +276,59 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
     }
 end
 
-local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
-    local self = {}
+--- TemplateIsolateManager is an internal construct
+type TemplateIsolateManager = {
+    --- `templates` returns a list of all templates currently in the isolate manager
+    read templates: () -> {templatemanagerImpl.Template},
+    --- Returns the underlying `attachedtemplatemanager`
+    read templatemanager: templatemanagerImpl.TemplateManager,
+    --- Internal helper to get or create an isolate for a template
+    read getisolatefortemplate: (template: templatemanagerImpl.Template) -> isolate.Isolate,
+}
 
-    local debugmanager = DebugManager()
-    local templatemanager = TemplateManager(baseCtx)
-    local tenantStateManager = TenantStateManager(baseCtx)
-    local eventRefManager = EventRefManager(baseCtx, tenantStateManager)
-    local eventrefmu = MutexFn() -- Mutex for synchronizing access to event refs
-
-    local templateCache: {templatemanagerImpl.Template} = if tenantStateManager.IsFlagSet(FLAG_BUILTINS_HAVETEMPLATES) then templatemanager.list() else {templatemanager.builtins()}
+local function TemplateIsolateManager(baseCtx: Primitives.TemplateContext, loop: templateloopImpl.TemplateLoopManager): TemplateIsolateManager
+    -- Initial template isolate state
+    local templates: {templatemanagerImpl.Template}
     local isolates: {[string]: isolate.Isolate} = {}
-
-    local function updateTemplateCache(id: string): {templateloopImpl.DispatchResult} 
-        templateCache = templatemanager.list() -- Always refetch new template cache just to ensure we are up to date with any updates we missed
-        isolates[id] = nil -- Drop the isolate and let Luau GC it as it pleases
-
-        -- GC any leftover isolates that are no longer active
-        local activeIds = {}
-        for _, t in templateCache do activeIds[t.id] = true end
-        for isolId, _ in isolates do 
-            if not activeIds[isolId] then isolates[isolId] = nil end
-        end
-        
-        -- Now update tenant state data to reflect whether we need to fetch templates from DB or not
-        --
-        -- Note that builtins counts as a template, so we check for > 1 and not > 0
-        if #templateCache > 1 and not tenantStateManager.IsFlagSet(FLAG_BUILTINS_HAVETEMPLATES) then 
-            --- If we are in the no fetch from db state, update tenant state to record that we now need to fetch templates
-            --- when we need to
-            tenantStateManager.SetFlag(FLAG_BUILTINS_HAVETEMPLATES, true)
-        elseif #templateCache <= 1 and tenantStateManager.IsFlagSet(FLAG_BUILTINS_HAVETEMPLATES) then 
-            --- Otherwise, we need to clear the fetch from db flag if we are in the fetch from db state
-            tenantStateManager.SetFlag(FLAG_BUILTINS_HAVETEMPLATES, false)
-        end
-
+    local attachedtemplatemanager: templatemanagerImpl.TemplateManager 
+    attachedtemplatemanager = TemplateManager.TemplateManager(baseCtx, function(_op: "CreateCustom" | "DeleteCustom" | "UpdateCustom", key: string) 
+        templates = attachedtemplatemanager.list()
+        isolates[key] = nil -- Drop the isolate and let Luau GC it as it pleases
         -- Send a Startup event to the template to re-initialize it
-        return self.dispatchEvent({name = "OnStartup", data = { reason = "updateTemplateCache" }}, id)
-    end
+        loop.dispatchEvent({name = "OnStartup", data = { reason = "updateTemplateCache" }}, key)
+    end)
+    templates = attachedtemplatemanager.list()
 
     --- Internal helper to get or create an isolate for a template
-    local function _getIsolateForTemplate(template: templatemanagerImpl.Template): isolate.Isolate
+    local function getisolatefortemplate(template: templatemanagerImpl.Template): isolate.Isolate
         local isol: isolate.Isolate? = nil
         if isolates[template.id] then 
             isol = isolates[template.id] 
         else 
-            isol = isolate.new(template.id, template.allowed_caps, templatemanager.computevfs(template), {})
+            isol = isolate.new(template.id, attachedtemplatemanager.computevfs(template), {})
             isolates[template.id] = isol -- Cache isolate
         end
         return isol
     end
 
-    local function dispatchEvent(event: Primitives.Event, targetId: string?): {templateloopImpl.DispatchResult}
-        -- Fast path: if there are no templates besides builtins, we can avoid creating a new thread
-        debugmanager.print("[TemplateLoopManager] Dispatching event", event.name, "to templates", targetId and `with id {targetId}` or "with no target id")
-        if #templateCache <= 1 and templateCache[1] and templateCache[1].source.type == "builtins" then
-            -- Get or create isolate for template
-            local isol = _getIsolateForTemplate(templateCache[1])
-            local ret = isol.runEventResult(baseCtx, event)
-            if ret.type == "err" then 
-                debugmanager.print("[TemplateLoopManager] Error dispatching event to builtins template:", ret)
-                return {ret}
-            end
-            return {ret}
-        end
-        
-        local chans: {channel.OneshotChannel<templateloopImpl.DispatchResult>} = {}
+    return table.freeze{
+        templates = function() return templates end,
+        templatemanager = attachedtemplatemanager,
+        getisolatefortemplate = getisolatefortemplate
+    }
+end
 
-        for _, template in templateCache do
-            if targetId and template.id ~= targetId then
-                continue -- Ignore non-targetted template
-            end
+--- Creates a new TemplateLoopManager instance
+local lazyloader = LazyLoad(function(baseCtx: Primitives.TemplateContext) 
+    -- Setup base state
+    local self = {}
+    baseCtx.store[templateloopImpl.TEMPLATE_LOOP_KEY] = self
 
-            -- Get or create isolate for template
-            local isol = _getIsolateForTemplate(template)
-
-            -- Dispatch event to isolate
-            local chan = isol.dispatchEvent(baseCtx, event)
-            table.insert(chans, chan)
-        end
-
-        local results, timedout = channel.selectoneshots(chans, TEMPLATE_DISPATCH_TIMEOUT)
-        if timedout then
-            -- TODO: Log warning about timeout
-        end
-        return results
-    end
+    local debugmanager = DebugManager()
+    local tenantStateManager = TenantStateManager(baseCtx)
+    local eventRefManager = EventRefManager(baseCtx, tenantStateManager)
+    local eventrefmu = MutexFn() -- Mutex for synchronizing access to event refs
+    local templateisolatemanager: TemplateIsolateManager -- Forward declaration of templateisolatemanager so we can setup everything at once before finishing with isolate manager
 
     local function subscribeEvent(event: string, system: string) 
         eventrefmu.call(function() 
@@ -384,28 +350,61 @@ local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templat
         end)
     end
 
-    self.updateTemplateCache = updateTemplateCache
-    self.dispatchEvent = dispatchEvent
+    local function dispatchEvent(event: Primitives.Event, targetId: string?): {templateloopImpl.DispatchResult}
+        -- Fast path: if there are no templates besides builtins, we can avoid creating a new thread
+        debugmanager.print("[TemplateLoopManager] Dispatching event", event.name, "to templates", targetId and `with id {targetId}` or "with no target id")
+        local templateCache = templateisolatemanager.templates()
+        if #templateCache <= 1 and templateCache[1] and templateCache[1].source.type == "builtins" then
+            -- Get or create isolate for template
+            local isol = templateisolatemanager.getisolatefortemplate(templateCache[1])
+            local ret = isol.runEventResult(baseCtx, event)
+            if ret.type == "err" then 
+                debugmanager.print("[TemplateLoopManager] Error dispatching event to builtins template:", ret)
+                return {ret}
+            end
+            return {ret}
+        end
+        
+        local chans: {channel.OneshotChannel<templateloopImpl.DispatchResult>} = {}
+
+        for _, template in templateCache do
+            if targetId and template.id ~= targetId then
+                continue -- Ignore non-targetted template
+            end
+
+            -- Get or create isolate for template
+            local isol = templateisolatemanager.getisolatefortemplate(template)
+
+            -- Dispatch event to isolate
+            local chan = isol.dispatchEvent(baseCtx, event)
+            table.insert(chans, chan)
+        end
+
+        local results, timedout = channel.selectoneshots(chans, TEMPLATE_DISPATCH_TIMEOUT)
+        if timedout then
+            -- TODO: Log warning about timeout
+        end
+        return results
+    end
+
+    self.debugmanager = debugmanager
     self.subscribeEvent = subscribeEvent
     self.unsubscribeEvent = unsubscribeEvent
     self.isSubscribed = isSubscribed
-    self.debugmanager = debugmanager
+    self.dispatchEvent = dispatchEvent
+    self.templatemanager = function(): templatemanagerImpl.TemplateManager return templateisolatemanager.templatemanager end
+
+    templateisolatemanager = TemplateIsolateManager(baseCtx, self)
+
 
     return self
-end
+end)
 
 --- Creates a new TemplateLoopManager instance if it doesn't already exist, otherwise creates one
-local function getOrInit(ctx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
-    local tlm = ctx.store[templateloopImpl.TEMPLATE_LOOP_KEY] :: templateloopImpl.TemplateLoopManager?
-    if not tlm then 
-        tlm = TemplateLoopManager(ctx)
-        ctx.store[templateloopImpl.TEMPLATE_LOOP_KEY] = tlm
-        return tlm
-    end
-    return tlm
-end 
+local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
+    local existing = baseCtx.store[templateloopImpl.TEMPLATE_LOOP_KEY] :: templateloopImpl.TemplateLoopManager?
+    if existing then return existing end
+    return lazyloader.get(baseCtx) -- The lazyloader autosets the value into the store automatically
+end
 
-return {
-    TemplateLoopManager = TemplateLoopManager,
-    getOrInit = getOrInit,
-}
+return TemplateLoopManager

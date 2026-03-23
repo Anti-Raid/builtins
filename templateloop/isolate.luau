@@ -27,7 +27,7 @@ export type Isolate = {
 --- Creates a new isolate with its own global table and require function
 ---
 --- The `expose` parameter can be used to expose additional values to the isolate's global table
-local function new(id: string, caps: {string}, vfs: typesext.Vfs, expose: {[any]: any}): Isolate
+local function new(id: string, vfs: typesext.Vfs, expose: {[any]: any}): Isolate
     local isolate = {}
     
     local globaltable: {[any]: any} = typesext.createglobalproxy()

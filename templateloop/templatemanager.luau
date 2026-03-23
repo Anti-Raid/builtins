@@ -1,17 +1,14 @@
 local Primitives = require "@antiraid-core/primitives"
-local settingsext = require "@antiraid-ext/settings"
-local kv = require "@antiraid-core/plugins/kv"
+local KeyManager = require"@antiraid-ext/keymanager"
 local typesext = require"@antiraid/typesext"
 local templatemanagerImpl = require"@antiraid-core/templatemanager"
 
 --- Internal storage type for templates (the item.value in KV)
 type ITemplateStore = {
     content: typesext.MemoryVfs,
-    allowed_caps: { string },
     paused: boolean,
-    name: string,
     type: string,
-    language: string,
+    language: "luau",
 }
 
 --- Builtin template of the bot
@@ -20,53 +17,36 @@ local BUILTINS: templatemanagerImpl.Template = {
     source = {
         type = "builtins",
     },
-    allowed_caps = {"*"},
     paused = false,
 }
 
+export type UpdateCbOp = "CreateCustom" | "UpdateCustom" | "DeleteCustom"
+
 --- A data fetcher for templates.
-local function TemplateManager(ctx: Primitives.TemplateContext): templatemanagerImpl.TemplateManager
+---
+--- Note for internal use: TemplateManager only needs the loop to be attached with subscribeEvent/unsubscribeEvent/isSubscribed/debugmanager (due to KeyManager)
+local function TemplateManager(ctx: Primitives.TemplateContext, updatecb: (op: UpdateCbOp, key: string) -> ()): templatemanagerImpl.TemplateManager
     local self = {}
+
+    local templatedb = KeyManager<<ITemplateStore>>(ctx, "builtins.templates")
 
     local exposedvfs = ctx.Runtime:getexposedvfs()
     local VfsBuiltins = exposedvfs.Builtins or error("Internal error: Builtins VFS not found in exposed VFSs")
     local VfsTemplatingTypes = exposedvfs.TemplatingTypes or error("Internal error: TemplatingTypes VFS not found in exposed VFSs")
 
-    local function _parseCustomTemplate(item: kv.KvRecord): templatemanagerImpl.Template
-        assert(item.exists, "Internal error: Template item does not exist")
-        local content = item.value.content
-        local name = settingsext.assertString("name", item.value.name)
-        assert(type(content) == "userdata", "Internal error: Template content is not a MemoryVfs")
-        local allowedCaps = settingsext.assertStringArray("allowed_caps", item.value.allowed_caps)
-        local paused = settingsext.assertBoolean("paused", item.value.paused)
-        local language = settingsext.assertString("language", item.value.language)
-        assert(language == "luau", "Internal error: Unsupported template language "..language)
-        local createdAt = item.created_at
-        local lastUpdatedAt = item.last_updated_at
-
+    local function _parseCustomTemplate(item: KeyManager.KeyRecord<ITemplateStore>): templatemanagerImpl.Template
         return {
-            id = item.id,
+            id = "custom/"..item.key,
             source = {
                 type = "custom",
-                key = item.key,
-                name = name,
-                language = language,
-                content = content :: typesext.MemoryVfs,
-                created_at = createdAt,
-                last_updated_at = lastUpdatedAt,
+                name = item.key,
+                language = item.value.language,
+                content = item.value.content,
+                created_at = item.createdat,
+                last_updated_at = item.lastupdatedat,
             },
-            allowed_caps = allowedCaps,
-            paused = paused,
+            paused = item.value.paused,
         }
-    end
-
-    local function _parseTemplate(item: kv.KvRecord): templatemanagerImpl.Template
-        assert(item.exists, "Internal error: Template item does not exist")
-        if item.value.type == "custom" then
-            return _parseCustomTemplate(item)
-        else
-            error("Internal error: Unsupported template source type "..tostring(item.value.type))
-        end
     end
 
     local function builtins(): templatemanagerImpl.Template
@@ -74,41 +54,47 @@ local function TemplateManager(ctx: Primitives.TemplateContext): templatemanager
     end
 
     local function list(): {templatemanagerImpl.Template}
-        local data = ctx.KV:find("%%", {"templates"})
+        local data = templatedb.list()
 
         local templates = {BUILTINS}
         for _, item in data do
-            local template = _parseTemplate(item)
+            local template = _parseCustomTemplate(item)
             table.insert(templates, template)
         end
 
         return templates
     end
 
-    local function getcustom(key: string): templatemanagerImpl.Template?
-        local data = ctx.KV:getrecord(key, {"templates"})
-        if not data or not data.exists then
-            return nil -- Not found
-        end
-        return _parseTemplate(data)
+    local function countcustom(): number
+        return templatedb.count()
     end
 
-    local function setcustom(key: string?, data: templatemanagerImpl.CreateTemplate): string
-        local storeData: ITemplateStore = {
+    local function getcustom(key: string): templatemanagerImpl.Template?
+        local data = templatedb.get(key)
+        if not data then
+            return nil -- Not found
+        end
+        return _parseCustomTemplate(data)
+    end
+
+    local function setcustom(data: templatemanagerImpl.CreateTemplate)
+        local storedata: ITemplateStore = {
             type = "custom",
-            name = data.name,
             content = data.content,
-            allowed_caps = data.allowed_caps,
             paused = data.paused,
             language = data.language,
         }
-        local tkey = if key then key else typesext.randstring(16)
-        ctx.KV:set(tkey, storeData, {"templates"})
-        return tkey
+        if templatedb.exists(data.name) then 
+            templatedb.add(storedata, data.name)
+            updatecb("CreateCustom", data.name)
+        else
+            updatecb("UpdateCustom", data.name)
+        end
     end
 
     local function deletecustom(key: string): ()
-        ctx.KV:delete(key, {"templates"})
+        templatedb.remove(key)
+        updatecb("DeleteCustom", key)
     end
 
     local function computevfs(template: templatemanagerImpl.Template): typesext.Vfs
@@ -125,7 +111,7 @@ local function TemplateManager(ctx: Primitives.TemplateContext): templatemanager
             return vfs
         elseif template.source.type == "custom" then
             local vfs = typesext.Vfs.newoverlay({
-                template.source.content, -- newoverlay automatically converts LazyContent to a memoryvfs
+                template.source.content, -- newoverlay automatically handles memoryvfs
                 VfsTemplatingTypes,
             })
             template.vfs = vfs
@@ -137,6 +123,7 @@ local function TemplateManager(ctx: Primitives.TemplateContext): templatemanager
 
     self.builtins = builtins
     self.list = list
+    self.countcustom = countcustom
     self.getcustom = getcustom
     self.setcustom = setcustom
     self.deletecustom = deletecustom
@@ -145,4 +132,7 @@ local function TemplateManager(ctx: Primitives.TemplateContext): templatemanager
     return self
 end
 
-return TemplateManager
+return {
+    TemplateManager = TemplateManager,
+    BUILTINS = BUILTINS
+}
