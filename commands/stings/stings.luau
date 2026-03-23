@@ -73,6 +73,7 @@ local command = commandBuilder.new({
                 :setType("Number")
                 :setName("time")
                 :setDescription("How long should the sting last for?")
+                :setRequired(true)
                 :build()
             end
         )
@@ -82,7 +83,7 @@ local command = commandBuilder.new({
                 :setType("String")
                 :setName("timeunit")
                 :setDescription("The unit of time")
-                :setRequired(false)
+                :setRequired(true)
                 :choice(function(choice) return choice:setName("Seconds"):setValue("seconds"):build() end)
                 :choice(function(choice) return choice:setName("Minutes"):setValue("minutes"):build() end)
                 :choice(function(choice) return choice:setName("Hours"):setValue("hours"):build() end)
@@ -99,16 +100,6 @@ local command = commandBuilder.new({
         :setType("SubCommand")
         :setName("cure")
         :setDescription("Removes stings from a user")
-        :option(
-            function(opt) 
-                return opt
-                :setType("User")
-                :setName("user")
-                :setDescription("The user to cure stings from")  
-                :setRequired(true)
-                :build()      
-            end
-        )
         :option(
             function(opt) 
                 return opt
@@ -147,26 +138,18 @@ local function run(data: data.CommandContext): nil
         for _, sting in stings do
             local fields = {
                 { name = "Sting Count", value = tostring(sting.stings), inline = true },
-                { name = "Moderator", value = if sting.modId then "<@" .. sting.modId .. ">" else "System", inline = true },
+                { name = "Moderator", value = if sting.modid then "<@" .. sting.modid .. ">" else "System", inline = true },
                 { name = "Creation Date", value = "<t:" .. sting.created_at.timestamp_seconds .. ">", inline = true },
             }
     
-            if sting.expires_at then 
             table.insert(fields, {
                 name = "Sting Expiry",
                 value = "<t:" .. sting.expires_at.timestamp_seconds .. ">",
                 inline = true,
             })
-            else
-                table.insert(fields, {
-                    name = "Sting Expiry",
-                    value = "Never",
-                    inline = true,
-                })
-            end
     
             local embed = {
-                title = `Sting {sting.stingId}`,
+                title = `Sting {sting.stingid}`,
                 description = sting.reason,
                 fields = fields,
             } :: apitypes.EmbedObject
@@ -199,25 +182,29 @@ local function run(data: data.CommandContext): nil
         if not reason then 
             return data.interaction.replysimpleembed("No reason specified", "Please specify a reason for the sting", units.RED_COLOR)
         end
+
+        if not stingTime then 
+            return data.interaction.replysimpleembed("No expiry specified", "Please specify a expiry for the sting", units.RED_COLOR)
+        end
         
-        local expiresat = if stingTime then datetime.UTC:now() + datetime.timedelta_seconds(stingTime) else nil
+        local expiresat = datetime.timedelta_seconds(stingTime)
         local createdSting = stingmanager.createUserSting({
-            userId = user.id,
-            modId = modinfo.userid,
+            userid = user.id,
+            modid = modinfo.userid,
             reason = reason,
             stings = numberOfStings,
-            expires_at = expiresat
+            expiry = expiresat
         })
 
         data.interaction.reply{
             embeds = {
                 {
                     title = "Sting created",
-                    description = `Successfully stung {user.username} with \`\`{numberOfStings}\`\` stings for: \`\`{reason}\`\` with a sting ID of \`\`{createdSting.stingId}\`\``,
+                    description = `Successfully stung {user.username} with \`\`{numberOfStings}\`\` stings for: \`\`{reason}\`\` with a sting ID of \`\`{createdSting.stingid}\`\``,
                     fields = {
                         {
                             name = "Expiry",
-                            value = if expiresat then "<t:" .. expiresat.timestamp_seconds .. ">" else "Never",
+                            value = if expiresat then "<t:" .. (createdSting.expires_at.timestamp_seconds) .. ">" else "Never",
                             inline = true,
                         }
                     },
@@ -229,14 +216,9 @@ local function run(data: data.CommandContext): nil
     elseif cmdname == "cure" then
         local modinfo = data.interaction.assertpermission("moderation.curesting")
 
-        local user = data.args.userid("user")
         local stingId = data.args.string("id")
         local reason = data.args.string("reason")
-        
-        if not user then 
-            return data.interaction.replysimpleembed("No user specified", "Please specify a user to sting", units.RED_COLOR)
-        end
-    
+            
         if not stingId then 
             return data.interaction.replysimpleembed("No sting ID specified", "Please specify a sting ID to cure", units.RED_COLOR)
         end
@@ -244,14 +226,12 @@ local function run(data: data.CommandContext): nil
         if not reason then 
             return data.interaction.replysimpleembed("No reason specified", "Please specify a reason for the cure", units.RED_COLOR)
         end
-            -- Check that the sting exists
-        local sting = stingmanager.getSting(user, stingId)
+        local sting = stingmanager.deleteSting(stingId, modinfo.userid, reason)
         if not sting then
-            return data.interaction.replysimpleembed("Sting not found", `No sting with ID \`\`{stingId}\`\` found for <@{user}>`, units.RED_COLOR)
+            return data.interaction.replysimpleembed("Sting not found", `No sting with ID \`\`{stingId}\`\` found!`, units.RED_COLOR)
         end
-
-        stingmanager.deleteSting(user, stingId, modinfo.userid, reason)
-        return data.interaction.replysimpleembed("Sting cured",`Successfully cured <@{user}> of their sting with ID \`\`{stingId}\`\``, units.GREEN_COLOR)
+        
+        return data.interaction.replysimpleembed("Sting cured",`Successfully cured <@{sting.userid}> of their sting with ID \`\`{stingId}\`\``, units.GREEN_COLOR)
     else
         return data.interaction.replysimpleembed("Error processing command", "Please use `/stings list` to see all stings on a user or `/stings give` to give a user stings", units.RED_COLOR)
     end
@@ -262,27 +242,27 @@ local function autocompleter(data: data.CommandAutocompleteContext): {apitypes.A
     local stingmanager = managers.getmanagers(data.ctx).stingmanager
 
     if cmdname == "cure" then 
-        local userId = data.args.userid("user")
+        local user = data.args.user("user")
         local typedName = data.args.string("id")
 
-        if not userId then 
+        if not user then 
             return {}
         end
 
-        local userStings = stingmanager.getCachedUserStings(userId)
+        local userStings = stingmanager.getStingsOnUser(user.id)
         local choices: {apitypes.ApplicationCommandOptionChoiceObject} = {}
 
         for _, sting in userStings do
             if #choices >= 25 then
                 break
             end
-            local matches, _, _ = string.find(sting.stingId:lower(), if typedName then typedName:lower() else "")
+            local matches, _, _ = string.find(sting.stingid:lower(), if typedName then typedName:lower() else "")
             if typedName and not matches then
                 continue
             end
             table.insert(choices, {
-                name = `Sting ID: {sting.stingId}`,
-                value = sting.stingId,
+                name = `Sting ID: {sting.stingid}`,
+                value = sting.stingid,
             } :: apitypes.ApplicationCommandOptionChoiceObject)
         end
         return choices

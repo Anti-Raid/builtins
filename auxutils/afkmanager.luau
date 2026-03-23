@@ -29,8 +29,6 @@ export type AFKManager = {
     set: (data: CreateAFK) -> (),
     --- Deletes a AFK
     delete: (userid: string) -> (),
-    --- Code to be called when an AFK expires, which dispatches an event with the AFK data so other templates can react to it if needed
-    onAfkExpire: (record: KeyExpiryManager.ExpiringKeyRecord<AFKExpiryData>) -> (),
 }
 
 --- AFK expiry manager
@@ -39,9 +37,29 @@ export type AFKExpiryData = {
 }
 
 --- A data fetcher for AFKs.
-local function AFKManager(ctx: Primitives.TemplateContext, afkexpiry: KeyExpiryManager.KeyExpiryManager<AFKExpiryData>): AFKManager
+local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
     local self = {}
     local loop = tloop.getRunningLoop(ctx)
+
+    local afkexpiry = KeyExpiryManager<<AFKExpiryData>>(ctx, "builtins.afk", function(loop, record) 
+        local afk = self.get(record.key)
+        if not afk then 
+            loop.debugmanager.print("[AFKManager] Attempted to expire AFK for user "..record.key.." but they do not have an active AFK")
+            return 
+        end
+
+        -- Dispatch an event with the result of the AFK expiry so other templates can react to it if needed
+        loop.dispatchEvent{
+            name = "BuiltinsAfkExpiry", 
+            data = { 
+                userid = record.key,
+                reason = record.value.reason,
+                createdat = record.createdat, 
+            },
+            author = nil
+        }
+        return nil
+    end)
 
     local function _parseAfk(item: KeyExpiryManager.ExpiringKeyRecord<AFKExpiryData>): AFK
         local reason = item.value.reason

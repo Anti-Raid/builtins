@@ -6,15 +6,16 @@ local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
 local CheckpointManager = require "@antiraid-ext/checkpoint"
 local LockdownSet = require"../lockdowns/lockdownset"
 local AuditLogManager = require"../auditlogmanager"
+local scriptmanager = require"../scriptmanager"
 local restoresteps = require"../backups/restore/restore"
 
-type TempBan = {
+export type TempBan = {
     userid: string,
     modid: string?,
     reason: string,
 }
 
-type RemindMe = {
+export type RemindMe = {
     userid: string,
     channelid: string,
     message: string,
@@ -27,11 +28,12 @@ export type Managers = {
     honeypotmanager: honeypotmanager.HoneypotManager,
     tempbankex: KeyExpiryManager.KeyExpiryManager<TempBan>,
     remindmeexpiry: KeyExpiryManager.KeyExpiryManager<RemindMe>,
-    afkexpiry: KeyExpiryManager.KeyExpiryManager<afkmanager.AFKExpiryData>,
-    stingexpiry: KeyExpiryManager.KeyExpiryManager<stingmanager.StingExpiryData>,
+    --afkexpiry: KeyExpiryManager.KeyExpiryManager<afkmanager.AFKExpiryData>,
+    --stingexpiry: KeyExpiryManager.KeyExpiryManager<stingmanager.StingExpiryData>,
     backupcheckpointmanager: CheckpointManager.CheckpointManager<restoresteps.Opts>,
     lockdownset: LockdownSet.LockdownSet,
     auditlogmanager: AuditLogManager.AuditLogManager,
+    scriptmanager: scriptmanager.ScriptManager
 }
 
 local managers: Managers? = nil
@@ -39,6 +41,8 @@ local managers: Managers? = nil
 --- Gets or initializes the built-in managers
 local function getmanagers(ctx: Primitives.TemplateContext): Managers
     if managers then return managers end
+
+    local managersref: Managers = {} :: Managers
 
     local tempbanExpiryManager = KeyExpiryManager<<TempBan>>(ctx, "builtins.tempbans", function(loop, record) 
         -- userid = userid, modid = modid, reason = reason, [createdat = createdat, expiresat = expiresat]
@@ -107,42 +111,29 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         }
         return nil
     end)
-    local afkExpiryManager = KeyExpiryManager<<afkmanager.AFKExpiryData>>(ctx, "builtins.afk", function(loop, record) 
-        if not managers then 
-            loop.debugmanager.print("[BuiltinsAfkExpiry] AFKManager not initialized when trying to expire AFK for user "..record.key)
-            return
-        end
-        managers.afkmanager.onAfkExpire(record) -- this automatically dispatches the BuiltinsAfkExpiry event as well, so no need to do that here
-        return nil
-    end)
-    local stingExpiryManager = KeyExpiryManager<<stingmanager.StingExpiryData>>(ctx, "builtins.stings", function(loop, record) 
-        if not managers then 
-            loop.debugmanager.print("[BuiltinsStingExpiry] StingManager not initialized when trying to expire sting "..record.key)
-            return
-        end
-        managers.stingmanager.onStingExpire(record) -- this automatically dispatches the BuiltinsStingDelete event as well, so no need to do that here
-        return nil
-    end)
 
-    local afkmanager = afkmanager(ctx, afkExpiryManager)
-    local stingmanager = stingmanager(ctx, stingExpiryManager)
+    local afkmanager = afkmanager(ctx)
+    local stingmanager = stingmanager(ctx)
     local honeypotmanager = honeypotmanager(ctx)
     local backupcheckpointmanager = CheckpointManager<<restoresteps.Opts>>(ctx, "builtins.backups", restoresteps.CHECKPOINT_EXPIRY, restoresteps.RESTORE_STEPS)
     local lockdownset = LockdownSet(ctx)
     local auditlogmanager = AuditLogManager.AuditLogManager(ctx)
+    local scriptmanager = scriptmanager.TemplateManager(ctx, {managers = managersref})
 
-    managers = {
-        stingmanager = stingmanager,
-        afkmanager = afkmanager,
-        honeypotmanager = honeypotmanager,
-        tempbankex = tempbanExpiryManager,
-        remindmeexpiry = remindmeExpiryManager,
-        afkexpiry = afkExpiryManager,
-        stingexpiry = stingExpiryManager,
-        backupcheckpointmanager = backupcheckpointmanager,
-        lockdownset = lockdownset,
-        auditlogmanager = auditlogmanager,
-    }
+    managersref.stingmanager = stingmanager
+    managersref.afkmanager = afkmanager
+    managersref.honeypotmanager = honeypotmanager
+    managersref.tempbankex = tempbanExpiryManager
+    managersref.remindmeexpiry = remindmeExpiryManager
+    --managersref.afkexpiry = afkExpiryManager
+    --managersref.stingexpiry = stingExpiryManager
+    managersref.backupcheckpointmanager = backupcheckpointmanager
+    managersref.lockdownset = lockdownset
+    managersref.auditlogmanager = auditlogmanager
+    managersref.scriptmanager = scriptmanager
+
+
+    managers = managersref
 
     return managers or error("Failed to initialize managers")
 end

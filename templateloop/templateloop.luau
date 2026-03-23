@@ -1,9 +1,5 @@
 --- Experimental in-luau implementation of event dispatching to templates based on event scopes
 ---
---- Tenant state data:
---- - builtins_havetemplates: whether or not the tenant has any custom templates to fetch from the DB
---- - builtins_eventrefs: a dictionary of event name to refcount, used for event subscriptions
----
 --- Extra stuff templateloop provides:
 --- # Event subscription refcounting
 --- Problem: when subscribing to events, it is often hard to know why an event is subscribed to 
@@ -16,14 +12,13 @@
 
 local Primitives = require"@antiraid-core/primitives"
 local runtime = require"@antiraid-core/plugins/runtime"
-local isolate = require"./isolate"
+local isolate = require"@antiraid-ext/isolate"
 local channel = require"@antiraid/channel"
 local datetime = require"@antiraid/datetime"
 local templateloopImpl = require"@antiraid-core/templateloop"
-local templatemanagerImpl = require"@antiraid-core/templatemanager"
-local TemplateManager = require"./templatemanager"
 local MutexFn = require"@antiraid-ext/sync/mutex"
 local LazyLoad = require"@antiraid-ext/sync/lazyload"
+local typesext = require"@antiraid/typesext"
 
 -- Flags 
 
@@ -276,48 +271,6 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
     }
 end
 
---- TemplateIsolateManager is an internal construct
-type TemplateIsolateManager = {
-    --- `templates` returns a list of all templates currently in the isolate manager
-    read templates: () -> {templatemanagerImpl.Template},
-    --- Returns the underlying `attachedtemplatemanager`
-    read templatemanager: templatemanagerImpl.TemplateManager,
-    --- Internal helper to get or create an isolate for a template
-    read getisolatefortemplate: (template: templatemanagerImpl.Template) -> isolate.Isolate,
-}
-
-local function TemplateIsolateManager(baseCtx: Primitives.TemplateContext, loop: templateloopImpl.TemplateLoopManager): TemplateIsolateManager
-    -- Initial template isolate state
-    local templates: {templatemanagerImpl.Template}
-    local isolates: {[string]: isolate.Isolate} = {}
-    local attachedtemplatemanager: templatemanagerImpl.TemplateManager 
-    attachedtemplatemanager = TemplateManager.TemplateManager(baseCtx, function(_op: "CreateCustom" | "DeleteCustom" | "UpdateCustom", key: string) 
-        templates = attachedtemplatemanager.list()
-        isolates[key] = nil -- Drop the isolate and let Luau GC it as it pleases
-        -- Send a Startup event to the template to re-initialize it
-        loop.dispatchEvent({name = "OnStartup", data = { reason = "updateTemplateCache" }}, key)
-    end)
-    templates = attachedtemplatemanager.list()
-
-    --- Internal helper to get or create an isolate for a template
-    local function getisolatefortemplate(template: templatemanagerImpl.Template): isolate.Isolate
-        local isol: isolate.Isolate? = nil
-        if isolates[template.id] then 
-            isol = isolates[template.id] 
-        else 
-            isol = isolate.new(template.id, attachedtemplatemanager.computevfs(template), {})
-            isolates[template.id] = isol -- Cache isolate
-        end
-        return isol
-    end
-
-    return table.freeze{
-        templates = function() return templates end,
-        templatemanager = attachedtemplatemanager,
-        getisolatefortemplate = getisolatefortemplate
-    }
-end
-
 --- Creates a new TemplateLoopManager instance
 local lazyloader = LazyLoad(function(baseCtx: Primitives.TemplateContext) 
     -- Setup base state
@@ -328,7 +281,15 @@ local lazyloader = LazyLoad(function(baseCtx: Primitives.TemplateContext)
     local tenantStateManager = TenantStateManager(baseCtx)
     local eventRefManager = EventRefManager(baseCtx, tenantStateManager)
     local eventrefmu = MutexFn() -- Mutex for synchronizing access to event refs
-    local templateisolatemanager: TemplateIsolateManager -- Forward declaration of templateisolatemanager so we can setup everything at once before finishing with isolate manager
+
+    local exposedvfs = baseCtx.Runtime:getexposedvfs() -- safety: getexposedvfs is guaranteed to not yield
+    local attachedisolates: {[string]: isolate.Isolate} = {
+        ["builtins"] = isolate.new("builtins", typesext.Vfs.newoverlay({
+            exposedvfs.Builtins or error("Internal error: Builtins VFS not found in exposed VFSs"),
+            exposedvfs.TemplatingTypes or error("Internal error: TemplatingTypes VFS not found in exposed VFSs"),
+        }), {})
+    } -- map of all attached isolates
+    local attachedisolatescount = 1 -- initially only one attached isolate
 
     local function subscribeEvent(event: string, system: string) 
         eventrefmu.call(function() 
@@ -350,13 +311,13 @@ local lazyloader = LazyLoad(function(baseCtx: Primitives.TemplateContext)
         end)
     end
 
-    local function dispatchEvent(event: Primitives.Event, targetId: string?): {templateloopImpl.DispatchResult}
-        -- Fast path: if there are no templates besides builtins, we can avoid creating a new thread
-        debugmanager.print("[TemplateLoopManager] Dispatching event", event.name, "to templates", targetId and `with id {targetId}` or "with no target id")
-        local templateCache = templateisolatemanager.templates()
-        if #templateCache <= 1 and templateCache[1] and templateCache[1].source.type == "builtins" then
-            -- Get or create isolate for template
-            local isol = templateisolatemanager.getisolatefortemplate(templateCache[1])
+    local function dispatchEvent(event: Primitives.Event, targetId: string?): {isolate.DispatchResult}
+        -- Fast path: if there are no attached isolates besides builtins, we can avoid creating a new thread
+        debugmanager.print("[TemplateLoopManager] Dispatching event", event.name, "to ", targetId and `with id {targetId}` or "with no target id")
+        if attachedisolatescount == 1 then
+            local _, isol = next(attachedisolates)
+            assert(isol)
+            if targetId and isol.id ~= targetId then return {} end -- Ignore non-targetted template
             local ret = isol.runEventResult(baseCtx, event)
             if ret.type == "err" then 
                 debugmanager.print("[TemplateLoopManager] Error dispatching event to builtins template:", ret)
@@ -365,15 +326,12 @@ local lazyloader = LazyLoad(function(baseCtx: Primitives.TemplateContext)
             return {ret}
         end
         
-        local chans: {channel.OneshotChannel<templateloopImpl.DispatchResult>} = {}
+        local chans: {channel.OneshotChannel<isolate.DispatchResult>} = {}
 
-        for _, template in templateCache do
-            if targetId and template.id ~= targetId then
+        for _, isol in attachedisolates do
+            if targetId and isol.id ~= targetId then
                 continue -- Ignore non-targetted template
             end
-
-            -- Get or create isolate for template
-            local isol = templateisolatemanager.getisolatefortemplate(template)
 
             -- Dispatch event to isolate
             local chan = isol.dispatchEvent(baseCtx, event)
@@ -387,15 +345,30 @@ local lazyloader = LazyLoad(function(baseCtx: Primitives.TemplateContext)
         return results
     end
 
+    local function attachisolate(isolate: isolate.Isolate) 
+        if isolate.id == "builtins" then error("cannot modify protected isolate `builtins`") end
+        if attachedisolates[isolate.id] then 
+            attachedisolates[isolate.id] = isolate
+        else
+            attachedisolates[isolate.id] = isolate 
+            attachedisolatescount += 1
+        end
+    end
+
+    local function detachisolate(id: string) 
+        if id == "builtins" then error("cannot modify protected isolate `builtins`") end
+        if not attachedisolates[id] then return end -- no op if not already attached
+        attachedisolates[id] = nil 
+        attachedisolatescount -= 1
+    end
+
     self.debugmanager = debugmanager
     self.subscribeEvent = subscribeEvent
     self.unsubscribeEvent = unsubscribeEvent
     self.isSubscribed = isSubscribed
     self.dispatchEvent = dispatchEvent
-    self.templatemanager = function(): templatemanagerImpl.TemplateManager return templateisolatemanager.templatemanager end
-
-    templateisolatemanager = TemplateIsolateManager(baseCtx, self)
-
+    self.attachisolate = attachisolate
+    self.detachisolate = detachisolate
 
     return self
 end)
