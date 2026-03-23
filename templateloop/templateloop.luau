@@ -91,7 +91,7 @@ local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantSt
 
     -- Other utilities for managing tenant state
     local function ClonedTenantState(): runtime.TenantState
-        DebugManager().print("ClonedTenantState - events:", tenantState.events, "type:", type(tenantState.events))
+        --DebugManager().print("ClonedTenantState - events:", tenantState.events, "type:", type(tenantState.events))
         return {
             events = table.clone(tenantState.events),
             flags = tenantState.flags,
