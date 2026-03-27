@@ -1,3 +1,5 @@
+--!strict
+
 --- Experimental in-luau implementation of event dispatching to templates based on event scopes
 ---
 --- Extra stuff templateloop provides:
@@ -47,23 +49,22 @@ type TenantStateManager = {
     --- Returns a clone of the current tenant state
     read ClonedTenantState: () -> runtime.TenantState,
     --- Update the cached tenant state to the provided state
-    read UpdateTenantState: (newState: runtime.TenantState) -> (),
+    read UpdateTenantState: (newState: runtime.TenantState, with: {runtime.StateOp}) -> (),
     --- Helper method to set/unset a flag in the tenant state flags field
     ---
     --- Does nothing if the flag is already in the desired state
-    read SetFlag: (flag: number, set: boolean) -> (),
+    read SetFlag: (flag: number, set: boolean, with: {runtime.StateOp}) -> (),
     --- Helper method to subscribe to an event and update tenant state accordingly
     ---
     --- Does nothing if already subscribed (or unsubscribed in the case of set = false)
-    read SubscribeEvent: (event: string, set: boolean) -> (),
+    read SubscribeEvent: (event: string, set: boolean, with: {runtime.StateOp}) -> (),
     --- Helper method to both subscribe/unsubscribe to an event and set/unset a flag in tenant state if needed
     --- 
-    --- Does nothing if we are already in the desired state
-    read SubscribeEventAndSetFlag: (event: string, setevent: boolean, flag: number, setflag: boolean) -> (),
+    --- Does nothing if we are already in the desired state returning true if we updated at all
+    read SubscribeEventAndSetFlag: (event: string, setevent: boolean, flag: number, setflag: boolean, with: {runtime.StateOp}) -> boolean,
 }
 
-local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantStateManager
-    local tenantState: runtime.TenantState = baseCtx.Runtime:gettenantstate()
+local function TenantStateManager(baseCtx: Primitives.TemplateContext, tenantState: runtime.TenantState): TenantStateManager
     DebugManager().print("TenantStateManager init - events:", tenantState.events, "type:", type(tenantState.events), "flags:", tenantState.flags)
     local events: {[string]: boolean} = {}
 
@@ -92,14 +93,15 @@ local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantSt
         }
     end
 
-    local function UpdateTenantState(newState: runtime.TenantState)
+    local function UpdateTenantState(newState: runtime.TenantState, with: {runtime.StateOp})
         DebugManager().print("UpdateTenantState - newState:", newState, "events:", newState and newState.events, "flags:", newState and newState.flags)
-        baseCtx.Runtime:settenantstate(newState) -- Update tenant state in runtime
+        table.insert(with, { op = "UpdateTenantState" :: "UpdateTenantState", events = newState.events, flags = newState.flags })
+        baseCtx.Runtime:execstate(with) -- Update tenant state in runtime
         tenantState = newState -- Update local cache
         _updateDerivedState() -- Update derived state after updating tenant state
     end
 
-    local function SetFlag(flag: number, set: boolean) 
+    local function SetFlag(flag: number, set: boolean, with: {runtime.StateOp}) 
         -- Check if we need to update tenant state at all
         local hasFlag = bit32.band(tenantState.flags, flag) ~= 0
         if (set and hasFlag) or (not set and not hasFlag) then
@@ -113,15 +115,15 @@ local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantSt
         else 
             ts.flags = bit32.band(ts.flags, bit32.bnot(flag))
         end
-        UpdateTenantState(ts)
+        UpdateTenantState(ts, with)
     end
 
-    local function SubscribeEvent(event: string, set: boolean) 
+    local function SubscribeEvent(event: string, set: boolean, with: {runtime.StateOp}) 
         if set then 
             if not events[event] then 
                 local ts = ClonedTenantState()
                 table.insert(ts.events, event)
-                UpdateTenantState(ts)
+                UpdateTenantState(ts, with)
             end
         else 
             if events[event] then 
@@ -129,17 +131,17 @@ local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantSt
                 local idx = table.find(ts.events, event)
                 if idx then 
                     table.remove(ts.events, idx)
-                    UpdateTenantState(ts)
+                    UpdateTenantState(ts, with)
                 end
             end
         end
     end
 
-    local function SubscribeEventAndSetFlag(event: string, setevent: boolean, flag: number, setflag: boolean) 
+    local function SubscribeEventAndSetFlag(event: string, setevent: boolean, flag: number, setflag: boolean, with: {runtime.StateOp}): boolean
         local eventMatches = IsSubscribedToEvent(event) == setevent
         local flagMatches = IsFlagSet(flag) == setflag
         if eventMatches and flagMatches then 
-            return -- No update needed
+            return false -- No update needed
         end
 
         local ts = ClonedTenantState()
@@ -166,7 +168,8 @@ local function TenantStateManager(baseCtx: Primitives.TemplateContext): TenantSt
             end
         end
 
-        UpdateTenantState(ts)
+        UpdateTenantState(ts, with)
+        return true
     end
 
     return table.freeze{
@@ -183,7 +186,7 @@ end
 --- Internal manager of event refs
 type EventRefManager = {
     --- Subscribe to an event with a given system name (used for refcounting)
-    read Subscribe: (event: string, system: string) -> (),
+    read Subscribe: (event: string, system: string, attachedop: runtime.StateOp?) -> (),
     --- Unsubscribe from an event with a given system name (used for refcounting)
     read Unsubscribe: (event: string, system: string) -> (),
     --- Check if we are subscribed to an event with a given system name
@@ -197,8 +200,10 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
     local function geteventrefs(): {[string]: {[string]: boolean}} 
         if not eventrefs then 
             if not tenantStateManager.IsFlagSet(FLAG_BUILTINS_HAVEEVENTREFS) then return {} end -- No point fetching event refs if we don't have any refs, so return empty table
-            local refs = baseCtx.KV:getrecord("eventrefs", {"tloop.reserved"})
-            if refs.exists then 
+            
+            local records = baseCtx.Runtime:execstate({{ op = "KvGet", key = "eventrefs", scope = "tloop.reserved" }})
+            if #records > 0 then
+                local refs = records[1]
                 -- Cache and return event refs after basic validation
                 assert(type(refs.value) == "table", "Invalid event refs data in tenant state, expected table")
                 local ref =  refs.value :: {[string]: {[string]: boolean}}
@@ -206,17 +211,11 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
                 return ref
             else
                 -- Unset event refs flag if we don't have any refs to load yet had the flag set
-                tenantStateManager.SetFlag(FLAG_BUILTINS_HAVEEVENTREFS, false) 
+                tenantStateManager.SetFlag(FLAG_BUILTINS_HAVEEVENTREFS, false, {}) 
                 return {}
             end
         end
         return eventrefs
-    end
-
-    --- Internal helper to update event refs in cache
-    local function updateeventrefs(refs: {[string]: {[string]: boolean}}) 
-        baseCtx.KV:set("eventrefs", refs, {"tloop.reserved"})
-        eventrefs = refs
     end
 
     local function IsSubscribed(event: string, system: string): boolean 
@@ -224,18 +223,29 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
         return refs[event] ~= nil and refs[event][system] ~= nil
     end
 
-    local function Subscribe(event: string, system: string) 
-        if IsSubscribed(event, system) then return end -- No need to subscribe if we are already subscribed
+    local function Subscribe(event: string, system: string, attachedop: runtime.StateOp?) 
+        if IsSubscribed(event, system) then 
+            if attachedop then baseCtx.Runtime:execstate({attachedop}) end
+            return 
+        end -- No need to subscribe if we are already subscribed
         local refs = geteventrefs()
         if refs[event] then refs[event][system] = true else refs[event] = { [system] = true } end -- Update refs with new subscription
                 
         -- Also subscribe to event in tenant state manager to ensure we are subscribed at the runtime level
         --
         -- This is anyways a no-op if we are already subscribed, so we don't need to check before subscribing
-        tenantStateManager.SubscribeEventAndSetFlag(event, true, FLAG_BUILTINS_HAVEEVENTREFS, true)
-
-        -- Update event refs *here* to ensure we rollback
-        updateeventrefs(refs)
+        local ops: {runtime.StateOp} = {}
+        if attachedop then table.insert(ops, attachedop) end
+        table.insert(ops, { op = "KvSet" :: "KvSet", key = "eventrefs", scope = "tloop.reserved", value = refs })
+        local haveupdated = tenantStateManager.SubscribeEventAndSetFlag(
+            event, 
+            true, 
+            FLAG_BUILTINS_HAVEEVENTREFS, 
+            true, 
+            ops
+        )
+        if not haveupdated then baseCtx.Runtime:execstate(ops) end
+        eventrefs = refs -- update event refs in cache
     end
 
     local function Unsubscribe(event: string, system: string) 
@@ -257,11 +267,10 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
             event, 
             isEventStillActive, 
             FLAG_BUILTINS_HAVEEVENTREFS, 
-            hasAnyRefsRemaining
+            hasAnyRefsRemaining,
+            {{ op = "KvSet", key = "eventrefs", scope = "tloop.reserved" }}
         )
-
-        -- Update event refs *here* to ensure we rollback
-        updateeventrefs(refs)
+        eventrefs = refs -- update event refs in cache
     end
 
     return table.freeze{
@@ -271,14 +280,22 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
     }
 end
 
+type Args = {
+    ctx: Primitives.TemplateContext,
+    ts: runtime.TenantState
+}
+
 --- Creates a new TemplateLoopManager instance
-local lazyloader = LazyLoad(function(baseCtx: Primitives.TemplateContext) 
+local lazyloader = LazyLoad(function(args: Args)
+    local baseCtx = args.ctx
+    local ts = args.ts
+
     -- Setup base state
     local self = {}
     baseCtx.store[templateloopImpl.TEMPLATE_LOOP_KEY] = self
 
     local debugmanager = DebugManager()
-    local tenantStateManager = TenantStateManager(baseCtx)
+    local tenantStateManager = TenantStateManager(baseCtx, ts)
     local eventRefManager = EventRefManager(baseCtx, tenantStateManager)
     local eventrefmu = MutexFn() -- Mutex for synchronizing access to event refs
 
@@ -291,9 +308,9 @@ local lazyloader = LazyLoad(function(baseCtx: Primitives.TemplateContext)
     } -- map of all attached isolates
     local attachedisolatescount = 1 -- initially only one attached isolate
 
-    local function subscribeEvent(event: string, system: string) 
+    local function subscribeEvent(event: string, system: string, attachedop: runtime.StateOp?) 
         eventrefmu.call(function() 
-            eventRefManager.Subscribe(event, system)
+            eventRefManager.Subscribe(event, system, attachedop)
             return nil
         end)
     end
@@ -374,10 +391,10 @@ local lazyloader = LazyLoad(function(baseCtx: Primitives.TemplateContext)
 end)
 
 --- Creates a new TemplateLoopManager instance if it doesn't already exist, otherwise creates one
-local function TemplateLoopManager(baseCtx: Primitives.TemplateContext): templateloopImpl.TemplateLoopManager
+local function TemplateLoopManager(baseCtx: Primitives.TemplateContext, ts: runtime.TenantState): templateloopImpl.TemplateLoopManager
     local existing = baseCtx.store[templateloopImpl.TEMPLATE_LOOP_KEY] :: templateloopImpl.TemplateLoopManager?
     if existing then return existing end
-    return lazyloader.get(baseCtx) -- The lazyloader autosets the value into the store automatically
+    return lazyloader.get({ ctx = baseCtx, ts = ts}) -- The lazyloader autosets the value into the store automatically
 end
 
 return TemplateLoopManager

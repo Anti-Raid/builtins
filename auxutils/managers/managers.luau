@@ -3,6 +3,7 @@ local afkmanager = require"../afkmanager"
 local honeypotmanager = require"../honeypotmanager"
 local Primitives = require"@antiraid-core/primitives"
 local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
+local UncachedKeyManager = require "@antiraid-ext/uncachedkeymanager"
 local CheckpointManager = require "@antiraid-ext/checkpoint"
 local LockdownSet = require"../lockdowns/lockdownset"
 local AuditLogManager = require"../auditlogmanager"
@@ -22,6 +23,11 @@ export type RemindMe = {
     ephemeral: boolean,
 }
 
+export type BackupMetadata = {
+    filename: string,
+    createdby: string
+}
+
 export type Managers = {
     stingmanager: stingmanager.StingManager,
     afkmanager: afkmanager.AFKManager,
@@ -33,7 +39,8 @@ export type Managers = {
     backupcheckpointmanager: CheckpointManager.CheckpointManager<restoresteps.Opts>,
     lockdownset: LockdownSet.LockdownSet,
     auditlogmanager: AuditLogManager.AuditLogManager,
-    scriptmanager: scriptmanager.ScriptManager
+    scriptmanager: scriptmanager.ScriptManager,
+    backupmetadata: UncachedKeyManager.UncachedKeyManager<BackupMetadata>
 }
 
 local managers: Managers? = nil
@@ -131,6 +138,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
     managersref.lockdownset = lockdownset
     managersref.auditlogmanager = auditlogmanager
     managersref.scriptmanager = scriptmanager
+    managersref.backupmetadata = UncachedKeyManager<<BackupMetadata>>(ctx, "builtins.backups.metadata")
 
 
     managers = managersref

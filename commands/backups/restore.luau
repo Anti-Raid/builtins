@@ -7,6 +7,7 @@ local managers = require "../../auxutils/managers/managers"
 
 local function restore(data: data.CommandContext): nil
     data.interaction.assertpermission("backups.restore")
+    local managers = managers.getmanagers(data.ctx)
 
     local opts: backupTypes.BackupRestoreOpts = {
         protectedChannels = {},
@@ -37,8 +38,8 @@ local function restore(data: data.CommandContext): nil
                     return data.interaction.replysimpleembed("Error processing command", "You cannot specify both a backup file and a backup ID. Please choose one.", units.RED_COLOR)
                 end
 
-                local backupData = data.ctx.KV:getrecord(opt.value.value, {"builtins.backups.metadata"})
-                if not backupData.exists then
+                local backupData = managers.backupmetadata.get(opt.value.value)
+                if not backupData then
                     return data.interaction.replysimpleembed("Error processing command", "Backup with ID `" .. opt.value.value .. "` does not exist.", units.RED_COLOR)
                 end
 
@@ -96,7 +97,7 @@ local function restore(data: data.CommandContext): nil
         end
     })
     data.interaction.replysimpleembed("Restoring backup", "Please wait...", units.GREEN_COLOR, {tempbutton.actionrow})
-    managers.getmanagers(data.ctx).backupcheckpointmanager.new({
+    managers.backupcheckpointmanager.new({
         opts = opts,
         enckey = enckey,
         gre = {

@@ -3,11 +3,13 @@ local embed = require"../../auxutils/backups/embed"
 local paginate = require "@antiraid-ext/frameworkv2/paginate"
 local discord = require"@discord-types/apiTypes"
 local units = require"@antiraid-ext/frameworkv2/unit"
+local managers = require "../../auxutils/managers/managers"
 
 local function list(data: data.CommandContext): nil
     data.interaction.assertpermission("backups.list")
+    local mdm = managers.getmanagers(data.ctx).backupmetadata
 
-    local backups = data.ctx.KV:find("%%", {"builtins.backups.metadata"})
+    local backups = mdm.listarr()
 
     if #backups == 0 then
         return data.interaction.replysimpleembed("No backups found", "There are no backups available for this server.", units.RED_COLOR)
@@ -18,16 +20,12 @@ local function list(data: data.CommandContext): nil
         numPages = #backups,
         embed = function(currentIdx: number): discord.EmbedObject 
             local backupData = backups[currentIdx]
-            assert(backupData and backupData.exists, "Backup data not found for index " .. currentIdx)
             assert(backupData.value.filename, "Backup data does not contain a filename")
             local embed, _ = embed.toembed(
                 data.ctx,
                 {
                     id = backupData.key,
-                    createdat = backupData.created_at.timestamp_seconds,
-                    statuses = {},
-                    state = "completed", -- Backups v2 doesnt store failed backups
-                    numUpdates = backupData.value.num_updates or 0,
+                    createdat = backupData.createdat.timestamp_seconds,
                     finalFilePath = backupData.value.filename,
                 },
                 true

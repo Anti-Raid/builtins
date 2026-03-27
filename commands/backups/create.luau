@@ -5,9 +5,11 @@ local units = require"@antiraid-ext/frameworkv2/unit"
 local sb = require"@antiraid-ext/utils/statusbuffer"
 local tempbutton = require"@antiraid-ext/frameworkv2/tempbutton"
 local embed = require"../../auxutils/backups/embed"
+local managers = require "../../auxutils/managers/managers"
 
 local function create(data: data.CommandContext): nil
     data.interaction.assertpermission("backups.create")
+    local mdm = managers.getmanagers(data.ctx).backupmetadata
 
     local opts: backupTypes.BackupCreateOpts = {
         channels = {},
@@ -77,13 +79,12 @@ local function create(data: data.CommandContext): nil
     local built = createBackup(data.ctx, opts, enckey, buf)
 
     -- Upload and save metadata
-    data.ctx.KV:set(
+    mdm.set(
         built.id, 
         {
             filename = built.filename,
-            created_by = data.interaction.userid(),
-        },
-        {"builtins.backups.metadata"}
+            createdby = data.interaction.userid(),
+        }
     )
     data.ctx.ObjectStorage:upload_file(built.filename, built.backup)
 
