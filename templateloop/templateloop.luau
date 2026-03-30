@@ -96,7 +96,7 @@ local function TenantStateManager(baseCtx: Primitives.TemplateContext, tenantSta
     local function UpdateTenantState(newState: runtime.TenantState, with: {runtime.StateOp})
         DebugManager().print("UpdateTenantState - newState:", newState, "events:", newState and newState.events, "flags:", newState and newState.flags)
         table.insert(with, { op = "UpdateTenantState" :: "UpdateTenantState", events = newState.events, flags = newState.flags })
-        baseCtx.Runtime:execstate(with) -- Update tenant state in runtime
+        baseCtx.Runtime:syscall({ op = "State", ops = with}) -- Update tenant state in runtime
         tenantState = newState -- Update local cache
         _updateDerivedState() -- Update derived state after updating tenant state
     end
@@ -201,9 +201,12 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
         if not eventrefs then 
             if not tenantStateManager.IsFlagSet(FLAG_BUILTINS_HAVEEVENTREFS) then return {} end -- No point fetching event refs if we don't have any refs, so return empty table
             
-            local records = baseCtx.Runtime:execstate({{ op = "KvGet", key = "eventrefs", scope = "tloop.reserved" }})
-            if #records > 0 then
-                local refs = records[1]
+            local ops: {runtime.StateOp} = {{ op = "KvGet", key = "eventrefs", scope = "tloop.reserved" }}
+            local records = baseCtx.Runtime:syscall({ op = "State", ops = ops })
+            assert(records.op == "State")
+            if #records.res > 0 then
+                local refs = records.res[1]
+                assert(refs.op == "Kv")                
                 -- Cache and return event refs after basic validation
                 assert(type(refs.value) == "table", "Invalid event refs data in tenant state, expected table")
                 local ref =  refs.value :: {[string]: {[string]: boolean}}
@@ -225,7 +228,7 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
 
     local function Subscribe(event: string, system: string, attachedop: runtime.StateOp?) 
         if IsSubscribed(event, system) then 
-            if attachedop then baseCtx.Runtime:execstate({attachedop}) end
+            if attachedop then baseCtx.Runtime:syscall({op="State", ops={attachedop}}) end
             return 
         end -- No need to subscribe if we are already subscribed
         local refs = geteventrefs()
@@ -244,7 +247,7 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
             true, 
             ops
         )
-        if not haveupdated then baseCtx.Runtime:execstate(ops) end
+        if not haveupdated then baseCtx.Runtime:syscall({op="State", ops=ops}) end
         eventrefs = refs -- update event refs in cache
     end
 
