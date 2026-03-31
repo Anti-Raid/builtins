@@ -1,6 +1,7 @@
 local data = require"@antiraid-ext/frameworkv2/context"
 local units = require"@antiraid-ext/frameworkv2/unit"
 local managers = require "../../auxutils/managers/managers"
+local Bucket = require"@antiraid-ext/objectstorage"
 
 local function delete(data: data.CommandContext): nil
     data.interaction.assertpermission("backups.delete")
@@ -27,7 +28,7 @@ local function delete(data: data.CommandContext): nil
 
     -- Delete the backup from ObjectStorage first
     
-    data.ctx.ObjectStorage:delete_file(backupData.value.filename)
+    Bucket(data.ctx).deletefile(backupData.value.filename)
     mdm.remove(backupId)
     return data.interaction.replysimpleembed("Backup Deleted", string.format("Backup with ID `%s` has been deleted.", backupId), units.GREEN_COLOR)
 end

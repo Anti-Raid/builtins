@@ -6,6 +6,7 @@ local json = require"@antiraid/json"
 local assetfetch = require"../create/assetfetch"
 local conditions = require"../conditions"
 local sb = require"@antiraid-ext/utils/statusbuffer"
+local Bucket = require"@antiraid-ext/objectstorage"
 
 local function isEncryptedBackup(filename: string): boolean
     return filename:sub(-1) == "e"
@@ -103,7 +104,7 @@ local function loadBackupFile(ctx: Primitives.TemplateContext, src: types.Restor
 
         blob = resp:blob()
     else 
-        blob = ctx.ObjectStorage:download_file(src.filepath)
+        blob = Bucket(ctx).downloadfile(src.filepath)
     end
     assert(blob, "Failed to download backup file from source: " .. src.type)
     blob = blob :: blob.Blob

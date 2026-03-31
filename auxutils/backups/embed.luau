@@ -5,6 +5,7 @@ local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local EmojiBuilder = require"@discord-types/builders/emoji"
 local datetime = require"@antiraid/datetime"
 local units = require"@antiraid-ext/frameworkv2/unit"
+local Bucket = require"@antiraid-ext/objectstorage"
 
 export type EmbedData = {
     createdat: number?,
@@ -29,7 +30,7 @@ local function toembed(
 
     if showDownloadLink and job.finalFilePath then 
         -- Create presigned URL
-        local furl = ctx.ObjectStorage:get_file_url(job.finalFilePath, datetime.timedelta_minutes(5))
+        local furl = Bucket(ctx).getfileurl(job.finalFilePath, datetime.timedelta_minutes(5))
         description ..= string.format("\n\n[Download backup](%s)", furl)
 
         table.insert(
