@@ -1,7 +1,7 @@
 local data = require"@antiraid-ext/frameworkv2/context"
 local units = require"@antiraid-ext/frameworkv2/unit"
 local managers = require "../../auxutils/managers/managers"
-local Bucket = require"@antiraid-ext/objectstorage"
+local Bucket = require"@antiraid-ext/net".Bucket
 
 local function delete(data: data.CommandContext): nil
     data.interaction.assertpermission("backups.delete")

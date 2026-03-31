@@ -6,7 +6,7 @@ local sb = require"@antiraid-ext/utils/statusbuffer"
 local tempbutton = require"@antiraid-ext/frameworkv2/tempbutton"
 local embed = require"../../auxutils/backups/embed"
 local managers = require "../../auxutils/managers/managers"
-local Bucket = require"@antiraid-ext/objectstorage"
+local Bucket = require"@antiraid-ext/net".Bucket
 
 local function create(data: data.CommandContext): nil
     data.interaction.assertpermission("backups.create")
