@@ -285,7 +285,8 @@ end
 
 type Args = {
     ctx: Primitives.TemplateContext,
-    ts: runtime.TenantState
+    ts: runtime.TenantState,
+    btd: runtime.BaseTenantData
 }
 
 --- Creates a new TemplateLoopManager instance
@@ -383,6 +384,7 @@ local lazyloader = LazyLoad(function(args: Args)
     end
 
     self.debugmanager = debugmanager
+    self.btd = args.btd
     self.subscribeEvent = subscribeEvent
     self.unsubscribeEvent = unsubscribeEvent
     self.isSubscribed = isSubscribed
@@ -394,10 +396,10 @@ local lazyloader = LazyLoad(function(args: Args)
 end)
 
 --- Creates a new TemplateLoopManager instance if it doesn't already exist, otherwise creates one
-local function TemplateLoopManager(baseCtx: Primitives.TemplateContext, ts: runtime.TenantState): templateloopImpl.TemplateLoopManager
+local function TemplateLoopManager(baseCtx: Primitives.TemplateContext, ts: runtime.TenantState, btd: runtime.BaseTenantData): templateloopImpl.TemplateLoopManager
     local existing = baseCtx.store[templateloopImpl.TEMPLATE_LOOP_KEY] :: templateloopImpl.TemplateLoopManager?
     if existing then return existing end
-    return lazyloader.get({ ctx = baseCtx, ts = ts}) -- The lazyloader autosets the value into the store automatically
+    return lazyloader.get({ ctx = baseCtx, ts = ts, btd = btd }) -- The lazyloader autosets the value into the store automatically
 end
 
 return TemplateLoopManager
