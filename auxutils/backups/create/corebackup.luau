@@ -6,10 +6,12 @@ local channelallocs = require"../channelallocs"
 local set = require"@antiraid-ext/set"
 local typesext = require"@antiraid/typesext"
 local sb = require"@antiraid-ext/utils/statusbuffer"
+local tloop = require"@antiraid-core/templateloop"
 
 local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, updater: sb.StatusBuffer): types.CoreBackupData 
     local guild = ctx.Discord:get_guild().data
     local channels = ctx.Discord:get_guild_channels().data
+    local loop = tloop.getRunningLoop(ctx)
 
     if not guild.roles or #guild.roles == 0 then 
         local roles = ctx.Discord:get_guild_roles().data
@@ -22,7 +24,7 @@ local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCre
     local channelAllocationsFinal = {}
     if opts.backupMessages then 
         updater.addStatus("Backing up messages with perChannel of " .. opts.perChannel .. " and maxMessages of " .. opts.maxMessages)
-        local botMember = ctx.Discord:get_guild_member(ctx.current_user.id).data
+        local botMember = ctx.Discord:get_guild_member(loop.btd.bot.id).data
         local channelAllocations = channelallocs.CreateChannelAllocations(
             guild, 
             botMember,

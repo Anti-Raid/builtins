@@ -12,6 +12,7 @@ local permission = require"@discord-types/permission"
 local channel = require"@discord-types/channel"
 local sb = require"@antiraid-ext/utils/statusbuffer"
 local conditions = require"../conditions"
+local tloop = require"@antiraid-core/templateloop"
 
 export type PermData = {
     currentBotMember: apitypes.GuildMemberObject,
@@ -102,6 +103,7 @@ local function BaseRestoreManager(
     updater: sb.StatusBuffer, 
     opts: BaseRestoreManagerOpts
 ): BaseRestoreManager
+    local loop = tloop.getRunningLoop(ctx)
     local loadedBackup = load.loadBackupFile(ctx, src, enckey, updater)
     local coreData = loadedBackup.core
     assert(coreData.guild.roles, "invalid backup: guild roles data is missing in core data")
@@ -160,7 +162,7 @@ local function BaseRestoreManager(
             end
         end
 
-        local currentBotMember = ctx.Discord:get_guild_member(ctx.current_user.id).data
+        local currentBotMember = ctx.Discord:get_guild_member(loop.btd.bot.id).data
         if not currentBotMember then
             error("Cannot restore backup: bot is not a member of the guild")
         end
@@ -506,7 +508,7 @@ local function BaseRestoreManager(
         end
         compare.SortRolesByHierarchyDesc(newRoles)
         guildData.currentGuild.roles = newRoles
-        guildData.currentBotMember = ctx.Discord:get_guild_member(ctx.current_user.id).data -- Set current bot member
+        guildData.currentBotMember = ctx.Discord:get_guild_member(loop.btd.bot.id).data -- Set current bot member
     end
 
     local function finishBaseRestore() 

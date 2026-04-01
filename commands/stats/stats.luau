@@ -23,7 +23,7 @@ local function run(data: data.CommandContext)
                 title = "Stats",
                 description = "Here are the some cool bot stats",
                 fields = {
-                    { name = "Bot Name", value = tostring(data.framework.ctx.current_user.username), inline = true },
+                    { name = "Bot Name", value = tostring(data.loop.btd.bot.username), inline = true },
                     { name = "Total Users", value = tostring(stats.total_users), inline = true },
                     { name = "Total Servers", value = tostring(stats.total_guilds), inline = true },
                     { name = "Total Cached Servers", value = tostring(stats.total_cached_guilds), inline = true },
