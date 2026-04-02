@@ -21,6 +21,7 @@ local templateloopImpl = require"@antiraid-core/templateloop"
 local MutexFn = require"@antiraid-ext/sync/mutex"
 local LazyLoad = require"@antiraid-ext/sync/lazyload"
 local typesext = require"@antiraid/typesext"
+local Discord = require"@antiraid-ext/discord"
 
 -- Flags 
 
@@ -293,6 +294,7 @@ type Args = {
 local lazyloader = LazyLoad(function(args: Args)
     local baseCtx = args.ctx
     local ts = args.ts
+    local discord = Discord(baseCtx)
 
     -- Setup base state
     local self = {}
@@ -333,6 +335,8 @@ local lazyloader = LazyLoad(function(args: Args)
     end
 
     local function dispatchEvent(event: Primitives.Event, targetId: string?): {isolate.DispatchResult}
+        if attachedisolatescount == 0 then return {} end -- unlikely but could happen
+
         -- Fast path: if there are no attached isolates besides builtins, we can avoid creating a new thread
         debugmanager.print("[TemplateLoopManager] Dispatching event", event.name, "to ", targetId and `with id {targetId}` or "with no target id")
         if attachedisolatescount == 1 then
@@ -347,20 +351,20 @@ local lazyloader = LazyLoad(function(args: Args)
             return {ret}
         end
         
-        local chans: {channel.OneshotChannel<isolate.DispatchResult>} = {}
-
+        local chan: channel.Stream<isolate.DispatchResult> = channel.Stream<<isolate.DispatchResult>>()
+        local numitems = 0
         for _, isol in attachedisolates do
             if targetId and isol.id ~= targetId then
                 continue -- Ignore non-targetted template
             end
 
             -- Dispatch event to isolate
-            local chan = isol.dispatchEvent(baseCtx, event)
-            table.insert(chans, chan)
+            isol.dispatchEvent(baseCtx, event, chan)
+            numitems += 1
         end
 
-        local results, timedout = channel.selectoneshots(chans, TEMPLATE_DISPATCH_TIMEOUT)
-        if timedout then
+        local results, timedout = chan.rx:recvbatch(numitems, TEMPLATE_DISPATCH_TIMEOUT)
+        if timedout == "timeout" then
             -- TODO: Log warning about timeout
         end
         return results
@@ -385,6 +389,7 @@ local lazyloader = LazyLoad(function(args: Args)
 
     self.debugmanager = debugmanager
     self.btd = args.btd
+    self.discord = discord
     self.subscribeEvent = subscribeEvent
     self.unsubscribeEvent = unsubscribeEvent
     self.isSubscribed = isSubscribed

@@ -17,13 +17,13 @@ local function unban(data: data.CommandContext): nil
     end
 
     -- Check if a ban exists
-    local ban = data.ctx.Discord:get_guild_ban(userid)
+    local ban = data.loop.discord:get_guild_ban(userid)
     if not ban.data then
         return data.interaction.replysimpleembed("Cannot unban a user who is not banned!", "User <@" .. userid .. "> is not banned from this server!", units.RED_COLOR)
     end
 
     -- Then unban them
-    data.ctx.Discord:remove_guild_ban({
+    data.loop.discord:remove_guild_ban({
         reason = reason,
         user_id = userid,
     })

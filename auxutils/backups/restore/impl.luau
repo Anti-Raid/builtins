@@ -114,7 +114,8 @@ local function BaseRestoreManager(
     -- Set src and target guild ids and do basic validation
     local srcGuildId = coreData.guild.id
     assert(srcGuildId and #srcGuildId > 0, "invalid backup: guild ID is missing or invalid")
-    local targetGuildId = ctx.Discord:guild_id()
+    assert(loop.btd.id.tenant_type == "guild", "backups can only be used within a guild context")
+    local targetGuildId = loop.btd.id.tenant_id
     assert(targetGuildId and #targetGuildId > 0, "invalid context: guild ID is missing or invalid")
 
     local cachedGuildData: IGuildData? = nil
@@ -141,7 +142,7 @@ local function BaseRestoreManager(
         -- Test if coreData is valid    
         assert(coreData.guild.id and #coreData.guild.id > 0, "internal error: guild ID must be set in core data")
 
-        local currentGuild = ctx.Discord:get_guild().data
+        local currentGuild = loop.discord:get_guild().data
 
         local currentGuildFlags: GuildFlags = {
             community = false,
@@ -162,13 +163,13 @@ local function BaseRestoreManager(
             end
         end
 
-        local currentBotMember = ctx.Discord:get_guild_member(loop.btd.bot.id).data
+        local currentBotMember = loop.discord:get_guild_member(loop.btd.bot.id).data
         if not currentBotMember then
             error("Cannot restore backup: bot is not a member of the guild")
         end
 
         if not currentGuild.roles or #currentGuild.roles == 0 then 
-            local roles = ctx.Discord:get_guild_roles().data
+            local roles = loop.discord:get_guild_roles().data
             local rolesArr = {}
             for _, role in roles do table.insert(rolesArr, role) end
             currentGuild.roles = rolesArr
@@ -206,7 +207,7 @@ local function BaseRestoreManager(
 
         assert(botHighestRole.position > 0, "internal error: user's highest role must be above the @everyone role in the guild hierarchy")
         
-        local currentChannels = ctx.Discord:get_guild_channels().data
+        local currentChannels = loop.discord:get_guild_channels().data
 
         local guild: IGuildData = {
             currentGuild = currentGuild,
@@ -270,7 +271,7 @@ local function BaseRestoreManager(
             updateData.splash = load.assetToDataURL("image/jpeg", splash)
         end
 
-        ctx.Discord:modify_guild({
+        loop.discord:modify_guild({
             reason = "Restore backup: Restore base guild settings step",
             data = updateData
         })
@@ -327,7 +328,7 @@ local function BaseRestoreManager(
                 role_id = role.id
             })
         else
-            ctx.Discord:delete_guild_role({
+            loop.discord:delete_guild_role({
                 reason = "Backup restore: Delete roles step",
                 role_id = role.id
             })
@@ -370,7 +371,7 @@ local function BaseRestoreManager(
                 data = roleUpdate,
             }).data
         else
-            created = ctx.Discord:create_guild_role({
+            created = loop.discord:create_guild_role({
                 reason = "Backup restore: Create roles step",
                 data = roleUpdate,
             }).data
@@ -467,7 +468,7 @@ local function BaseRestoreManager(
             }).data
             discordCreateChannelsExecutor:antiraid_bulk_op_wait()
         else
-            createdChannel = ctx.Discord:create_guild_channel({
+            createdChannel = loop.discord:create_guild_channel({
                 reason = "Backup restore: Create channels step",
                 data = ud,
             }).data
@@ -493,7 +494,7 @@ local function BaseRestoreManager(
 
             discordDeleteChannelsExecutor:antiraid_bulk_op_wait()
         else
-            ctx.Discord:delete_channel({
+            loop.discord:delete_channel({
                 reason = "Backup restore: Delete old channels step",
                 channel_id = chan.id,
             })
@@ -508,7 +509,7 @@ local function BaseRestoreManager(
         end
         compare.SortRolesByHierarchyDesc(newRoles)
         guildData.currentGuild.roles = newRoles
-        guildData.currentBotMember = ctx.Discord:get_guild_member(loop.btd.bot.id).data -- Set current bot member
+        guildData.currentBotMember = loop.discord:get_guild_member(loop.btd.bot.id).data -- Set current bot member
     end
 
     local function finishBaseRestore() 
@@ -534,7 +535,7 @@ local function BaseRestoreManager(
                     updateData.public_updates_channel_id = newPublicUpdatesChannelId.id
                 end
 
-                ctx.Discord:modify_guild({
+                loop.discord:modify_guild({
                     reason = "Backup restore: Finish base restore step",
                     data = updateData,
                 })

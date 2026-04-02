@@ -110,7 +110,7 @@ local function SingleChannelLockdown(channelid: discord.Snowflake): mode.Lockdow
             table.insert(overwrites, newOverwrite)
         end
 
-        local newchannel = data.ctx.Discord:edit_channel({
+        local newchannel = data.loop.discord:edit_channel({
             reason = "Single channel lockdown",
             channel_id = channelid,
             data = {
@@ -128,7 +128,7 @@ local function SingleChannelLockdown(channelid: discord.Snowflake): mode.Lockdow
         
         local oldpermissions = _fromdata(data.lockdown.data)
 
-        local newchannel = data.ctx.Discord:edit_channel({
+        local newchannel = data.loop.discord:edit_channel({
             reason = "Single channel lockdown revert",
             channel_id = channelid,
             data = {

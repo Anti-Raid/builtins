@@ -2,8 +2,10 @@
 local apitypes = require "@discord-types/apiTypes"
 local Primitives = require "@antiraid-core/primitives"
 local managers = require "./managers/managers"
+local tloop = require"@antiraid-core/templateloop"
 
 local function afkHandler(msg: apitypes.MessageObject, ctx: Primitives.TemplateContext): ()
+    local loop = tloop.getRunningLoop(ctx)
     local afkmanager = managers.getmanagers(ctx).afkmanager
     -- AFKs
     if not msg.author then return end
@@ -21,7 +23,7 @@ local function afkHandler(msg: apitypes.MessageObject, ctx: Primitives.TemplateC
     for _, mention in mentions do 
         local afk = afkmanager.get(mention.id)
         if not afk then continue end -- No AFK for this user
-        ctx.Discord:create_message({
+        loop.discord:create_message({
             channel_id = msg.channel_id or error("msg.channel_id is nil"),
             data = {
                 message_reference = {

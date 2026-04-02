@@ -16,7 +16,7 @@ local function kick(data: data.CommandContext): nil
     end
 
     -- First kick them
-    data.ctx.Discord:remove_guild_member({
+    data.loop.discord:remove_guild_member({
         reason = reason,
         user_id = userid,
     })

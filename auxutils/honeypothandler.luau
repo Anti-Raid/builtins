@@ -28,7 +28,7 @@ local function honeypotHandler(msg: apitypes.MessageObject, ctx: Primitives.Temp
             if msg.author.bot and honeypot.botallowed then break end -- Ignore clearly bot messages if bots are allowed in the honeypot
             if honeypot.punishment == "ban" then 
                 -- First ban them
-                ctx.Discord:create_guild_ban({
+                loop.discord:create_guild_ban({
                     reason = "Attempt to message in honeypot channel",
                     user_id = msg.author.id,
                 })
@@ -42,7 +42,7 @@ local function honeypotHandler(msg: apitypes.MessageObject, ctx: Primitives.Temp
                 })
             elseif honeypot.punishment == "kick" then
                 -- First kick them
-                ctx.Discord:remove_guild_member({
+                loop.discord:remove_guild_member({
                     reason = "Attempt to message in honeypot channel",
                     user_id = msg.author.id,
                 })

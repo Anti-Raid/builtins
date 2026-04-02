@@ -68,7 +68,7 @@ local function RoleLockdown(roleid: discord.Snowflake): mode.LockdownMode
         end
 
         -- Edit the role
-        local newrole = data.ctx.Discord:modify_guild_role({
+        local newrole = data.loop.discord:modify_guild_role({
             reason = "Role lockdown",
             role_id = roleid,
             data = {
@@ -87,7 +87,7 @@ local function RoleLockdown(roleid: discord.Snowflake): mode.LockdownMode
         local oldpermissions = _fromdata(data.lockdown.data)
 
         -- Edit the role back
-        local newrole = data.ctx.Discord:modify_guild_role({
+        local newrole = data.loop.discord:modify_guild_role({
             reason = "Role lockdown",
             role_id = roleid,
             data = {

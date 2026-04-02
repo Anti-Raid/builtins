@@ -48,7 +48,7 @@ local managers: Managers? = nil
 --- Gets or initializes the built-in managers
 local function getmanagers(ctx: Primitives.TemplateContext): Managers
     if managers then return managers end
-
+    
     local managersref: Managers = {} :: Managers
 
     local tempbanExpiryManager = KeyExpiryManager<<TempBan>>(ctx, "builtins.tempbans", function(loop, record) 
@@ -62,7 +62,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         end
         -- Unban the user
         local ok, res = xpcall(function()
-            ctx.Discord:remove_guild_ban({user_id = userid, reason = "Temporary ban expired: "..reason})
+            loop.discord:remove_guild_ban({user_id = userid, reason = "Temporary ban expired: "..reason})
             return nil
         end, debug.traceback :: any)
         -- Dispatch an event with the result of the unban attempt so other templates can react to it if needed
@@ -92,7 +92,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         end
 
         -- Send the reminder message
-        ctx.Discord:create_message({
+        loop.discord:create_message({
             channel_id = channelid,
             data = {
                 embeds = {

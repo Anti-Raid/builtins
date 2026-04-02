@@ -40,7 +40,7 @@ local function ban(data: data.CommandContext): nil
     end
 
     -- First ban them
-    data.ctx.Discord:create_guild_ban({
+    data.loop.discord:create_guild_ban({
         delete_message_seconds = delete_message_seconds,
         reason = reason,
         user_id = userid,
