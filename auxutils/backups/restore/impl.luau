@@ -7,7 +7,6 @@ local blob = require"@antiraid-core/blob"
 local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
 local typesext = require"@antiraid/typesext"
 local compare = require"@antiraid-ext/utils/rolecmp"
-local discord = require"@antiraid-core/plugins/discord"
 local permission = require"@discord-types/permission"
 local channel = require"@discord-types/channel"
 local sb = require"@antiraid-ext/utils/statusbuffer"
@@ -56,22 +55,22 @@ export type BaseRestoreManager = {
     ---
     --- This is to prevent users from accidentally restoring incompatible backups which can lead to errors during restores/partial restores
     validateBackupCompatibility: () -> (),
-    --- Restores a single role to the guild and returns the new role object
-    createRole: (role: apitypes.GuildRoleObject, discordCreateRolesExecutor: discord.DiscordExecutor?) -> apitypes.GuildRoleObject?,
-    --- Deletes a single role from the guild. 
+    --- Creates all roles passed calling oncreaterole for each created role
+    createRoles: (roles: {apitypes.GuildRoleObject}, oncreaterole: (apitypes.GuildRoleObject) -> ()) -> (),
+    --- Deletes roles from the guild. 
     ---
     --- Ignores deleting protected roles or roles that are higher or equal to the bot's highest role
-    deleteRole: (role: apitypes.GuildRoleObject, discordDeleteRolesExecutor: discord.DiscordExecutor?) -> (),
+    deleteRoles: (role: {apitypes.GuildRoleObject}) -> (),
     --- Returns if a role is protected from being deleted
     isRoleProtected: (role: apitypes.GuildRoleObject, delete: boolean?) -> boolean,
     --- Returns if a channel is protected from being deleted
     isChannelProtected: (chan: apitypes.ChannelObject, delete: boolean?) -> boolean,
-    --- Creates a channel with the given data
-    createChannel: (channel: apitypes.ChannelObject, discordCreateChannelsExecutor: discord.DiscordExecutor?, parentid: string?) -> apitypes.ChannelObject?,
+    --- Creates all channels passed calling oncreatechannel with the given data
+    createChannels: (channels: {apitypes.ChannelObject}, oncreatechannel: (apitypes.ChannelObject) -> ()) -> (),
     --- Deletes a channel
     ---
     --- Ignores channels the bot does not have 'Manage Channels' permission in or protected channels
-    deleteChannel: (channel: apitypes.ChannelObject, discordDeleteChannelsExecutor: discord.DiscordExecutor?) -> (),
+    deleteChannels: (channels: {apitypes.ChannelObject}) -> (),
     --- Restores the base guild settings from the backup
     restoreBaseGuildSettings: () -> (),
     --- Finishes the base restore by performing final steps such as syncing the current guild data and deleting old rules/public updates channels if they are not protected
@@ -313,21 +312,16 @@ local function BaseRestoreManager(
         return false -- Not protected
     end
 
-    local function deleteRole(role: apitypes.GuildRoleObject, discordDeleteRolesExecutor: discord.DiscordExecutor?)
-        if isRoleProtected(role, true)
-        then 
-            updater.addStatus("Ignoring role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. tostring(role.position))
-            return
-        end
+    local function deleteRoles(roles: {apitypes.GuildRoleObject})
+        -- TODO: Use bulk discord api
+        for _, role in roles do
+            if isRoleProtected(role, true)
+            then 
+                updater.addStatus("Ignoring role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. tostring(role.position))
+                continue
+            end
 
-        updater.addStatus("Deleting role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. tostring(role.position))
-
-        if discordDeleteRolesExecutor then
-            discordDeleteRolesExecutor:delete_guild_role({
-                reason = "Backup restore: Delete roles step",
-                role_id = role.id
-            })
-        else
+            updater.addStatus("Deleting role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. tostring(role.position))
             loop.discord:delete_guild_role({
                 reason = "Backup restore: Delete roles step",
                 role_id = role.id
@@ -335,52 +329,46 @@ local function BaseRestoreManager(
         end
     end
 
-    local function createRole(role: apitypes.GuildRoleObject, discordCreateRolesExecutor: discord.DiscordExecutor?): apitypes.GuildRoleObject?
+    local function createRoles(roles: {apitypes.GuildRoleObject}, oncreaterole: (apitypes.GuildRoleObject) -> ())
+        -- TODO: Use bulk discord api
         local guildData = getCurrentGuildData()
 
-        if restoredRoles[role.id] or isRoleProtected(role) -- Already restored role
-        then 
-            --updater.addStatus("Ignoring role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. tostring(role.position))
-            return nil -- Ignore and continue
-        end
+        for _, role in roles do 
+            if restoredRoles[role.id] or isRoleProtected(role) -- Already restored role
+            then 
+                --updater.addStatus("Ignoring role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " .. tostring(role.position))
+                continue -- Ignore and continue
+            end
 
-        -- Ensure role permissions meet our bots permissions
-        if not discordpermcalc.HasPermission(guildData.basePerms, role.permissions) then 
-            -- If the role permissions are not allowed by the bot, then do not set any role permissions
-            --
-            -- TODO: Perform granular disabling of permissions we don't have
-            role.permissions = "0"
-        end
+            -- Ensure role permissions meet our bots permissions
+            if not discordpermcalc.HasPermission(guildData.basePerms, role.permissions) then 
+                -- If the role permissions are not allowed by the bot, then do not set any role permissions
+                --
+                -- TODO: Perform granular disabling of permissions we don't have
+                role.permissions = "0"
+            end
 
-        -- TODO: Support role icons/role emojis later
-        local roleUpdate: resttypes.CreateGuildRoleRequest = {
-            name = role.name,
-            color = role.color,
-            hoist = role.hoist,
-            permissions = role.permissions,
-            mentionable = role.mentionable,
-        }
+            -- TODO: Support role icons/role emojis later
+            local roleUpdate: resttypes.CreateGuildRoleRequest = {
+                name = role.name,
+                color = role.color,
+                hoist = role.hoist,
+                permissions = role.permissions,
+                mentionable = role.mentionable,
+            }
 
-        updater.addStatus("Creating role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " ..  tostring(role.position))
+            updater.addStatus("Creating role ``" .. role.name .. "`` with ID: ``" .. role.id .. "`` and position " ..  tostring(role.position))
 
-        local created: apitypes.GuildRoleObject 
-        
-        if discordCreateRolesExecutor then 
-            created = discordCreateRolesExecutor:create_guild_role({
+            local created = loop.discord:create_guild_role({
                 reason = "Backup restore: Create roles step",
                 data = roleUpdate,
             }).data
-        else
-            created = loop.discord:create_guild_role({
-                reason = "Backup restore: Create roles step",
-                data = roleUpdate,
-            }).data
-        end
 
-        -- Cache the created role for permission overwrite fixing later
-        restoredRoles[role.id] = created
-        
-        return created
+            -- Cache the created role for permission overwrite fixing later
+            restoredRoles[role.id] = created
+
+            oncreaterole(created)
+        end
     end
 
     --- Given a channel to restore and other ext data, create a resttypes.CreateGuildChannelRequest
@@ -445,55 +433,44 @@ local function BaseRestoreManager(
         }
     end
 
-    local function createChannel(chan: apitypes.ChannelObject, discordCreateChannelsExecutor: discord.DiscordExecutor?, parentid: string?): apitypes.ChannelObject? 
-        if isChannelProtected(chan) or restoredChannels[chan.id] -- Already restored channel
-        then 
-            --updater.addStatus("Ignoring channel ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "`` as it is protected or already restored")
-            return nil -- Ignore and continue
-        end
+    local function createChannels(chans: {apitypes.ChannelObject}, oncreatechannel: (apitypes.ChannelObject) -> ())
+        -- TODO: Use bulk discord api
+        for _, chan in chans do 
+            if isChannelProtected(chan) or restoredChannels[chan.id] -- Already restored channel
+            then 
+                --updater.addStatus("Ignoring channel ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "`` as it is protected or already restored")
+                continue -- Ignore and continue
+            end
 
-        local ud = _createChannelData(chan, parentid)
+            local ud = _createChannelData(chan)
 
-        if chan.type == channel.ChannelTypesMap.GuildCategory then
-            updater.addStatus("Creating category ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "``")
-        else 
-            updater.addStatus("Creating channel ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "``")
-        end
+            if chan.type == channel.ChannelTypesMap.GuildCategory then
+                updater.addStatus("Creating category ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "``")
+            else 
+                updater.addStatus("Creating channel ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "``")
+            end
 
-        local createdChannel: apitypes.ChannelObject
-        if discordCreateChannelsExecutor then
-            createdChannel = discordCreateChannelsExecutor:create_guild_channel({
+            local createdChannel = loop.discord:create_guild_channel({
                 reason = "Backup restore: Create channels step",
                 data = ud,
             }).data
-            discordCreateChannelsExecutor:antiraid_bulk_op_wait()
-        else
-            createdChannel = loop.discord:create_guild_channel({
-                reason = "Backup restore: Create channels step",
-                data = ud,
-            }).data
-        end
 
-        restoredChannels[chan.id] = createdChannel
-        return createdChannel
+            restoredChannels[chan.id] = createdChannel
+
+            oncreatechannel(createdChannel)
+        end
     end
 
-    local function deleteChannel(chan: apitypes.ChannelObject, discordDeleteChannelsExecutor: discord.DiscordExecutor?)
-        if isChannelProtected(chan, true) then
-            updater.addStatus("Ignoring channel ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "`` as bot does not have 'Manage Channels' permission in it or channel is in the protected channels list")
-            return -- Ignore and continue
-        end
+    local function deleteChannels(chans: {apitypes.ChannelObject})
+        -- TODO: Use bulk discord api
+        for _, chan in chans do 
+            if isChannelProtected(chan, true) then
+                updater.addStatus("Ignoring channel ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "`` as bot does not have 'Manage Channels' permission in it or channel is in the protected channels list")
+                continue -- Ignore and continue
+            end
 
-        updater.addStatus("Deleting channel ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "``")
+            updater.addStatus("Deleting channel ``" .. chan.name .. "`` with ID: ``" .. chan.id .. "``")
 
-        if discordDeleteChannelsExecutor then
-            discordDeleteChannelsExecutor:delete_channel({
-                reason = "Backup restore: Delete old channels step",
-                channel_id = chan.id,
-            })
-
-            discordDeleteChannelsExecutor:antiraid_bulk_op_wait()
-        else
             loop.discord:delete_channel({
                 reason = "Backup restore: Delete old channels step",
                 channel_id = chan.id,
@@ -560,10 +537,10 @@ local function BaseRestoreManager(
     self.restoreBaseGuildSettings = restoreBaseGuildSettings
     self.isRoleProtected = isRoleProtected
     self.isChannelProtected = isChannelProtected
-    self.createRole = createRole
-    self.deleteRole = deleteRole
-    self.createChannel = createChannel
-    self.deleteChannel = deleteChannel
+    self.createRoles = createRoles
+    self.deleteRoles = deleteRoles
+    self.createChannels = createChannels
+    self.deleteChannels = deleteChannels
     self.syncCurrentGuild = syncCurrentGuild
     self.finishBaseRestore = finishBaseRestore  
 

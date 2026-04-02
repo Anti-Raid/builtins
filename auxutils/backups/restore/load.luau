@@ -6,7 +6,7 @@ local json = require"@antiraid/json"
 local assetfetch = require"../create/assetfetch"
 local conditions = require"../conditions"
 local sb = require"@antiraid-ext/utils/statusbuffer"
-local net = require"@antiraid-ext/net"
+local net = require"@antiraid-ext/system/net"
 
 local function isEncryptedBackup(filename: string): boolean
     return filename:sub(-1) == "e"

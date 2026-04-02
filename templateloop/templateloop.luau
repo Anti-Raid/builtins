@@ -21,7 +21,7 @@ local templateloopImpl = require"@antiraid-core/templateloop"
 local MutexFn = require"@antiraid-ext/sync/mutex"
 local LazyLoad = require"@antiraid-ext/sync/lazyload"
 local typesext = require"@antiraid/typesext"
-local Discord = require"@antiraid-ext/discord"
+local Discord = require"@antiraid-ext/system/discord"
 
 -- Flags 
 
@@ -294,6 +294,7 @@ type Args = {
 local lazyloader = LazyLoad(function(args: Args)
     local baseCtx = args.ctx
     local ts = args.ts
+    local btd = args.btd
     local discord = Discord(baseCtx)
 
     -- Setup base state
@@ -305,7 +306,7 @@ local lazyloader = LazyLoad(function(args: Args)
     local eventRefManager = EventRefManager(baseCtx, tenantStateManager)
     local eventrefmu = MutexFn() -- Mutex for synchronizing access to event refs
 
-    local exposedvfs = baseCtx.Runtime:getexposedvfs() -- safety: getexposedvfs is guaranteed to not yield
+    local exposedvfs = btd.base_vfs
     local attachedisolates: {[string]: isolate.Isolate} = {
         ["builtins"] = isolate.new("builtins", typesext.Vfs.newoverlay({
             exposedvfs.Builtins or error("Internal error: Builtins VFS not found in exposed VFSs"),
@@ -388,7 +389,7 @@ local lazyloader = LazyLoad(function(args: Args)
     end
 
     self.debugmanager = debugmanager
-    self.btd = args.btd
+    self.btd = btd
     self.discord = discord
     self.subscribeEvent = subscribeEvent
     self.unsubscribeEvent = unsubscribeEvent

@@ -65,7 +65,7 @@ type IScriptStore = {
 --- A data fetcher for templates.
 local function TemplateManager(ctx: Primitives.TemplateContext, expose: {[string]: any}): ScriptManager
     local loop = tloop.getRunningLoop(ctx)
-    local exposedvfs = ctx.Runtime:getexposedvfs()
+    local exposedvfs = loop.btd.base_vfs
     local VfsTemplatingTypes = exposedvfs.TemplatingTypes or error("Internal error: TemplatingTypes VFS not found in exposed VFSs")
     
     local function _parseCustomTemplate(item: KeyManager.KeyRecord<IScriptStore>): Script

@@ -6,7 +6,6 @@ local sb = require"@antiraid-ext/utils/statusbuffer"
 local tempbutton = require"@antiraid-ext/frameworkv2/tempbutton"
 local embed = require"../../auxutils/backups/embed"
 local managers = require "../../auxutils/managers/managers"
-local Bucket = require"@antiraid-ext/net".Bucket
 
 local function create(data: data.CommandContext): nil
     data.interaction.assertpermission("backups.create")
@@ -87,7 +86,7 @@ local function create(data: data.CommandContext): nil
             createdby = data.interaction.userid(),
         }
     )
-    Bucket(data.ctx).uploadfile(built.filename, built.backup)
+    data.framework.bucket.uploadfile(built.filename, built.backup)
 
     local embed, comps = embed.toembed(data.ctx, {
         id = built.id,

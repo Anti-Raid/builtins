@@ -69,13 +69,8 @@ local RESTORE_STEPS: {CheckpointManager.CheckpointStep<Opts>} = {
             local basemanager = getmanagerfromslate(ctx)
             local guildData = basemanager.getCurrentGuildData()
 
-            local discordDeleteOldRolesExecutor = ctx.tctx.Discord:antiraid_bulk_op("delete_guild_role")
             assert(guildData.currentGuild.roles, "Internal Error: guildData.currentGuild.roles should not be nil here")
-            for _, role in guildData.currentGuild.roles do
-                basemanager.deleteRole(role, discordDeleteOldRolesExecutor)
-                discordDeleteOldRolesExecutor:antiraid_bulk_op_wait()
-            end
-
+            basemanager.deleteRoles(guildData.currentGuild.roles)
             return nil
         end
     },
@@ -88,17 +83,11 @@ local RESTORE_STEPS: {CheckpointManager.CheckpointStep<Opts>} = {
 
             assert(coreData.guild.roles, "Internal Error: coreData.guild.roles should not be nil here")
 
-            -- Now create the roles
-            local discordCreateRolesExecutor = ctx.tctx.Discord:antiraid_bulk_op("create_guild_role")
-            for _, role in coreData.guild.roles do 
-                basemanager.createRole(role, discordCreateRolesExecutor)
-
+            basemanager.createRoles(coreData.guild.roles, function(_role) 
                 -- Update checkpoint
                 data.gre = basemanager.getRestored() 
                 ctx.save(data)
-
-                discordCreateRolesExecutor:antiraid_bulk_op_wait()
-            end
+            end)
 
             -- Update currentGuild roles to the restored roles
             basemanager.syncCurrentGuild()
@@ -113,12 +102,7 @@ local RESTORE_STEPS: {CheckpointManager.CheckpointStep<Opts>} = {
             local basemanager = getmanagerfromslate(ctx)
             local guildData = basemanager.getCurrentGuildData()
 
-            local discordDeleteOldChannelsExecutor = ctx.tctx.Discord:antiraid_bulk_op("delete_channel")
-            for _, channel in guildData.currentChannels do 
-                basemanager.deleteChannel(channel, discordDeleteOldChannelsExecutor)
-                discordDeleteOldChannelsExecutor:antiraid_bulk_op_wait()
-            end
-
+            basemanager.deleteChannels(guildData.currentChannels)
             return nil -- preserve old checkpoint data since we will need it for the next step
         end
     },
@@ -128,34 +112,33 @@ local RESTORE_STEPS: {CheckpointManager.CheckpointStep<Opts>} = {
             local basemanager = getmanagerfromslate(ctx)
             local data = ctx.data()
             local coreData = basemanager.getLoadedBackup().core
+            assert(coreData.channels, "Internal Error: coreData.channels should not be nil here")
 
-            local discordCreateChannelsExecutor = ctx.tctx.Discord:antiraid_bulk_op("create_guild_channel")
+            local chans = {}
             
-            --- Helper function to restore channels
-            --- @param categoryRestore boolean Whether to restore categories or not
-            --- @return nil
-            local function _restoreChans(categoryRestore: boolean) 
-                assert(coreData.channels, "Internal Error: coreData.channels should not be nil here")
-
-                for _, c in coreData.channels do 
-                    if categoryRestore and c.type ~= channel.ChannelTypesMap.GuildCategory then 
-                        continue -- Skip non-category channels if we are restoring categories only
-                    end
-
-                    basemanager.createChannel(c, discordCreateChannelsExecutor)
-
-                    -- Update checkpoint
-                    data.gre = basemanager.getRestored() 
-                    ctx.save(data)
-
-                    discordCreateChannelsExecutor:antiraid_bulk_op_wait()
+            -- First categories
+            for _, c in coreData.channels do 
+                if c.type ~= channel.ChannelTypesMap.GuildCategory then 
+                    continue
                 end
+
+                table.insert(chans, c)
+            end
+            -- Then channels
+            for _, c in coreData.channels do 
+                if c.type == channel.ChannelTypesMap.GuildCategory then 
+                    continue
+                end
+
+                table.insert(chans, c)
             end
 
-            -- First restore categories
-            _restoreChans(true)
-            -- Now restore other channels
-            _restoreChans(false)
+            -- Restore
+            basemanager.createChannels(chans, function(_chan) 
+                -- Update checkpoint
+                data.gre = basemanager.getRestored() 
+                ctx.save(data)
+            end)
 
             data.gre = basemanager.getRestored()
             return data
