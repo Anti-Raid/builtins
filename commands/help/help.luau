@@ -15,9 +15,9 @@ local function run(data: data.CommandContext): nil
         embeds = {
             {
                 title = "AntiRaid Help" ,
-                description = `Visit [Command List]({data.framework.ctx.Runtime:links().frontend_url}/commands) to see a full list of all of AntiRaids commands!`,
+                description = `Visit [Command List]({data.framework.loop.btd.website}/commands) to see a full list of all of AntiRaids commands!`,
                 color = 0x00FF00,
-                url = `{data.framework.ctx.Runtime:links().frontend_url}/commands`
+                url = `{data.framework.loop.btd.website}/commands`
             }
         }
     })

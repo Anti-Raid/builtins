@@ -13,7 +13,7 @@ local command = commandBuilder.new({
 :build()
 
 local function run(data: data.CommandContext)
-    local stats = data.framework.ctx.Runtime:stats()
+    local stats = data.framework.meta.stats()
 
     local startedAt = datetime.UTC:now():duration_since(stats.last_started_at)
 
@@ -26,7 +26,6 @@ local function run(data: data.CommandContext)
                     { name = "Bot Name", value = tostring(data.loop.btd.bot.username), inline = true },
                     { name = "Total Users", value = tostring(stats.total_users), inline = true },
                     { name = "Total Servers", value = tostring(stats.total_guilds), inline = true },
-                    { name = "Total Cached Servers", value = tostring(stats.total_cached_guilds), inline = true },
                     { name = "Bot Last Started", value = "<t:" .. stats.last_started_at.timestamp_seconds .. ">", inline = true },
                     { name = "Bot Uptime", value = formatTimeDelta(startedAt), inline = true }
                 }
