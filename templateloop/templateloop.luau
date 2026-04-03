@@ -41,146 +41,116 @@ local function DebugManager(): templateloopImpl.DebugManager
     return { print = function(...) end }
 end
 
---- Internal manager of tenant state
-type TenantStateManager = {
-    --- Returns if a flag is set or not
-    read IsFlagSet: (flag: number) -> boolean,
-    --- Returns if we have subscribed to an event or not
-    read IsSubscribedToEvent: (event: string) -> boolean,
-    --- Returns a clone of the current tenant state
-    read ClonedTenantState: () -> runtime.TenantState,
-    --- Update the cached tenant state to the provided state
-    read UpdateTenantState: (newState: runtime.TenantState, with: {runtime.StateOp}) -> (),
-    --- Helper method to set/unset a flag in the tenant state flags field
-    ---
-    --- Does nothing if the flag is already in the desired state
-    read SetFlag: (flag: number, set: boolean, with: {runtime.StateOp}) -> (),
-    --- Helper method to subscribe to an event and update tenant state accordingly
-    ---
-    --- Does nothing if already subscribed (or unsubscribed in the case of set = false)
-    read SubscribeEvent: (event: string, set: boolean, with: {runtime.StateOp}) -> (),
-    --- Helper method to both subscribe/unsubscribe to an event and set/unset a flag in tenant state if needed
-    --- 
-    --- Does nothing if we are already in the desired state returning true if we updated at all
-    read SubscribeEventAndSetFlag: (event: string, setevent: boolean, flag: number, setflag: boolean, with: {runtime.StateOp}) -> boolean,
+export type TenantStateMutations = {
+    flag: number?,
+    setFlag: boolean?,
+    event: string?,
+    setEvent: boolean?,
 }
 
-local function TenantStateManager(baseCtx: Primitives.TemplateContext, tenantState: runtime.TenantState): TenantStateManager
-    DebugManager().print("TenantStateManager init - events:", tenantState.events, "type:", type(tenantState.events), "flags:", tenantState.flags)
-    local events: {[string]: boolean} = {}
+--- Internal manager of tenant state
+type TenantStateManager = {
+    read IsFlagSet: (flag: number) -> boolean,
+    read IsSubscribedToEvent: (event: string) -> boolean,
+    read ClonedTenantState: () -> runtime.TenantState,
+    --- Updates state and applies extra state ops, returns true if the mutation changed somehow
+    read Mutate: (mutations: TenantStateMutations, extraOps: {runtime.StateOp}?) -> boolean,
+}
 
-    local function _updateDerivedState() 
-        local levents: {[string]: boolean} = {}
-        for _, event in tenantState.events do 
-            levents[event] = true
-        end
-        levents = table.freeze(levents)
-        events = levents
+local function TenantStateManager(baseCtx: Primitives.TemplateContext, initialState: runtime.TenantState): TenantStateManager
+    DebugManager().print("TenantStateManager init - events:", initialState.events, "flags:", initialState.flags)
+    
+    -- Single source of truth for the manager
+    local state = { flags = initialState.flags, events = table.clone(initialState.events) }
+    
+    -- Fast lookup cache for events
+    local activeEvents = {}
+    for _, e in state.events do activeEvents[e] = true end
+
+    local function IsFlagSet(flag: number): boolean 
+        return bit32.band(state.flags, flag) ~= 0 
     end
     
-    -- Update derived state initially
-    _updateDerivedState()  
+    local function IsSubscribedToEvent(event: string): boolean 
+        return activeEvents[event] == true 
+    end
 
-    -- Basic fetching utilities
-    local function IsFlagSet(flag: number): boolean return bit32.band(tenantState.flags, flag) ~= 0 end
-    local function IsSubscribedToEvent(event: string): boolean return events[event] ~= nil end
-
-    -- Other utilities for managing tenant state
     local function ClonedTenantState(): runtime.TenantState
-        --DebugManager().print("ClonedTenantState - events:", tenantState.events, "type:", type(tenantState.events))
-        return {
-            events = table.clone(tenantState.events),
-            flags = tenantState.flags,
-        }
+        return { events = table.clone(state.events), flags = state.flags }
     end
 
-    local function UpdateTenantState(newState: runtime.TenantState, with: {runtime.StateOp})
-        DebugManager().print("UpdateTenantState - newState:", newState, "events:", newState and newState.events, "flags:", newState and newState.flags)
-        table.insert(with, { op = "UpdateTenantState" :: "UpdateTenantState", events = newState.events, flags = newState.flags })
-        basectx:syscall({ op = "State", ops = with}) -- Update tenant state in runtime
-        tenantState = newState -- Update local cache
-        _updateDerivedState() -- Update derived state after updating tenant state
-    end
+    local function Mutate(mutations: TenantStateMutations, extraOps: {runtime.StateOp}?)
+        local nextFlags = state.flags
+        local changed = false
 
-    local function SetFlag(flag: number, set: boolean, with: {runtime.StateOp}) 
-        -- Check if we need to update tenant state at all
-        local hasFlag = bit32.band(tenantState.flags, flag) ~= 0
-        if (set and hasFlag) or (not set and not hasFlag) then
-            return -- No update needed
-        end
+        -- Only allocated if the events actually change
+        local nextEvents = nil
+        local nextActiveEvents = nil
 
-        -- Update flag in tenant state and push update in clone (to ensure original isn't mutated until we push update)
-        local ts = ClonedTenantState()
-        if set then 
-            ts.flags = bit32.bor(ts.flags, flag)
-        else 
-            ts.flags = bit32.band(ts.flags, bit32.bnot(flag))
-        end
-        UpdateTenantState(ts, with)
-    end
-
-    local function SubscribeEvent(event: string, set: boolean, with: {runtime.StateOp}) 
-        if set then 
-            if not events[event] then 
-                local ts = ClonedTenantState()
-                table.insert(ts.events, event)
-                UpdateTenantState(ts, with)
-            end
-        else 
-            if events[event] then 
-                local ts = ClonedTenantState()
-                local idx = table.find(ts.events, event)
-                if idx then 
-                    table.remove(ts.events, idx)
-                    UpdateTenantState(ts, with)
-                end
+        if mutations.flag ~= nil and mutations.setFlag ~= nil then
+            local hasFlag = bit32.band(nextFlags, mutations.flag) ~= 0
+            if hasFlag ~= mutations.setFlag then
+                nextFlags = mutations.setFlag 
+                    and bit32.bor(nextFlags, mutations.flag) 
+                    or bit32.band(nextFlags, bit32.bnot(mutations.flag))
+                changed = true
             end
         end
-    end
 
-    local function SubscribeEventAndSetFlag(event: string, setevent: boolean, flag: number, setflag: boolean, with: {runtime.StateOp}): boolean
-        local eventMatches = IsSubscribedToEvent(event) == setevent
-        local flagMatches = IsFlagSet(flag) == setflag
-        if eventMatches and flagMatches then 
-            return false -- No update needed
-        end
-
-        local ts = ClonedTenantState()
-        if not eventMatches then 
-            if setevent then 
-                if not events[event] then 
-                    table.insert(ts.events, event)
-                end
-            else 
-                if events[event] then 
-                    local idx = table.find(ts.events, event)
+        -- Calculate event updates
+        if mutations.event ~= nil and mutations.setEvent ~= nil then
+            local hasEvent = activeEvents[mutations.event] or false
+            if hasEvent ~= mutations.setEvent then
+                nextEvents = table.clone(state.events)
+                nextActiveEvents = table.clone(activeEvents)
+                
+                if mutations.setEvent then
+                    table.insert(nextEvents, mutations.event)
+                    nextActiveEvents[mutations.event] = true
+                else
+                    local idx = table.find(nextEvents, mutations.event)
                     if idx then 
-                        table.remove(ts.events, idx)
+                        table.remove(nextEvents, idx) 
+                        nextActiveEvents[mutations.event] = nil
                     end
                 end
+                changed = true
             end
         end
 
-        if not flagMatches then
-            if setflag then 
-                ts.flags = bit32.bor(ts.flags, flag)
-            else 
-                ts.flags = bit32.band(ts.flags, bit32.bnot(flag))
-            end
+        local ops: {runtime.StateOp} = extraOps or {}
+
+        if changed then
+            local payloadEvents = nextEvents or state.events
+            table.insert(ops, { 
+                op = "UpdateTenantState" :: "UpdateTenantState", 
+                events = payloadEvents, 
+                flags = nextFlags 
+            })
         end
 
-        UpdateTenantState(ts, with)
-        return true
+        if #ops > 0 then
+            baseCtx:syscall({ op = "State", ops = ops })
+        end
+
+        -- 5. Syscall Succeeded! Apply calculations to the local cache.
+        if changed then
+            state.flags = nextFlags
+            if nextEvents then
+                state.events = nextEvents
+                activeEvents = nextActiveEvents
+            end
+            DebugManager().print("TenantState Mutated locally - events:", state.events, "flags:", state.flags)
+        end
+
+        return changed
     end
 
     return table.freeze{
         IsFlagSet = IsFlagSet,
         IsSubscribedToEvent = IsSubscribedToEvent,
         ClonedTenantState = ClonedTenantState,
-        UpdateTenantState = UpdateTenantState,
-        SetFlag = SetFlag,
-        SubscribeEvent = SubscribeEvent,
-        SubscribeEventAndSetFlag = SubscribeEventAndSetFlag,
+        Mutate = Mutate,
     }
 end
 
@@ -203,7 +173,7 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
             if not tenantStateManager.IsFlagSet(FLAG_BUILTINS_HAVEEVENTREFS) then return {} end -- No point fetching event refs if we don't have any refs, so return empty table
             
             local ops: {runtime.StateOp} = {{ op = "KvGet", key = "eventrefs", scope = "tloop.reserved" }}
-            local records = basectx:syscall({ op = "State", ops = ops })
+            local records = baseCtx:syscall({ op = "State", ops = ops })
             assert(records.op == "State")
             if #records.res > 0 then
                 local refs = records.res[1]
@@ -215,7 +185,7 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
                 return ref
             else
                 -- Unset event refs flag if we don't have any refs to load yet had the flag set
-                tenantStateManager.SetFlag(FLAG_BUILTINS_HAVEEVENTREFS, false, {}) 
+                tenantStateManager.Mutate({ flag = FLAG_BUILTINS_HAVEEVENTREFS, setFlag = false })
                 return {}
             end
         end
@@ -229,32 +199,30 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
 
     local function Subscribe(event: string, system: string, attachedop: runtime.StateOp?) 
         if IsSubscribed(event, system) then 
-            if attachedop then basectx:syscall({op="State", ops={attachedop}}) end
+            if attachedop then baseCtx:syscall({op="State", ops={attachedop}}) end
             return 
         end -- No need to subscribe if we are already subscribed
         local refs = geteventrefs()
         if refs[event] then refs[event][system] = true else refs[event] = { [system] = true } end -- Update refs with new subscription
-                
+
         -- Also subscribe to event in tenant state manager to ensure we are subscribed at the runtime level
         --
         -- This is anyways a no-op if we are already subscribed, so we don't need to check before subscribing
         local ops: {runtime.StateOp} = {}
         if attachedop then table.insert(ops, attachedop) end
         table.insert(ops, { op = "KvSet" :: "KvSet", key = "eventrefs", scope = "tloop.reserved", value = refs })
-        local haveupdated = tenantStateManager.SubscribeEventAndSetFlag(
-            event, 
-            true, 
-            FLAG_BUILTINS_HAVEEVENTREFS, 
-            true, 
-            ops
-        )
-        if not haveupdated then basectx:syscall({op="State", ops=ops}) end
+        tenantStateManager.Mutate({
+            event = event, setEvent = true,
+            flag = FLAG_BUILTINS_HAVEEVENTREFS, 
+            setFlag = true
+        }, ops)
         eventrefs = refs -- update event refs in cache
     end
 
     local function Unsubscribe(event: string, system: string) 
         if not IsSubscribed(event, system) then return end 
         local refs = geteventrefs()
+        if not (refs[event] and refs[event][system]) then return end 
         
         if refs[event] then 
             refs[event][system] = nil 
@@ -267,13 +235,10 @@ local function EventRefManager(baseCtx: Primitives.TemplateContext, tenantStateM
         local hasAnyRefsRemaining = (next(refs) ~= nil)
 
         -- Pass the dynamically calculated states to the manager
-        tenantStateManager.SubscribeEventAndSetFlag(
-            event, 
-            isEventStillActive, 
-            FLAG_BUILTINS_HAVEEVENTREFS, 
-            hasAnyRefsRemaining,
-            {{ op = "KvSet", key = "eventrefs", scope = "tloop.reserved" }}
-        )
+        tenantStateManager.Mutate({
+            event = event, setEvent = isEventStillActive,
+            flag = FLAG_BUILTINS_HAVEEVENTREFS, setFlag = hasAnyRefsRemaining
+        }, {{ op = "KvSet", key = "eventrefs", scope = "tloop.reserved", value = refs }})
         eventrefs = refs -- update event refs in cache
     end
 
