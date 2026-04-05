@@ -6,7 +6,7 @@
 ---
 --- Do not expect this to work outside of init
 
-local templateloop = require "./templateloop/templateloop"
+local templateloop = require "@antiraid-core/templateloop/impl"
 local Primitives = require"@antiraid-core/primitives"
 local runtime = require"@antiraid-core/plugins/runtime"
 
