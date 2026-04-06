@@ -5,7 +5,6 @@ local settingsmanager = require("./settingsmanager")
 local lockdownmanager = require("./lockdownmanager")
 local guilddata = require("./guilddata")
 local Primitives = require"@antiraid-core/primitives"
-local tloop = require"@antiraid-core/templateloop"
 
 --- Represents a list of lockdowns
 export type LockdownSet = {
@@ -31,7 +30,6 @@ export type LockdownSet = {
 local function LockdownSet(ctx: Primitives.TemplateContext): LockdownSet
     local self = {}
 
-    local loop = tloop.getRunningLoop(ctx)
     local guild_data = guilddata.guildData(ctx)
     local lockdownmanager = lockdownmanager(ctx)
     local settingsmanager = settingsmanager(ctx)
@@ -47,7 +45,7 @@ local function LockdownSet(ctx: Primitives.TemplateContext): LockdownSet
             channels = guild_data.channels,
             critical_roles = criticalroles,
             lockdowns = lockdowns,
-            loop = loop
+            ctx = ctx
         }
     end
 
@@ -60,7 +58,7 @@ local function LockdownSet(ctx: Primitives.TemplateContext): LockdownSet
             lockdowns = lockdowns,
             all_handles = handles,
             lockdown = lockdown,
-            loop = loop
+            ctx = ctx
         }
     end
 

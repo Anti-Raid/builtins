@@ -2,7 +2,6 @@
 local Primitives = require "@antiraid-core/primitives"
 local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
 local datetime = require "@antiraid/datetime"
-local tloop = require "@antiraid-core/templateloop"
 
 export type CreateAFK = {
     user_id: string, -- ID of the user to set AFK for
@@ -39,17 +38,16 @@ export type AFKExpiryData = {
 --- A data fetcher for AFKs.
 local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
     local self = {}
-    local loop = tloop.getRunningLoop(ctx)
 
-    local afkexpiry = KeyExpiryManager<<AFKExpiryData>>(ctx, "builtins.afk", function(loop, record) 
+    local afkexpiry = KeyExpiryManager<<AFKExpiryData>>(ctx, "builtins.afk", function(record) 
         local afk = self.get(record.key)
         if not afk then 
-            loop.debugmanager.print("[AFKManager] Attempted to expire AFK for user "..record.key.." but they do not have an active AFK")
+            ctx.debug("[AFKManager] Attempted to expire AFK for user "..record.key.." but they do not have an active AFK")
             return 
         end
 
         -- Dispatch an event with the result of the AFK expiry so other templates can react to it if needed
-        loop.dispatchEvent{
+        ctx.loop.dispatch{
             name = "BuiltinsAfkExpiry", 
             data = { 
                 userid = record.key,
@@ -99,8 +97,8 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
         afkexpiry.add(afk.duration, {
             reason = afk.reason,
         }, afk.user_id)
-        loop.subscribeEvent("MESSAGE_CREATE", "afk")
-        loop.dispatchEvent{
+        ctx.loop.subscribe("MESSAGE_CREATE", "afk")
+        ctx.loop.dispatch{
             name = "BuiltinsAfkSet", 
             data = { 
                 user_id = afk.user_id, 
@@ -118,10 +116,10 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
 
         -- Unsubscribe if no more afks
         if count() == 0 then
-            loop.unsubscribeEvent("MESSAGE_CREATE", "afk")
+            ctx.loop.unsubscribe("MESSAGE_CREATE", "afk")
         end
 
-        loop.dispatchEvent{
+        ctx.loop.dispatch{
             name = "BuiltinsAfkDelete", 
             data = { 
                 user_id = userid,  
@@ -133,12 +131,11 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
     local function onAfkExpire(record: KeyExpiryManager.ExpiringKeyRecord<AFKExpiryData>)
         local afk = get(record.key)
         if not afk then 
-            loop.debugmanager.print("[AFKManager] Attempted to expire AFK for user "..record.key.." but they do not have an active AFK")
+            ctx.debug("[AFKManager] Attempted to expire AFK for user "..record.key.." but they do not have an active AFK")
             return 
         end
         -- Dispatch an event with the result of the AFK expiry so other templates can react to it if needed
-        local loop = tloop.getRunningLoop(ctx)
-        loop.dispatchEvent{
+        ctx.loop.dispatch{
             name = "BuiltinsAfkExpiry", 
             data = { 
                 userid = record.key,

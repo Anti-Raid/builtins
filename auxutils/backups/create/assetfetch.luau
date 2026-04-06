@@ -1,6 +1,7 @@
 local Primitives = require"@antiraid-core/primitives"
 local apitypes = require"@discord-types/apiTypes"
 local blob = require"@antiraid-core/blob"
+local cdn = require"@antiraid-ext/system/net".Cdn
 
 export type Asset = "icon" | "banner" | "splash"
 local ASSETS = {
@@ -24,12 +25,7 @@ local function fetchAsset(ctx: Primitives.TemplateContext, g: apitypes.GuildObje
         error(`Unknown asset type: {icon}`)
     end
 
-    local resp = ctx.HTTPClient.new_request("GET", url):send()
-    if resp.status ~= 200 then
-        error(`Failed to fetch {icon} for guild {g.id}: with status code {resp.status}`)
-    end
-
-    return resp:blob()
+    return cdn(ctx).downloadfromdiscordasblob(url)
 end
 
 local function fetchAssets(ctx: Primitives.TemplateContext, g: apitypes.GuildObject, assets: {Asset}): {[Asset]: blob.Blob?}

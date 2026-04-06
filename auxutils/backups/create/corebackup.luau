@@ -6,15 +6,13 @@ local channelallocs = require"../channelallocs"
 local set = require"@antiraid-ext/set"
 local typesext = require"@antiraid/typesext"
 local sb = require"@antiraid-ext/utils/statusbuffer"
-local tloop = require"@antiraid-core/templateloop"
 
 local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, updater: sb.StatusBuffer): types.CoreBackupData 
-    local loop = tloop.getRunningLoop(ctx)
-    local guild = loop.discord:get_guild().data
-    local channels = loop.discord:get_guild_channels().data
+    local guild = ctx.discord:get_guild().data
+    local channels = ctx.discord:get_guild_channels().data
 
     if not guild.roles or #guild.roles == 0 then 
-        local roles = loop.discord:get_guild_roles().data
+        local roles = ctx.discord:get_guild_roles().data
         local rolesArr = {}
         for _, role in roles do table.insert(rolesArr, role) end
         guild.roles = rolesArr
@@ -24,7 +22,7 @@ local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCre
     local channelAllocationsFinal = {}
     if opts.backupMessages then 
         updater.addStatus("Backing up messages with perChannel of " .. opts.perChannel .. " and maxMessages of " .. opts.maxMessages)
-        local botMember = loop.discord:get_guild_member(loop.btd.bot.id).data
+        local botMember = ctx.discord:get_guild_member(ctx.btd().bot.id).data
         local channelAllocations = channelallocs.CreateChannelAllocations(
             guild, 
             botMember,
@@ -51,7 +49,7 @@ local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCre
             function(channelId: string, count: number): {apitypes.MessageObject}
                 updater.addStatus(`Fetching '{count}' messages from channel '{channelId}'...`)
 
-                local messagesDiscord = loop.discord:get_channel_messages({
+                local messagesDiscord = ctx.discord:get_channel_messages({
                     channel_id = channelId,
                     limit = count,
                 }).data

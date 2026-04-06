@@ -2,7 +2,6 @@
 local datetime = require "@antiraid/datetime"
 local discord = require "@discord-types/apiTypes"
 local Primitives = require "@antiraid-core/primitives"
-local tloop = require "@antiraid-core/templateloop"
 local KeyExpiryManager = require "@antiraid-ext/keyexpirymanager"
 
 export type Sting = {
@@ -50,7 +49,6 @@ export type StingExpiryData = {
 
 local function StingManager(ctx: Primitives.TemplateContext): StingManager
     local self = {}
-    local loop = tloop.getRunningLoop(ctx)
     local cachedUserStings: {[string]: {[string]: Sting}} = {}
 
     local function _parseStingData(item: KeyExpiryManager.ExpiringKeyRecord<StingExpiryData>): Sting
@@ -66,13 +64,13 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
     end
 
     local stingexpiry: KeyExpiryManager.KeyExpiryManager<StingExpiryData> 
-    stingexpiry = KeyExpiryManager<<StingExpiryData>>(ctx, "builtins.stings", function(loop, record) 
+    stingexpiry = KeyExpiryManager<<StingExpiryData>>(ctx, "builtins.stings", function(record) 
         -- Fetch the sting
         local userid = record.value.userid
         local stingid = record.key
 
         -- Dispatch event before expiration so that other templates can react to the sting expiration if needed
-        loop.dispatchEvent({
+        ctx.loop.dispatch({
             name = "BuiltinsStingExpire",
             author = nil,
             data = _parseStingData(record),
@@ -96,7 +94,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         local csting = _parseStingData(record)
 
         -- Dispatch event before deletion so that other templates can react to the sting deletion if needed
-        loop.dispatchEvent({
+        ctx.loop.dispatch({
             name = "BuiltinsStingDelete",
             author = mod,
             data = csting,
@@ -149,7 +147,7 @@ local function StingManager(ctx: Primitives.TemplateContext): StingManager
         if cachedUserStings[sting.userid] then cachedUserStings[sting.userid][stingid] = parsedcsting end
 
         -- Dispatch event upon creation so that other templates can react to the sting creation if needed
-        loop.dispatchEvent({
+        ctx.loop.dispatch({
             name = "BuiltinsStingCreated",
             author = sting.modid,
             data = parsedcsting,

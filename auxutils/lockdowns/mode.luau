@@ -2,7 +2,7 @@ local discord = require("@discord-types/apiTypes")
 local datetime = require("@antiraid/datetime")
 local handle = require("./handle")
 local set = require"@antiraid-ext/set"
-local tloop = require"@antiraid-core/templateloop"
+local Primitives = require"@antiraid-core/primitives"
 
 export type Lockdown = {
     id: string,
@@ -18,7 +18,7 @@ export type BaseLockdownModeData = {
     channels: {discord.ChannelObject},
     critical_roles: set.Set<discord.Snowflake>,
     lockdowns: {Lockdown},
-    loop: tloop.TemplateLoopManager
+    ctx: Primitives.TemplateContext
 }
 
 --- Extended lockdown mode data

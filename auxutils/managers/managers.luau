@@ -57,7 +57,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         local modid = record.value.modid
         local reason = record.value.reason
         if not userid or not reason then 
-            loop.debugmanager.print("[BuiltinsTempBanExpiry] Missing userid or reason in record for key "..record.key)
+            ctx.debug("[BuiltinsTempBanExpiry] Missing userid or reason in record for key "..record.key)
             return
         end
         -- Unban the user
@@ -87,7 +87,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         local message = record.value.message
         local ephemeral = record.value.ephemeral
         if not userid or not channelid or not message then 
-            loop.debugmanager.print("[BuiltinsRemindMeExpiry] Missing userid, channelid, or message in record for key "..record.key)
+            ctx.debug("[BuiltinsRemindMeExpiry] Missing userid, channelid, or message in record for key "..record.key)
             return
         end
 

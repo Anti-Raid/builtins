@@ -114,7 +114,7 @@ local function FullServerLockdown(): mode.LockdownMode
                 newperms = permissions.removeFromPerms(change.role.permissions, change.perms)
             end
             
-            local role = data.loop.discord:modify_guild_role({ reason = "Autofix attempted", role_id = change.role.id, data = { permissions = tostring(newperms) } }).data
+            local role = data.ctx.discord:modify_guild_role({ reason = "Autofix attempted", role_id = change.role.id, data = { permissions = tostring(newperms) } }).data
 
             utils.replacerole(data, role)
         end
@@ -151,7 +151,7 @@ local function FullServerLockdown(): mode.LockdownMode
         assert(data.guild.roles, "Internal error: Guild roles not found")
         for idx, role in data.guild.roles do 
             if data.critical_roles.exists(role.id) then
-                local newrole = data.loop.discord:modify_guild_role({
+                local newrole = data.ctx.discord:modify_guild_role({
                     reason = "Quick server lockdown",
                     role_id = role.id,
                     data = {
@@ -171,7 +171,7 @@ local function FullServerLockdown(): mode.LockdownMode
             if data.critical_roles.exists(role.id) then
                 local perms = tostring(oldpermissions[role.id] or permissions.toBitFlag(BASE_PERMS))
 
-                local newrole = data.loop.discord:modify_guild_role({
+                local newrole = data.ctx.discord:modify_guild_role({
                     reason = "Quick server lockdown",
                     role_id = role.id,
                     data = {

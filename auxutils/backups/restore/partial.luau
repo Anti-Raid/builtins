@@ -8,7 +8,6 @@ local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
 local permission = require"@discord-types/permission" 
 local RestoreManager = require"./impl"
 local sb = require"@antiraid-ext/utils/statusbuffer"
-local tloop = require"@antiraid-core/templateloop"
 
 export type PermData = {
     currentBotMember: apitypes.GuildMemberObject,
@@ -41,7 +40,6 @@ local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types
     local basemanager = RestoreManager(ctx, src, enckey, updater, {opts = opts})
     local loadedBackup = basemanager.getLoadedBackup()
     local coreData = loadedBackup.core
-    local loop = tloop.getRunningLoop(ctx)
 
     local self = {}
 
@@ -83,7 +81,7 @@ local function PartialRestoreManager(ctx: Primitives.TemplateContext, src: types
             updateData.splash = load.assetToDataURL("image/jpeg", splash)
         end
 
-        loop.discord:modify_guild({
+        ctx.discord:modify_guild({
             reason = "Restore backup: Restore base guild settings step",
             data = updateData
         })

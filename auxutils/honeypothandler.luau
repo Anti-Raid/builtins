@@ -1,12 +1,9 @@
 local apitypes = require "@discord-types/apiTypes"
 local Primitives = require "@antiraid-core/primitives"
 local HoneypotManager = require "./honeypotmanager"
-local tloop = require "@antiraid-core/templateloop"
 
 local honeypotManager: HoneypotManager.HoneypotManager? = nil
 local function honeypotHandler(msg: apitypes.MessageObject, ctx: Primitives.TemplateContext): ()
-    local loop = tloop.getRunningLoop(ctx)
-
     -- Honeypots
     if not msg.author then return end
     if not msg.content then return end
@@ -28,11 +25,11 @@ local function honeypotHandler(msg: apitypes.MessageObject, ctx: Primitives.Temp
             if msg.author.bot and honeypot.botallowed then break end -- Ignore clearly bot messages if bots are allowed in the honeypot
             if honeypot.punishment == "ban" then 
                 -- First ban them
-                loop.discord:create_guild_ban({
+                ctx.discord:create_guild_ban({
                     reason = "Attempt to message in honeypot channel",
                     user_id = msg.author.id,
                 })
-                loop.dispatchEvent({
+                ctx.loop.dispatch({
                     name = "HoneypotBan",
                     data = {
                         userid = msg.author.id,
@@ -42,11 +39,11 @@ local function honeypotHandler(msg: apitypes.MessageObject, ctx: Primitives.Temp
                 })
             elseif honeypot.punishment == "kick" then
                 -- First kick them
-                loop.discord:remove_guild_member({
+                ctx.discord:remove_guild_member({
                     reason = "Attempt to message in honeypot channel",
                     user_id = msg.author.id,
                 })
-                loop.dispatchEvent({
+                ctx.loop.dispatch({
                     name = "HoneypotKick",
                     data = {
                         userid = msg.author.id,

@@ -1,7 +1,6 @@
 local Primitives = require "@antiraid-core/primitives"
 local datetime = require "@antiraid/datetime"
 local KeyManager = require "@antiraid-ext/keymanager"
-local tloop = require "@antiraid-core/templateloop"
 
 local MAX_HONEYPOTS = 3 -- Maximum honeypots allowed per server
 
@@ -38,7 +37,6 @@ export type HoneypotData = {
 local function HoneypotManager(ctx: Primitives.TemplateContext): HoneypotManager
     local km = KeyManager<<HoneypotData>>(ctx, "builtins.honeypots")
     local cachedlist: {Honeypot}? = nil
-    local loop = tloop.getRunningLoop(ctx)
 
     local self = {}
 
@@ -77,7 +75,7 @@ local function HoneypotManager(ctx: Primitives.TemplateContext): HoneypotManager
         if km.count() >= MAX_HONEYPOTS then
             error("Maximum of 5 honeypots can be set at once")
         end
-        loop.subscribeEvent("MESSAGE_CREATE", "honeypot")
+        ctx.loop.subscribe("MESSAGE_CREATE", "honeypot")
         km.add({
             botallowed = honeypot.botallowed,
             punishment = honeypot.punishment,
@@ -90,7 +88,7 @@ local function HoneypotManager(ctx: Primitives.TemplateContext): HoneypotManager
         km.remove(channelid)
         -- Unsubscribe if no more honeypots
         if km.count() == 0 then
-            loop.unsubscribeEvent("MESSAGE_CREATE", "honeypot")
+            ctx.loop.unsubscribe("MESSAGE_CREATE", "honeypot")
         end
 
         cachedlist = nil -- Invalidate cache

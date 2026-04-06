@@ -2,7 +2,6 @@ local Primitives = require "@antiraid-core/primitives"
 local KeyManager = require"@antiraid-ext/keymanager"
 local typesext = require"@antiraid/typesext"
 local datetime = require "@antiraid/datetime"
-local tloop = require"@antiraid-core/templateloop"
 local isolate = require"@antiraid-ext/isolate"
 
 --- A Script object.
@@ -64,8 +63,7 @@ type IScriptStore = {
 
 --- A data fetcher for templates.
 local function TemplateManager(ctx: Primitives.TemplateContext, expose: {[string]: any}): ScriptManager
-    local loop = tloop.getRunningLoop(ctx)
-    local exposedvfs = loop.btd.base_vfs
+    local exposedvfs = ctx.btd().base_vfs
     local VfsTemplatingTypes = exposedvfs.TemplatingTypes or error("Internal error: TemplatingTypes VFS not found in exposed VFSs")
     
     local function _parseCustomTemplate(item: KeyManager.KeyRecord<IScriptStore>): Script
@@ -87,13 +85,13 @@ local function TemplateManager(ctx: Primitives.TemplateContext, expose: {[string
 
     -- Initialize
     local templates: {[string]: Script} = {}
-    local templatedb = KeyManager<<IScriptStore>>(ctx, "builtins.templates", function(loop: tloop.TemplateLoopManager, records, km)
+    local templatedb = KeyManager<<IScriptStore>>(ctx, "builtins.templates", function(records, km)
         for _, template in records do 
             local tmpl = _parseCustomTemplate(template)
             templates[template.key] = tmpl
             if not tmpl.paused then
-                loop.attachisolate(isolate.new("template/"..tmpl.name, tmpl.vfs, expose))
-                loop.dispatchEvent({name = "OnStartup", data = { reason = "startup" }}, "template/"..tmpl.name)
+                ctx.loop.attach(isolate.new("template/"..tmpl.name, tmpl.vfs, expose))
+                ctx.loop.dispatch({name = "OnStartup", data = { reason = "startup" }}, "template/"..tmpl.name)
             end
         end
 
@@ -131,17 +129,17 @@ local function TemplateManager(ctx: Primitives.TemplateContext, expose: {[string
         templates[data.name] = parsedtmpl
 
         if not parsedtmpl.paused then
-            loop.attachisolate(isolate.new("template/"..parsedtmpl.name, parsedtmpl.vfs, expose))
-            loop.dispatchEvent({name = "OnStartup", data = { reason = "updateTemplateCache" }}, "template/"..parsedtmpl.name)
+            ctx.loop.attach(isolate.new("template/"..parsedtmpl.name, parsedtmpl.vfs, expose))
+            ctx.loop.dispatch({name = "OnStartup", data = { reason = "updateTemplateCache" }}, "template/"..parsedtmpl.name)
         else 
-            loop.detachisolate("template/"..parsedtmpl.name) -- detach paused isolate
+            ctx.loop.detach("template/"..parsedtmpl.name) -- detach paused isolate
         end
     end
 
     local function deletecustom(key: string): ()
         templatedb.remove(key)
         templates[key] = nil
-        loop.detachisolate("template/"..key)
+        ctx.loop.detach("template/"..key)
     end
 
     self.list = list

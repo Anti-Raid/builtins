@@ -3,7 +3,6 @@ local Primitives = require "@antiraid-core/primitives"
 local AuditLogManager = require "../auditlogmanager"
 local datetime = require "@antiraid/datetime"
 local discord = require "@discord-types/apiTypes"
-local tloop = require"@antiraid-core/templateloop"
 
 -- Event data types matching the dispatch sites
 
@@ -60,7 +59,6 @@ export type AuditLogEmbed = {
 local function sendAuditLog(ctx: Primitives.TemplateContext, embed: AuditLogEmbed, what: AuditLogManager.What): ()
     local auditlogmanager = AuditLogManager.AuditLogManager(ctx)
     local logs = auditlogmanager.list()
-    local loop = tloop.getRunningLoop(ctx)
 
     if #logs == 0 then
         return -- No audit log channels configured
@@ -90,7 +88,7 @@ local function sendAuditLog(ctx: Primitives.TemplateContext, embed: AuditLogEmbe
         end
         if not shouldsend then continue end
         pcall(function()
-            loop.discord:create_message({
+            ctx.discord:create_message({
                 channel_id = log.channel_id,
                 data = {
                     embeds = { fullEmbed },
