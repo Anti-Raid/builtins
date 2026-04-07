@@ -40,14 +40,14 @@ local function ban(data: data.CommandContext): nil
     end
 
     -- First ban them
-    data.loop.discord:create_guild_ban({
+    data.ctx.discord:create_guild_ban({
         delete_message_seconds = delete_message_seconds,
         reason = reason,
         user_id = userid,
     })
 
     -- Then, dispatch a AntiraidBan event
-    data.loop.dispatchEvent({
+    data.ctx.loop.dispatch({
         name = "AntiraidBan",
         author = modinfo.userid,
         data = {

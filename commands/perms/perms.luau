@@ -118,14 +118,11 @@ local function run(data: data.CommandContext): nil
             for _, _perm in perm.position.perms do 
                 table.insert(permsMap, tostring(_perm))
             end
-
-            assert(perm.raw.exists, "internal error: guild permissions for role " .. perm.position.id .. " does not exist in KV yet was found in KV at the same time")
             
-            local createdAtTs = "<t:" .. perm.raw.created_at.timestamp_seconds .. ":f>"
-            local updatedAtTs = "<t:" .. perm.raw.last_updated_at.timestamp_seconds .. ":f>"
+            local createdAtTs = "<t:" .. perm.createdat.timestamp_seconds .. ":f>"
             table.insert(embeds, {
                 title = "Role ID: " .. perm.position.id,
-                description = "Index: " .. tostring(perm.position.index) .. "\nPermissions: " .. (if #permsMap > 0 then table.concat(permsMap, ", ") else "None") .. "\nCreated At: " .. createdAtTs .. "\nLast Updated At: " .. updatedAtTs .. "\nRole Mention: <@&" .. perm.position.id .. ">",
+                description = "Index: " .. tostring(perm.position.index) .. "\nPermissions: " .. (if #permsMap > 0 then table.concat(permsMap, ", ") else "None") .. "\nCreated At: " .. createdAtTs .. "\nRole Mention: <@&" .. perm.position.id .. ">",
                 color = 0x3498db,
             } :: apitypes.EmbedObject)
         end
@@ -248,14 +245,11 @@ local function run(data: data.CommandContext): nil
             for _, _perm in memberPermissions.perm_overrides do 
                 table.insert(permsMap, tostring(_perm))
             end
-
-            assert(memberPermissions.raw.exists, "internal error: member data for member " .. memberPermissions.userid .. " does not exist in KV yet was found in KV at the same time")
             
-            local createdAtTs = "<t:" .. memberPermissions.raw.created_at.timestamp_seconds .. ":f>"
-            local updatedAtTs = "<t:" .. memberPermissions.raw.last_updated_at.timestamp_seconds .. ":f>"
+            local createdAtTs = if memberPermissions.createdat then "<t:" .. memberPermissions.createdat.timestamp_seconds .. ":f>" else "Default Value"
             table.insert(embeds, {
                 title = "User ID: " .. memberPermissions.userid,
-                description = "Permissions: " .. (if #permsMap > 0 then table.concat(permsMap, ", ") else "None") .. "\nCreated At: " .. createdAtTs .. "\nLast Updated At: " .. updatedAtTs .. "\nUser Mention: <@" .. memberPermissions.userid .. ">",
+                description = "Permissions: " .. (if #permsMap > 0 then table.concat(permsMap, ", ") else "None") .. "\nCreated At: " .. createdAtTs .. "\nUser Mention: <@" .. memberPermissions.userid .. ">",
             } :: apitypes.EmbedObject)
         end
 

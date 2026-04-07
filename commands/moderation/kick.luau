@@ -16,13 +16,13 @@ local function kick(data: data.CommandContext): nil
     end
 
     -- First kick them
-    data.loop.discord:remove_guild_member({
+    data.ctx.discord:remove_guild_member({
         reason = reason,
         user_id = userid,
     })
 
     -- Then, dispatch a AntiraidKick event
-    data.loop.dispatchEvent({
+    data.ctx.loop.dispatch({
         name = "AntiraidKick",
         author = modinfo.userid,
         data = {

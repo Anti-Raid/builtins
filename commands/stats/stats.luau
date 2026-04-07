@@ -23,7 +23,7 @@ local function run(data: data.CommandContext)
                 title = "Stats",
                 description = "Here are the some cool bot stats",
                 fields = {
-                    { name = "Bot Name", value = tostring(data.loop.btd.bot.username), inline = true },
+                    { name = "Bot Name", value = tostring(data.ctx.btd().bot.username), inline = true },
                     { name = "Total Users", value = tostring(stats.total_users), inline = true },
                     { name = "Total Servers", value = tostring(stats.total_guilds), inline = true },
                     { name = "Bot Last Started", value = "<t:" .. stats.last_started_at.timestamp_seconds .. ">", inline = true },

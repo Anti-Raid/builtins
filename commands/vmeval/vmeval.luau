@@ -44,7 +44,6 @@ local function run(data: data.CommandContext): nil
         ctx = data.ctx,
         data = data,
         interaction = data.interaction,
-        storeTab = data.ctx.store,
         type = type,
         typeof = typeof,
         interop = interop,

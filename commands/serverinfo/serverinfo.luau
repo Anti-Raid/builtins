@@ -19,10 +19,10 @@ local command = commandBuilder.new({
 :build()
 
 local function run(data: context.CommandContext)
-    local guild: apitypes.GuildObject = data.loop.discord:get_guild().data 
+    local guild: apitypes.GuildObject = data.ctx.discord:get_guild().data 
 
     local guildId = guild.id or error("Guild ID not found in context")
-    local channels: {apitypes.ChannelObject} = data.loop.discord:get_guild_channels().data
+    local channels: {apitypes.ChannelObject} = data.ctx.discord:get_guild_channels().data
     local roles: {apitypes.GuildRoleObject} = guild.roles or {}
     local emojis: {apitypes.EmojiObject} = guild.emojis or {}
 

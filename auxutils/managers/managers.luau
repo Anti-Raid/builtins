@@ -51,7 +51,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
     
     local managersref: Managers = {} :: Managers
 
-    local tempbanExpiryManager = KeyExpiryManager<<TempBan>>(ctx, "builtins.tempbans", function(loop, record) 
+    local tempbanExpiryManager = KeyExpiryManager<<TempBan>>(ctx, "builtins.tempbans", function(record) 
         -- userid = userid, modid = modid, reason = reason, [createdat = createdat, expiresat = expiresat]
         local userid = record.value.userid
         local modid = record.value.modid
@@ -62,11 +62,11 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         end
         -- Unban the user
         local ok, res = xpcall(function()
-            loop.discord:remove_guild_ban({user_id = userid, reason = "Temporary ban expired: "..reason})
+            ctx.discord:remove_guild_ban({user_id = userid, reason = "Temporary ban expired: "..reason})
             return nil
         end, debug.traceback :: any)
         -- Dispatch an event with the result of the unban attempt so other templates can react to it if needed
-        loop.dispatchEvent{
+        ctx.loop.dispatch{
             name = "BuiltinsTempBanExpiry", 
             data = { 
                 userid = userid, 
@@ -81,7 +81,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         }
         return nil
     end)
-    local remindmeExpiryManager = KeyExpiryManager<<RemindMe>>(ctx, "builtins.remindme", function(loop, record) 
+    local remindmeExpiryManager = KeyExpiryManager<<RemindMe>>(ctx, "builtins.remindme", function(record) 
         local userid = record.value.userid
         local channelid = record.value.channelid
         local message = record.value.message
@@ -92,7 +92,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
         end
 
         -- Send the reminder message
-        loop.discord:create_message({
+        ctx.discord:create_message({
             channel_id = channelid,
             data = {
                 embeds = {
@@ -104,7 +104,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
             }
         })
 
-        loop.dispatchEvent{
+        ctx.loop.dispatch{
             name = "BuiltinsRemindMeExpiry", 
             data = { 
                 userid = userid,

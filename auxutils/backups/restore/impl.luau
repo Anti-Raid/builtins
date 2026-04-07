@@ -5,7 +5,6 @@ local apitypes = require"@discord-types/apiTypes"
 local resttypes = require"@discord-types/restTypes"
 local blob = require"@antiraid-core/blob"
 local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
-local typesext = require"@antiraid/typesext"
 local compare = require"@antiraid-ext/utils/rolecmp"
 local permission = require"@discord-types/permission"
 local channel = require"@discord-types/channel"
@@ -83,7 +82,7 @@ type IGuildData = {
     currentGuild: apitypes.GuildObject,
     currentGuildFlags: GuildFlags,
     currentBotMember: apitypes.GuildMemberObject,
-    basePerms: typesext.U64,
+    basePerms: integer,
     botHighestRole: apitypes.GuildRoleObject,
     currentChannels: {apitypes.ChannelObject},
 }
@@ -339,7 +338,7 @@ local function BaseRestoreManager(
             end
 
             -- Ensure role permissions meet our bots permissions
-            if not discordpermcalc.HasPermission(guildData.basePerms, role.permissions) then 
+            if not discordpermcalc.HasPermission(guildData.basePerms, integer.fromstring(role.permissions)) then 
                 -- If the role permissions are not allowed by the bot, then do not set any role permissions
                 --
                 -- TODO: Perform granular disabling of permissions we don't have

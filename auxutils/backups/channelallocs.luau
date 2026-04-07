@@ -1,5 +1,4 @@
 local apitypes = require"@discord-types/apiTypes"
-local typesext = require"@antiraid/typesext"
 local set = require"@antiraid-ext/set"
 local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
 
@@ -79,7 +78,7 @@ local function CreateChannelAllocations(
     bot: apitypes.GuildMemberObject,
     channels: {apitypes.ChannelObject},
     channelList: {string}, -- List of channel IDs to allocate messages to
-    neededPerms: set.Set<typesext.U64Convertibles>,
+    neededPerms: set.Set<integer>,
     allowedChannelTypes: {apitypes.ChannelType},
     specialAllocations: {[string]: number},
     perChannel: number,

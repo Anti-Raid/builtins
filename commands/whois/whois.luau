@@ -130,7 +130,7 @@ local function run(data: data.CommandContext)
         end
 
         -- Add in discord permissions as a string
-        local discordPerms = permissionsFromBf(userinfo.discord_permissions)
+        local discordPerms = permissionsFromBf(integer.fromstring(userinfo.discord_permissions))
 
         if #discordPerms > 0 then
             local dangerPermsFound = dangerousPerms(discordPerms)

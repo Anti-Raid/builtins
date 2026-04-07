@@ -4,7 +4,6 @@ local channel = require"@discord-types/channel"
 local types = require"../backups"
 local channelallocs = require"../channelallocs"
 local set = require"@antiraid-ext/set"
-local typesext = require"@antiraid/typesext"
 local sb = require"@antiraid-ext/utils/statusbuffer"
 
 local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCreateOpts, updater: sb.StatusBuffer): types.CoreBackupData 
@@ -28,7 +27,7 @@ local function coreBackup(ctx: Primitives.TemplateContext, opts: types.BackupCre
             botMember,
             channels,
             opts.channels,
-            set.Set("0") :: set.Set<typesext.U64Convertibles>,
+            set.Set<<integer>>(),
             {
                 channel.ChannelTypesMap.GuildText,
                 channel.ChannelTypesMap.GuildAnnouncement,
