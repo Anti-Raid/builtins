@@ -51,8 +51,9 @@ export type RestoreSource = {
     url: string, -- The URL of the attachment
     filename: string, -- The name of the file including the extension
 } | {
-    type: "objectstorage",
-    filepath: string, -- The file path in the object storage
+    type: "kv",
+    key: string, -- The key in the kv store where the backup blob is stored
+    blob: blob.Blob, -- The blob containing the backup data
 }
 
 export type BuiltBackup = {

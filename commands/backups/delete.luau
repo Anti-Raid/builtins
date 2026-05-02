@@ -22,12 +22,7 @@ local function delete(data: data.CommandContext): nil
     if not backupData then
         return data.interaction.replysimpleembed("Error processing command", "Backup with ID `" .. backupId .. "` does not exist.", units.RED_COLOR)
     end
-
-    assert(type(backupData.value.filename) == "string", "Backup data does not contain a filename")
-
-    -- Delete the backup from ObjectStorage first
     
-    data.framework.bucket.deletefile(backupData.value.filename)
     mdm.remove(backupId)
     return data.interaction.replysimpleembed("Backup Deleted", string.format("Backup with ID `%s` has been deleted.", backupId), units.GREEN_COLOR)
 end

@@ -38,16 +38,18 @@ local function restore(data: data.CommandContext): nil
                     return data.interaction.replysimpleembed("Error processing command", "You cannot specify both a backup file and a backup ID. Please choose one.", units.RED_COLOR)
                 end
 
-                local backupData = managers.backupmetadata.get(opt.value.value)
+                local backupData = managers.backupmetadata.getwithblob(opt.value.value)
                 if not backupData then
                     return data.interaction.replysimpleembed("Error processing command", "Backup with ID `" .. opt.value.value .. "` does not exist.", units.RED_COLOR)
                 end
-
-                assert(type(backupData.value.filename) == "string", "Backup data does not contain a filename")
+                if not backupData.blob then
+                    return data.interaction.replysimpleembed("Error processing command", "Backup with ID `" .. opt.value.value .. "` does not have any backup data associated with it.", units.RED_COLOR)
+                end
 
                 source = {
-                    type = "objectstorage" :: "objectstorage",
-                    filepath = backupData.value.filename,
+                    type = "kv" :: "kv",
+                    key = backupData.key,
+                    blob = backupData.blob,
                 }
             end
         elseif opt.name == "password" then

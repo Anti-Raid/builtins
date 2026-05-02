@@ -20,13 +20,12 @@ local function list(data: data.CommandContext): nil
         numPages = #backups,
         embed = function(currentIdx: number): discord.EmbedObject 
             local backupData = backups[currentIdx]
-            assert(backupData.value.filename, "Backup data does not contain a filename")
             local embed, _ = embed.toembed(
                 data.ctx,
                 {
-                    id = backupData.key,
-                    createdat = backupData.createdat.timestamp_seconds,
-                    finalFilePath = backupData.value.filename,
+                    key = backupData.key,
+                    mdm = mdm,
+                    createdat = backupData.createdat,
                 },
                 true
             )

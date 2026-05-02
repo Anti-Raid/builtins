@@ -6,6 +6,7 @@ local sb = require"@antiraid-ext/utils/statusbuffer"
 local tempbutton = require"@antiraid-ext/frameworkv2/tempbutton"
 local embed = require"../../auxutils/backups/embed"
 local managers = require "../../auxutils/managers/managers"
+local datetime = require"@antiraid/datetime"
 
 local function create(data: data.CommandContext): nil
     data.interaction.assertpermission("backups.create")
@@ -69,7 +70,7 @@ local function create(data: data.CommandContext): nil
         embed = function() 
             return {
                 title = "Logs",
-                description = table.concat(sb.stringifybuffer(buf), "\n"),
+                description = table.concat(sb.stringifybuffer(buf, "Discord"), "\n"),
                 color = units.YELLOW_COLOR
             }
         end
@@ -80,18 +81,18 @@ local function create(data: data.CommandContext): nil
 
     -- Upload and save metadata
     mdm.set(
-        built.id, 
+        built.filename, 
         {
-            filename = built.filename,
             createdby = data.interaction.userid(),
-        }
+        },
+        built.backup
     )
-    data.framework.bucket.uploadfile(built.filename, built.backup)
 
     local embed, comps = embed.toembed(data.ctx, {
-        id = built.id,
-        finalFilePath = built.filename,
-    })
+        key = built.filename,
+        mdm = mdm,
+        createdat = datetime.UTC:now()
+    }, true)
 
     data.interaction.replyedit({
         embeds = {embed},

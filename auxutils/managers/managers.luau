@@ -24,7 +24,6 @@ export type RemindMe = {
 }
 
 export type BackupMetadata = {
-    filename: string,
     createdby: string
 }
 

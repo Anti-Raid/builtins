@@ -5,33 +5,31 @@ local ButtonBuilder = require"@discord-types/builders/message/components/button"
 local EmojiBuilder = require"@discord-types/builders/emoji"
 local datetime = require"@antiraid/datetime"
 local units = require"@antiraid-ext/frameworkv2/unit"
-local Bucket = require"@antiraid-ext/system/net".Bucket
+local UncachedKeyManager = require "@antiraid-ext/uncachedkeymanager"
+local managers = require "../../auxutils/managers/managers"
 
 export type EmbedData = {
-    createdat: number?,
-    finalFilePath: string?,
-    id: string,
+    key: string,
+    mdm: UncachedKeyManager.UncachedKeyManager<managers.BackupMetadata>,
+    createdat: datetime.DateTime,
 }
 
 local function toembed(
     ctx: Primitives.TemplateContext,
-    job: EmbedData,
+    ed: EmbedData,
     showDownloadLink: boolean?
 ): (apitypes.EmbedObject, {apitypes.ComponentObjects})
     local components: {apitypes.ComponentObjects} = {}
 
-    local description = ""
-    if job.createdat then
-        description ..= string.format(
-            "Created at: <t:%d:R>",
-            job.createdat
-        )
-    end
+    local description = string.format(
+        "Created at: <t:%d:R>",
+        ed.createdat.timestamp_seconds
+    )
 
-    if showDownloadLink and job.finalFilePath then 
+    if showDownloadLink and ed.key then 
         -- Create presigned URL
-        local furl = Bucket(ctx).getfileurl(job.finalFilePath, datetime.timedelta_minutes(5))
-        description ..= string.format("\n\n[Download backup](%s)", furl)
+        local furl = ed.mdm.signbloburl(ed.key)
+        description ..= string.format("\n\n[Download backup](%s)", furl.url)
 
         table.insert(
             components,
@@ -45,7 +43,7 @@ local function toembed(
                     :setName("🔥")
                     :build()
                 )
-                :setUrl(furl)
+                :setUrl(furl.url)
                 :build()
             )
             :build() :: apitypes.ComponentObjects
@@ -57,7 +55,7 @@ local function toembed(
         description = description,
         color = units.GREEN_COLOR,
         footer = {
-            text = "Job ID: " .. (job.id or "Unset")
+            text = "Backup ID: " .. (ed.key or "Unset")
         },
     }
 

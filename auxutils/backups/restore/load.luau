@@ -25,7 +25,7 @@ local function isBackupFile(filename: string): BackupFile
 end
 
 local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey: string?): types.LoadedBackup 
-    local filename = if src.type == "attachment" then src.filename else src.filepath
+    local filename = if src.type == "attachment" then src.filename else src.key
     
     local format = isBackupFile(filename)
     if not format then
@@ -98,7 +98,7 @@ local function loadBackupFile(ctx: Primitives.TemplateContext, src: types.Restor
     if src.type == "attachment" then 
         blob = net.Cdn(ctx).downloadfromdiscordasblob(src.url)
     else 
-        blob = net.Bucket(ctx).downloadfile(src.filepath)
+        blob = src.blob
     end
     assert(blob, "Failed to download backup file from source: " .. src.type)
     blob = blob :: blob.Blob
