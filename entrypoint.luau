@@ -16,6 +16,7 @@ local auditlogStingDelete = require"./auxutils/auditlogs/BuiltinsStingDelete"
 
 return Framework.setup(
     commands.commands,
+    nil,
     Message(function(ctx, msg)
         managers.getmanagers(ctx) -- Ensure managers are initialized before handling any messages, it is generally a good idea to ensure all managers are ready before processing any events
         afkhandler(msg, ctx)
