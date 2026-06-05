@@ -2,7 +2,38 @@
 local array_metatable = require"@antiraid/interop".array_metatable
 local verifyMemberPermOverrideChange = require"./permvalidator".verifyMemberPermOverrideChange
 local data = require"@antiraid-ext/frameworkv2/context"
+local settings = require"@antiraid-core/settings"
 local kc = require"@antiraid-core/kittycat"
+
+-- TODO: Finish implementing this
+local function fetch(data: data.Framework): settings.Page 
+    local page: settings.Page = { 
+        components = {
+            {
+                type = "TextBlock",
+                style = "Header",
+                text = "Server Members"
+            },
+            {
+                type = "TextBlock",
+                style = "Paragraph",
+                text = "Manage server members on AntiRaid"
+            }
+        }, 
+        form_templates = {
+            ["server_members"] = {
+                {
+                    type = "Text.User",
+                    id = "user_id",
+                    label = "User ID",
+                    value = ""
+                }
+            }
+        } 
+    }
+
+    return page
+end
 
 local function view(data: data.Framework) 
     verifyMemberPermOverrideChange({op = "View"})
@@ -46,8 +77,6 @@ local function create(data: data.Framework, cd: CreateData)
     end    
 
     data.userinfomanager.setMemberPermissionOverrides(cd.userid, permsMapped)
-
-    return {}
 end
 
 local function update(data: data.Framework, cd: CreateData) 
@@ -67,12 +96,27 @@ local function update(data: data.Framework, cd: CreateData)
     end    
 
     data.userinfomanager.setMemberPermissionOverrides(cd.userid, permsMapped)
+end
 
-    return {}
+local function delete(data: data.Framework, userid: string, author: string) 
+    -- TODO: Optimize multiple userinfo fetches
+    local targetUserInfo = data.userinfomanager.get(userid)
+
+    if not targetUserInfo.permission_override_entry.createdat then
+        error("This user does not have any permission overrides set. Please create them first.")
+    end
+
+    local authorUserinfo = data.userinfomanager.get(author)
+
+    verifyMemberPermOverrideChange({op = "Delete" :: "Delete", authorUserInfo = authorUserinfo, targetUserInfo = targetUserInfo, author = author})
+
+    data.userinfomanager.deleteMemberPermissionOverrides(userid)
 end
 
 return {
+    fetch = fetch,
     view = view,
     create = create,
-    update = update
+    update = update,
+    delete = delete
 }
