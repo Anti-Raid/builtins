@@ -2,38 +2,21 @@
 local array_metatable = require"@antiraid/interop".array_metatable
 local verifyMemberPermOverrideChange = require"./permvalidator".verifyMemberPermOverrideChange
 local data = require"@antiraid-ext/frameworkv2/context"
-local settings = require"@antiraid-core/settings"
+local settings = require"@antiraid-ext/frameworkv2/settings"
 local kc = require"@antiraid-core/kittycat"
 
--- TODO: Finish implementing this
-local function fetch(data: data.Framework): settings.Page 
-    local page: settings.Page = { 
-        components = {
-            {
-                type = "TextBlock",
-                style = "Header",
-                text = "Server Members"
-            },
-            {
-                type = "TextBlock",
-                style = "Paragraph",
-                text = "Manage server members on AntiRaid"
-            }
-        }, 
-        form_templates = {
-            ["server_members"] = {
-                {
-                    type = "Text.User",
-                    id = "user_id",
-                    label = "User ID",
-                    value = ""
-                }
-            }
-        } 
-    }
+local createform = settings.FormBuilder()
+:text_user("user_id", "User ID")
+:array_text("perm_overrides", "Kittycat", "Permission Overrides")
+:build()
 
-    return page
-end
+local updateform = settings.FormBuilder()
+:text_user("user_id", "User ID", { disabled = true })
+:array_text("perm_overrides", "Kittycat", "Permission Overrides")
+:text("created_at", "Created At", { disabled = true })
+:button("delete", "Remove Member Overrides", "Danger", false) -- delete the setting
+:button("update", "Update Overrides", "Primary", true)
+:build()
 
 local function view(data: data.Framework) 
     verifyMemberPermOverrideChange({op = "View"})
@@ -51,7 +34,7 @@ local function view(data: data.Framework)
         table.insert(result, {
             user_id = memberPermissions.userid,
             perm_overrides = permsMap,
-            created_at = tostring(memberPermissions.createdat),
+            created_at = memberPermissions.createdat,
         })
     end
 
@@ -111,6 +94,30 @@ local function delete(data: data.Framework, userid: string, author: string)
     verifyMemberPermOverrideChange({op = "Delete" :: "Delete", authorUserInfo = authorUserinfo, targetUserInfo = targetUserInfo, author = author})
 
     data.userinfomanager.deleteMemberPermissionOverrides(userid)
+end
+
+-- TODO: Finish implementing this
+local function fetch(p: settings.PageBuilder<data.Framework>)
+    p
+    :section("mp", "Member Permissions", "Manage member-specific permission overrides on AntiRaid", function(sb: settings.SectionBuilder<data.Framework>)
+        sb
+        :formset(
+            "mp_create", 
+            createform,
+            true
+        )
+        :formset(
+            "mp_update", 
+            updateform,
+            true
+        )
+    end)
+
+    -- add it to the form
+    local mpd = view(p.data)
+    for _, mp in mpd do 
+        p:addformdata(mp.user_id, { id = mp.user_id, title = mp.user_id, data = mp :: any })
+    end
 end
 
 return {
