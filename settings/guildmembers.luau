@@ -96,7 +96,6 @@ local function delete(data: data.Framework, userid: string, author: string)
     data.userinfomanager.deleteMemberPermissionOverrides(userid)
 end
 
--- TODO: Finish implementing this
 local function fetch(p: settings.PageBuilder<data.Framework>)
     p
     :section("mp", "Member Permissions", "Manage member-specific permission overrides on AntiRaid", function(sb: settings.SectionBuilder<data.Framework>)
