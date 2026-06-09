@@ -7,6 +7,22 @@ local assetfetch = require"../create/assetfetch"
 local conditions = require"../conditions"
 local sb = require"@antiraid-ext/utils/statusbuffer"
 local net = require"@antiraid-ext/system/net"
+local UncachedKeyManager = require "@antiraid-ext/uncachedkeymanager"
+
+local dbg_entryDebugTest = false -- remove when moving to prod
+
+export type BackupMetadata = {
+    createdby: string
+}
+
+-- cache for the backup metadata key manager
+local backupmetadata: UncachedKeyManager.UncachedKeyManager<BackupMetadata>? = nil
+local function getbackupmetadata(ctx: Primitives.TemplateContext): UncachedKeyManager.UncachedKeyManager<BackupMetadata>
+    if backupmetadata then return backupmetadata end
+    local bm = UncachedKeyManager<<BackupMetadata>>(ctx, "builtins.backups.metadata")
+    backupmetadata = bm
+    return bm
+end
 
 local function isEncryptedBackup(filename: string): boolean
     return filename:sub(-1) == "e"
@@ -40,16 +56,22 @@ local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey:
         data = datamgmt.aes256decrypt(blob, enckey)
     end
 
+    local blobsize = #blob
     local tarArchive = datamgmt.TarArchive(data)
 
     local coreData: types.CoreBackupData
     if format == "arb1" then 
         local coreDataBlob = tarArchive:takefile("core.json")
-        assert(coreDataBlob, "Core backup data not found in backup archive")
+        assert(coreDataBlob, "Core (core.json) backup data not found in backup archive")
         coreData = json.fromjsonstring(coreDataBlob)
     elseif format == "arb2" then
+        if dbg_entryDebugTest then 
+            local e = tarArchive:entries()   
+            error(`Entries in archive: {table.concat(e, ", ")}, sizeof blob: {blobsize}`) 
+        end
+
         local coreDataBlob = tarArchive:takefile("core.json.gz")
-        assert(coreDataBlob, "Core backup data not found in backup archive")
+        assert(coreDataBlob, "Core (core.json.gz) backup data not found in backup archive")
         local decompressedblob = datamgmt.decompress("gzip", coreDataBlob) -- this creates a blob owned by rust containing the decompressed data
         coreData = json.fromjsonstring(decompressedblob) -- creates the luau value from this rust-owned blob without any copying to luau
     else
@@ -98,7 +120,16 @@ local function loadBackupFile(ctx: Primitives.TemplateContext, src: types.Restor
     if src.type == "attachment" then 
         blob = net.Cdn(ctx).downloadfromdiscordasblob(src.url)
     else 
-        blob = src.blob
+        local backupmetadata = getbackupmetadata(ctx)
+        local backupData = backupmetadata.getwithblob(src.key)
+        if not backupData then
+            error("Backup with ID `" .. src.key .. "` does not exist.")
+        end
+        if not backupData.blob then
+            error("Backup with ID `" .. src.key .. "` does not not have any backup data associated with it.")
+        end
+
+        blob = backupData.blob
     end
     assert(blob, "Failed to download backup file from source: " .. src.type)
     blob = blob :: blob.Blob
@@ -116,6 +147,7 @@ end
 
 return {
     isEncryptedBackup = isEncryptedBackup,
+    getbackupmetadata = getbackupmetadata,
     isBackupFile = isBackupFile,
     loadBackupBlob = loadBackupBlob,
     loadBackupFile = loadBackupFile,

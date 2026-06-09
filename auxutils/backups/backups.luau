@@ -53,7 +53,6 @@ export type RestoreSource = {
 } | {
     type: "kv",
     key: string, -- The key in the kv store where the backup blob is stored
-    blob: blob.Blob, -- The blob containing the backup data
 }
 
 export type BuiltBackup = {

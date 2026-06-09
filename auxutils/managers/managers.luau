@@ -8,6 +8,7 @@ local CheckpointManager = require "@antiraid-ext/checkpoint"
 local LockdownSet = require"../lockdowns/lockdownset"
 local AuditLogManager = require"../auditlogmanager"
 local scriptmanager = require"../scriptmanager"
+local load = require"../backups/restore/load"
 local restoresteps = require"../backups/restore/restore"
 
 export type TempBan = {
@@ -23,9 +24,7 @@ export type RemindMe = {
     ephemeral: boolean,
 }
 
-export type BackupMetadata = {
-    createdby: string
-}
+export type BackupMetadata = load.BackupMetadata
 
 export type Managers = {
     stingmanager: stingmanager.StingManager,
@@ -137,7 +136,7 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
     managersref.lockdownset = lockdownset
     managersref.auditlogmanager = auditlogmanager
     managersref.scriptmanager = scriptmanager
-    managersref.backupmetadata = UncachedKeyManager<<BackupMetadata>>(ctx, "builtins.backups.metadata")
+    managersref.backupmetadata = load.getbackupmetadata(ctx)
 
 
     managers = managersref
