@@ -423,7 +423,7 @@ local function BaseRestoreManager(
             user_limit = channel.user_limit,
             rate_limit_per_user = channel.rate_limit_per_user,
             position = channel.position,
-            permission_overwrites = permOverwrites,
+            permission_overwrites = if #permOverwrites > 0 then permOverwrites else nil,
             parent_id = parentId,
             nsfw = channel.nsfw,
             default_thread_rate_limit_per_user = channel.default_thread_rate_limit_per_user,

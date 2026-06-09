@@ -84,7 +84,7 @@ local function restore(data: data.CommandContext): nil
         embed = function() 
             return {
                 title = "Logs",
-                description = table.concat(sb.stringifybuffer(buf), "\n"),
+                description = table.concat(sb.stringifybuffer(buf, "Discord"), "\n"),
                 color = units.YELLOW_COLOR
             }
         end
@@ -98,7 +98,7 @@ local function restore(data: data.CommandContext): nil
             restoredChannels = {},
         },
         src = source
-    })
+    }, buf)
 
     data.interaction.replyedit({
         embeds = {

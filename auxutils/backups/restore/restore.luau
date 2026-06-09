@@ -4,7 +4,6 @@ local discordpermcalc = require"@antiraid-ext/utils/discordpermcalc"
 local permission = require"@discord-types/permission"
 local RestoreManager = require"./impl"
 local CheckpointManager = require"@antiraid-ext/checkpoint"
-local sb = require"@antiraid-ext/utils/statusbuffer"
 local datetime = require"@antiraid/datetime"
 
 local CHECKPOINT_EXPIRY = datetime.timedelta_minutes(15)
@@ -24,8 +23,7 @@ local function getmanagerfromslate(ctx: CheckpointManager.CheckpointContext<Opts
     end
 
     local data = ctx.data()
-    local updater = sb.StatusBuffer() 
-    local rm = RestoreManager(ctx.tctx, data.src, data.enckey, updater, {
+    local rm = RestoreManager(ctx.tctx, data.src, data.enckey, ctx.sb, {
         opts = data.opts,
         gre = data.gre
     })
