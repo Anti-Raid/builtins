@@ -10,7 +10,6 @@ local commands:  { [string]: any } = {
     serverinfo = require"./serverinfo/serverinfo",
     stats = require"./stats/stats",
     stings = require"./stings/stings",
-    vmeval = require"./vmeval/vmeval",
     whois = require"./whois/whois",
     auditlogs = require"./auditlogs/auditlogs"
 }
