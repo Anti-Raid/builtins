@@ -6,7 +6,6 @@ local units = require"@antiraid-ext/frameworkv2/unit"
 local managers = require "../../auxutils/managers/managers"
 
 local function list(data: data.CommandContext): nil
-    data.interaction.assertpermission("backups.list")
     local mdm = managers.getmanagers(data.ctx).backupmetadata
 
     local backups = mdm.listarr()

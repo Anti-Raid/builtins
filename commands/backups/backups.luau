@@ -5,6 +5,7 @@ local createcmd = require "./create"
 local restorecmd = require "./restore"
 local listcmd = require "./list"
 local deletecmd = require "./delete"
+local inspectcmd = require "./inspect"
 
 local command = commandBuilder.new({
     name = "backups",
@@ -152,6 +153,45 @@ local command = commandBuilder.new({
     end
 )
 :option(
+    function(opt) 
+        return opt
+        :setType("SubCommand")
+        :setName("inspect")
+        :setDescription("Inspect a created backup to see past memories")
+        :option(
+            function(opt) 
+                return opt
+                :setType("Attachment")
+                :setName("backup_file")
+                :setDescription("The backup attachment to inspect")
+                :setRequired(false)  
+                :build()
+            end   
+        ) 
+        :option(
+            function(opt) 
+                return opt
+                :setType("String")
+                :setName("backup_id")
+                :setDescription("The backup ID to inspect")
+                :setRequired(false)  
+                :build()
+            end   
+        ) 
+        :option(
+            function(opt) 
+                return opt
+                :setType("String")
+                :setName("password")
+                :setDescription("Password to decrypt backup with. Should not be reused")
+                :setRequired(false)  
+                :build()
+            end   
+        ) 
+        :build()
+    end
+)
+:option(
     function(opt)
         return opt
         :setType("SubCommand")
@@ -192,6 +232,8 @@ local function run(data: data.CommandContext): nil
         return listcmd(data)
     elseif cmdname == "delete" then
         return deletecmd(data)
+    elseif cmdname == "inspect" then
+        return inspectcmd(data)
     else
         error("Unknown subcommand")
     end
