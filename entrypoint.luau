@@ -1,7 +1,7 @@
 local Message = require "@antiraid-ext/events/discord/Message"
 local Custom = require "@antiraid-ext/events/antiraid/Custom"
 local commands = require "./commands/commands"
---local settings = require "./settings/settings"
+local settings = require "./settings/settings"
 local afkhandler = require"./auxutils/afkhandler"
 local honeypothandler = require"./auxutils/honeypothandler"
 local managers = require"./auxutils/managers/managers"
@@ -16,7 +16,7 @@ local auditlogStingDelete = require"./auxutils/auditlogs/BuiltinsStingDelete"
 
 return Framework.setup(
     commands.commands,
-    nil,
+    settings,
     Message(function(ctx, msg)
         managers.getmanagers(ctx) -- Ensure managers are initialized before handling any messages, it is generally a good idea to ensure all managers are ready before processing any events
         afkhandler(msg, ctx)
