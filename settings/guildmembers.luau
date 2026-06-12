@@ -103,7 +103,7 @@ local function fetch(p: settings.PageBuilder<data.Framework>)
         :formset(
             "mp_create", 
             createform,
-            true
+            false
         )
         :formset(
             "mp_update", 
@@ -113,9 +113,13 @@ local function fetch(p: settings.PageBuilder<data.Framework>)
     end)
 
     -- add it to the form
+    p:addformdata("mp_create", { id = "mp_create_form", title = "Create Member Override", data = {
+        user_id = "",
+        perm_overrides = setmetatable({}, array_metatable)
+    } })
     local mpd = view(p.data)
     for _, mp in mpd do 
-        p:addformdata(mp.user_id, { id = mp.user_id, title = mp.user_id, data = mp :: any })
+        p:addformdata("mp_update", { id = mp.user_id, title = mp.user_id, data = mp :: any })
     end
 end
 
