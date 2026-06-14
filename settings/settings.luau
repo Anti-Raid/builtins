@@ -6,6 +6,7 @@ local data = require"@antiraid-ext/frameworkv2/context"
 local sf = require"@antiraid-ext/frameworkv2/settings"
 
 local dummyform = sb.FormBuilder()
+:display({type="Error", error="This is a dummy form!"})
 :text("text", "Some Text")
 :button("send", "Send", "Primary", true)
 :build()
