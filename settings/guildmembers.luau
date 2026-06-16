@@ -41,37 +41,17 @@ local function view(data: data.Framework)
     return result
 end
 
-export type CreateData = {
+export type SetData = {
     author: string,
     userid: string,
     permoverrides: {string}
 }
 
-local function create(data: data.Framework, cd: CreateData) 
-    -- TODO: Optimize multiple userinfo fetches
+local function set(data: data.Framework, cd: SetData) 
     local targetUserInfo = data.userinfomanager.get(cd.userid)
     local authorUserinfo = data.userinfomanager.get(cd.author)
 
-    verifyMemberPermOverrideChange({op = "Create" :: "Create", authorUserInfo = authorUserinfo, targetUserInfo = targetUserInfo, perm_overrides = cd.permoverrides, author = cd.author})
-
-    local permsMapped = {}
-    for _, perm in cd.permoverrides do 
-        table.insert(permsMapped, kc.Permission.from_string(perm))
-    end    
-
-    data.userinfomanager.setMemberPermissionOverrides(cd.userid, permsMapped)
-end
-
-local function update(data: data.Framework, cd: CreateData) 
-    local targetUserInfo = data.userinfomanager.get(cd.userid)
-
-    if not targetUserInfo.permission_override_entry.createdat then
-        error("This user does not have any permission overrides set. Please create them first.")
-    end
-
-    local authorUserinfo = data.userinfomanager.get(cd.author)
-
-    verifyMemberPermOverrideChange({op = "Update" :: "Update", authorUserInfo = authorUserinfo, targetUserInfo = targetUserInfo, perm_overrides = cd.permoverrides, author = cd.author})
+    verifyMemberPermOverrideChange({op = "Set" :: "Set", authorUserInfo = authorUserinfo, targetUserInfo = targetUserInfo, perm_overrides = cd.permoverrides, author = cd.author})
 
     local permsMapped = {}
     for _, perm in cd.permoverrides do 
@@ -126,7 +106,6 @@ end
 return {
     fetch = fetch,
     view = view,
-    create = create,
-    update = update,
+    set = set,
     delete = delete
 }
