@@ -1,3 +1,4 @@
+--!strict
 local ctx = require"@antiraid-ext/frameworkv2/context"
 local settings = require"@antiraid-core/settings"
 local gm = require"./guildmembers"
@@ -9,7 +10,6 @@ local dummyform = sb.FormBuilder()
 :display({type="Error", error="This is a dummy form!"})
 :text("text", "Some Text")
 :button("send", "Send", "Primary", true)
-:build()
 
 local handler: ctx.SettingsHandler = {
     fetchpage = function(ctx: ctx.SettingsFetchPageContext): settings.Page 
@@ -32,7 +32,11 @@ local handler: ctx.SettingsHandler = {
         sb:addformdata("dummy", { id = "c", title = "C", data = { text = "initial3" } })
 
         return sb:build()
-    end
+    end,
+    formactions = {
+        mp_create = gm.create,
+        mp_update = gm.update,
+    }
 }
 
 return handler

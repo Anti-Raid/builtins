@@ -19,6 +19,9 @@ local function main(syscall: runtime.RawSyscall, ts: runtime.TenantState, btd: r
             data.updatetenantstate(evt.data)
             return {} 
         end
+        if type(evt.data) == "table" and type(evt.data.__tloop_template_id) == "string" then 
+            return data.ctx.loop.dispatchSingle(evt, evt.data.__tloop_template_id)
+        end
         return data.ctx.loop.dispatch(evt)
     end
     return dispatch
