@@ -9,6 +9,8 @@ local sf = require"@antiraid-ext/frameworkv2/settings"
 local dummyform = sb.FormBuilder()
 :display({type="Error", error="This is a dummy form!"})
 :text("text", "Some Text")
+:text("myrole", "Role Choice", nil, {type = "Role"})
+:text("mychan", "Channel Choice", nil, {type = "Channel"})
 :button("send", "Send", "Primary", true)
 
 local handler: ctx.SettingsHandler = {
