@@ -6,12 +6,12 @@ local settings = require"@antiraid-ext/frameworkv2/settings"
 local kc = require"@antiraid-core/kittycat"
 
 local createform = settings.FormBuilder()
-:text("user_id", "User ID")
+:text("user_id", "User", nil, {type="Member"})
 :array_text("perm_overrides", "Permission Overrides")
 :button("create", "Give Member Permissions", "Primary", true)
 
 local updateform = settings.FormBuilder()
-:text("user_id", "User ID", { disabled = true })
+:text("user_id", "User", { disabled = true }, {type="Member"})
 :array_text("perm_overrides", "Permission Overrides")
 :text("created_at", "Created At", { disabled = true })
 :button("delete", "Remove Member Permissions", "Danger", false) -- delete the setting

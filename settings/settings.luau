@@ -11,6 +11,7 @@ local dummyform = sb.FormBuilder()
 :text("text", "Some Text")
 :text("myrole", "Role Choice", nil, {type = "Role"})
 :text("mychan", "Channel Choice", nil, {type = "Channel"})
+:text("myuser", "User Choice", nil, {type = "Member"})
 :button("send", "Send", "Primary", true)
 
 local handler: ctx.SettingsHandler = {
