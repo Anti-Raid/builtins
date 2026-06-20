@@ -13,8 +13,8 @@ local dummyform = sb.FormBuilder()
 :text("mychan", "Channel Choice", nil, {type = "Channel"})
 :text("myuser", "User Choice", nil, {type = "Member"})
 :text("myselect", "Choose Option", nil, {type = "Fixed", choices={{label="Food", value="food"}, {label="Toys", value="toys"}}})
-:branch("(equals? myselect 'food)", sb.FormBuilder():text("foodname", "Food Name"))
-:branch("(equals? myselect 'toys)", sb.FormBuilder():text("toyname", "Toy Name"))
+:branch("(equals? myselect \"food\")", sb.FormBuilder():text("foodname", "Food Name"))
+:branch("(equals? myselect \"toys\")", sb.FormBuilder():text("toyname", "Toy Name"))
 :button("send", "Send", "Primary", true)
 
 local handler: ctx.SettingsHandler = {
