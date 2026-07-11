@@ -13,8 +13,8 @@ local dummyform = sb.FormBuilder()
 :text("mychan", "Channel Choice", nil, {type = "Channel"})
 :text("myuser", "User Choice", nil, {type = "Member"})
 :text("myselect", "Choose Option", nil, {type = "Fixed", choices={{label="Food", value="food"}, {label="Toys", value="toys"}}})
-:branch('(equal? (pget props "myselect") "food")', sb.FormBuilder():text("foodname", "Food Name"))
-:branch('(equal? (pget props "myselect") "toys")', sb.FormBuilder():text("toyname", "Toy Name"))
+:branch('food', '(equal? (pget props "myselect") id)', sb.FormBuilder():text("foodname", "Food Name"))
+:branch('toys', '(equal? (pget props "myselect") id)', sb.FormBuilder():text("toyname", "Toy Name"))
 :button("send", "Send", "Primary", true)
 
 local handler: ctx.SettingsHandler = {
