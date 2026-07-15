@@ -18,7 +18,7 @@ local function createBackup(ctx: Primitives.TemplateContext, opts: types.BackupC
     updater.addStatus("Generating backup archive")
     local tararchive = datamgmt.TarArchive()
     local encoded = json.tojsonstring(coreBackup)
-    local gzippedblob = datamgmt.compress("gzip", encoded)
+    local gzippedblob = datamgmt.compressgzip(encoded)
     tararchive:addfile("core.json.gz", gzippedblob)
 
     -- Add assets

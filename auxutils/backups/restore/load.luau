@@ -72,7 +72,7 @@ local function loadBackupBlob(src: types.RestoreSource, blob: blob.Blob, enckey:
 
         local coreDataBlob = tarArchive:takefile("core.json.gz")
         assert(coreDataBlob, "Core (core.json.gz) backup data not found in backup archive")
-        local decompressedblob = datamgmt.decompress("gzip", coreDataBlob) -- this creates a blob owned by rust containing the decompressed data
+        local decompressedblob = datamgmt.decompressgzip(coreDataBlob) -- this creates a blob owned by rust containing the decompressed data
         coreData = json.fromjsonstring(decompressedblob) -- creates the luau value from this rust-owned blob without any copying to luau
     else
         error("Unsupported backup format: " .. format)
