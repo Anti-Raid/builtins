@@ -45,6 +45,7 @@ local managers: Managers? = nil
 
 --- Gets or initializes the built-in managers
 local function getmanagers(ctx: Primitives.TemplateContext): Managers
+    print("Got managers", {a=1})
     if managers then return managers end
     
     local managersref: Managers = {} :: Managers
@@ -135,7 +136,6 @@ local function getmanagers(ctx: Primitives.TemplateContext): Managers
     managersref.auditlogmanager = auditlogmanager
     managersref.scriptmanager = scriptmanager
     managersref.backupmetadata = load.getbackupmetadata(ctx)
-
 
     managers = managersref
 
