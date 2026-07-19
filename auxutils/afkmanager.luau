@@ -42,7 +42,6 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
     local afkexpiry = KeyExpiryManager<<AFKExpiryData>>(ctx, "builtins.afk", function(record) 
         local afk = self.get(record.key)
         if not afk then 
-            ctx.debug("[AFKManager] Attempted to expire AFK for user "..record.key.." but they do not have an active AFK")
             return 
         end
 
@@ -131,7 +130,6 @@ local function AFKManager(ctx: Primitives.TemplateContext): AFKManager
     local function onAfkExpire(record: KeyExpiryManager.ExpiringKeyRecord<AFKExpiryData>)
         local afk = get(record.key)
         if not afk then 
-            ctx.debug("[AFKManager] Attempted to expire AFK for user "..record.key.." but they do not have an active AFK")
             return 
         end
         -- Dispatch an event with the result of the AFK expiry so other templates can react to it if needed

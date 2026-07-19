@@ -81,6 +81,20 @@ local function TemplateManager(ctx: Primitives.TemplateContext, expose: {[string
         }
     end
 
+    local function createExpose(tmplName: string)
+        local base = {}
+        if expose then
+            for k, v in expose do base[k] = v end
+        end
+        base.print = function(...)
+            local str = (typesext.fmtpretty :: any)(...)
+            if ctx.stream then
+                ctx.stream.publish("print", { type = "Log", message = str, source = tmplName })
+            end
+        end
+        return base
+    end
+
     local self = {}
 
     -- Initialize
@@ -90,8 +104,8 @@ local function TemplateManager(ctx: Primitives.TemplateContext, expose: {[string
             local tmpl = _parseCustomTemplate(template)
             templates[template.key] = tmpl
             if not tmpl.paused then
-                ctx.loop.attach(isolate.new("template/"..tmpl.name, tmpl.vfs, expose))
-                ctx.loop.dispatch({name = "OnStartup", data = { reason = "startup" }}, "template/"..tmpl.name)
+                ctx.loop.attach(isolate.new("template/"..tmpl.name, tmpl.vfs, createExpose(tmpl.name)))
+                ctx.loop.dispatchSingle({name = "OnStartup", data = { reason = "startup" }}, "template/"..tmpl.name)
             end
         end
 
@@ -129,8 +143,8 @@ local function TemplateManager(ctx: Primitives.TemplateContext, expose: {[string
         templates[data.name] = parsedtmpl
 
         if not parsedtmpl.paused then
-            ctx.loop.attach(isolate.new("template/"..parsedtmpl.name, parsedtmpl.vfs, expose))
-            ctx.loop.dispatch({name = "OnStartup", data = { reason = "updateTemplateCache" }}, "template/"..parsedtmpl.name)
+            ctx.loop.attach(isolate.new("template/"..parsedtmpl.name, parsedtmpl.vfs, createExpose(parsedtmpl.name)))
+            ctx.loop.dispatchSingle({name = "OnStartup", data = { reason = "updateTemplateCache" }}, "template/"..parsedtmpl.name)
         else 
             ctx.loop.detach("template/"..parsedtmpl.name) -- detach paused isolate
         end
